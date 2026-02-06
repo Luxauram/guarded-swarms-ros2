@@ -1,38 +1,25 @@
-\# Guarded Swarms: ROS 2 Implementation
+# Guarded Swarms: ROS 2 Implementation
 
-
-
-\*\*Work in Progress\*\*
-
-
+**Work in Progress**
 
 ROS 2 digital twin implementing Guarded Swarms hybrid coordination for UAV-UGV swarms.
 
-
-
 Based on: Borghoff, Bottoni, Pareschi (2025) - "Guarded Swarms: Hybrid Digital-Analog Coordination for AI-Robot Systems"
 
+# Status
 
+- [x] Repository initialization
 
-\## Status
+- [ ] Docker environment setup
 
-\- \[x] Repository initialization
+- [ ] PX4 SITL integration
 
-\- \[ ] Docker environment setup
+- [ ] Offboard control node
 
-\- \[ ] PX4 SITL integration
+## Quick Start
 
-\- \[ ] Offboard control node
+_Coming soon_
 
-
-
-\## Quick Start
-
-\*Coming soon\*
-
-
-
-\## License
+## License
 
 Apache-2.0
-
