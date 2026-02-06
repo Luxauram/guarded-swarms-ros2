@@ -1,0 +1,86 @@
+# ROS 2 Build Artifacts
+build/
+install/
+log/
+.colcon/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+*.egg
+
+# C++
+*.o
+*.a
+*.so
+*.exe
+*.out
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+
+# IDE - VS Code
+.vscode/
+*.code-workspace
+.history/
+
+# IDE - PyCharm / IntelliJ
+.idea/
+*.iml
+*.iws
+
+# IDE - Vim
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Docker
+.dockerignore
+
+# Logs
+*.log
+*.out
+
+# Backup files
+*.bak
+*.backup
+*~
+
+# Gazebo
+.gazebo/
+
+# PX4
+PX4-Autopilot/build/
+PX4-Autopilot/Tools/
+
+# ROS bags
+*.bag
+*.db3
+
+# Environment
+.env
+.env.local
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Documentation builds
+docs/_build/
+docs/doxygen/
+
+# Temporary
+tmp/
+temp/
