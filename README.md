@@ -13,7 +13,7 @@ PX4-Autopilot is cloned manually inside the container (not tracked in Git).
 ### Clone PX4
 
 ```bash
-docker exec -it guarded_swarms_dev bash
+docker exec -it guarded_swarms bash
 cd /workspace
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 cd PX4-Autopilot
@@ -31,14 +31,14 @@ HEADLESS=1 make px4_sitl gz_x500
 **Terminal 1: micro-ROS Agent**
 
 ```bash
-docker exec -it guarded_swarms_dev bash
+docker exec -it guarded_swarms bash
 MicroXRCEAgent udp4 -p 8888
 ```
 
 **Terminal 2: PX4 SITL**
 
 ```bash
-docker exec -it guarded_swarms_dev bash
+docker exec -it guarded_swarms bash
 cd /workspace/PX4-Autopilot
 HEADLESS=1 make px4_sitl gz_x500
 ```
@@ -46,7 +46,7 @@ HEADLESS=1 make px4_sitl gz_x500
 **Terminal 3: Verify Topics**
 
 ```bash
-docker exec -it guarded_swarms_dev bash
+docker exec -it guarded_swarms bash
 source /workspace/install/setup.bash
 ros2 topic list | grep fmu
 ```

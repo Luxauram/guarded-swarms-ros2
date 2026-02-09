@@ -3,7 +3,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: guarded_swarms_dev
+    image: guarded_swarms:latest
+    container_name: guarded_swarms
     stdin_open: true
     tty: true
     network_mode: host
@@ -14,9 +15,15 @@ services:
       - ros2_log:/workspace/log
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
-      - DISPLAY=${DISPLAY}
+      # Windows: DISPLAY=host.docker.internal:0.0
+      # Linux: DISPLAY=:0
+      # macOS: DISPLAY=<your-ip>:0
+      - DISPLAY=host.docker.internal:0.0
       - ROS_DOMAIN_ID=42
       - QT_X11_NO_MITSHM=1
+      - LIBGL_ALWAYS_INDIRECT=0
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - GALLIUM_DRIVER=llvmpipe
     command: /bin/bash
 
 volumes:
