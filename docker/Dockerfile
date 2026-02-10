@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y \
     curl \
     cmake \
     build-essential \
+    mesa-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
