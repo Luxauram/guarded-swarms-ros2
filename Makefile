@@ -23,7 +23,7 @@
         docker-status docker-clean \
         ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-test-topics \
         ros2-graph ros2-agent ros2-node \
-        px4-run px4-kill px4-console px4-gui \
+        px4-run px4-kill px4-console px4-gui px4-config px4-reset-params \
         gazebo-test gazebo-worlds
 
 .DEFAULT_GOAL := help
@@ -99,6 +99,8 @@ help:
 	@echo "    make px4-gui              Launch PX4 with Gazebo 3D interface"
 	@echo "    make px4-console          Open PX4 interactive console"
 	@echo "    make px4-kill             Kill all PX4 and Gazebo processes"
+	@echo "    make px4-config        Set parameters for offboard control"
+	@echo "    make px4-reset-params     Reset parameters to factory defaults"
 	@echo ""
 	@echo "===================================="
 	@echo "  GAZEBO MANAGEMENT"
@@ -321,13 +323,18 @@ kill-all:
 	@echo ""
 	@echo "Stopping all running processes..."
 	@echo ""
-	@echo "[1/3] Terminating PX4 SITL processes..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 || true" 2>/dev/null || true
-	@echo "[2/3] Terminating Gazebo processes..."
-	@docker exec guarded_swarms bash -c "pkill -9 gz || true" 2>/dev/null || true
-	@echo "[3/3] Terminating micro-ROS agent..."
-	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent || true" 2>/dev/null || true
-	@sleep 1
+	@echo "[1/4] Terminating PX4 SITL processes..."
+	@docker exec guarded_swarms bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
+	@echo "[2/4] Terminating Gazebo processes..."
+	@docker exec guarded_swarms bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
+	@echo "[3/4] Terminating micro-ROS agent..."
+	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent 2>/dev/null || true" 2>/dev/null || true
+	@echo "[4/4] Cleaning up shared memory..."
+	@docker exec guarded_swarms bash -c "rm -rf /tmp/.gazebo* /tmp/.X* 2>/dev/null || true" 2>/dev/null || true
+	@sleep 2
 	@echo ""
 	@echo "Stopping Docker container..."
 	@cd docker && docker-compose down 2>/dev/null || true
@@ -436,6 +443,9 @@ ros2-agent:
 		echo ""; \
 		exit 1; \
 	fi
+	@echo "Stopping any existing micro-ROS agent..."
+	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent 2>/dev/null || true" 2>/dev/null || true
+	@sleep 1
 	@echo "Bridge listening on UDP port 8888."
 	@echo "Keep this terminal open. Press Ctrl+C to stop."
 	@echo ""
@@ -456,6 +466,9 @@ ros2-node:
 	@echo "  Terminal 1: make ros2-agent"
 	@echo "  Terminal 2: make px4-run"
 	@echo ""
+	@echo "Stopping any existing offboard control node..."
+	@docker exec guarded_swarms bash -c "pkill -9 -f offboard_control_node 2>/dev/null || true" 2>/dev/null || true
+	@sleep 1
 	@echo "Keep this terminal open. Press Ctrl+C to stop."
 	@echo ""
 	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && ros2 run guarded_swarms_control offboard_control_node"
@@ -498,10 +511,13 @@ px4-gui:
 		echo ""; \
 		exit 1; \
 	fi
-	@echo "Stopping any existing PX4 instances..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 || true"
-	@docker exec guarded_swarms bash -c "pkill -9 gz || true"
-	@sleep 2
+	@echo "Stopping any existing PX4 and Gazebo instances..."
+	@docker exec guarded_swarms bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
+	@docker exec guarded_swarms bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
+	@sleep 3
 	@echo "Prerequisites:"
 	@echo "  - X server must be running"
 	@echo "  - Windows: VcXsrv with 'Disable access control' enabled"
@@ -529,6 +545,42 @@ px4-kill:
 	@docker exec guarded_swarms bash -c "pkill -9 gz || true"
 	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent || true"
 	@echo "All processes stopped."
+
+px4-config:
+	@echo "=========================================="
+	@echo "Configure PX4 for Offboard Control"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites: PX4 must be running (make px4-run or px4-gui)"
+	@echo ""
+	@echo "Copy-paste these commands at the pxh> prompt:"
+	@echo ""
+	@echo "param set COM_ARM_WO_GPS 1"
+	@echo "param set SYS_HAS_MAG 0"
+	@echo "param set COM_RC_IN_MODE 1"
+	@echo "param set NAV_RCL_ACT 0"
+	@echo "param set NAV_DLL_ACT 0"
+	@echo "param set COM_RCL_EXCEPT 4"
+	@echo "param save"
+	@echo ""
+
+px4-reset-params:
+	@echo "=========================================="
+	@echo "Reset PX4 Parameters to Defaults"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites: PX4 must be running (make px4-run or px4-gui)"
+	@echo ""
+	@echo "Copy-paste these commands at the pxh> prompt:"
+	@echo ""
+	@echo "param set COM_ARM_WO_GPS 0"
+	@echo "param set SYS_HAS_MAG 1"
+	@echo "param set COM_RC_IN_MODE 4"
+	@echo "param set NAV_RCL_ACT 2"
+	@echo "param set NAV_DLL_ACT 2"
+	@echo "param set COM_RCL_EXCEPT 0"
+	@echo "param save"
+	@echo ""
 
 # ==============================================================================
 # Gazebo Management
