@@ -18,17 +18,9 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs
 )
 
-# ament_python_install_package(${PROJECT_NAME})
-
 # ============================================================================
 # Install
 # ============================================================================
-install(DIRECTORY ${PROJECT_NAME}/
-  DESTINATION lib/python3.10/site-packages/${PROJECT_NAME}
-  PATTERN "*.pyc" EXCLUDE
-  PATTERN "__pycache__" EXCLUDE
-)
-
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
   OPTIONAL
@@ -43,3 +35,9 @@ if(BUILD_TESTING)
 endif()
 
 ament_package()
+
+install(FILES
+  ${PROJECT_NAME}/__init__.py
+  ${PROJECT_NAME}/token.py
+  DESTINATION local/lib/python3.10/dist-packages/${PROJECT_NAME}
+)
