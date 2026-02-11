@@ -1,7 +1,7 @@
 # Geometry token - defines spatial area request
 
 # Base token fields
-Token base_token
+guarded_swarms_coordinator/Token base_token
 
 # Requested geometry (simplified as bounding box)
 # Position: center point [x, y, z] in meters

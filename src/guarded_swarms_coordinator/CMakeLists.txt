@@ -18,18 +18,20 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   DEPENDENCIES std_msgs
 )
 
-ament_python_install_package(${PROJECT_NAME})
-
-install(PROGRAMS
-  DESTINATION lib/${PROJECT_NAME}
-)
+# ament_python_install_package(${PROJECT_NAME})
 
 # ============================================================================
 # Install
 # ============================================================================
-install(DIRECTORY
-  launch
-  DESTINATION share/${PROJECT_NAME}/
+install(DIRECTORY ${PROJECT_NAME}/
+  DESTINATION lib/python3.10/site-packages/${PROJECT_NAME}
+  PATTERN "*.pyc" EXCLUDE
+  PATTERN "__pycache__" EXCLUDE
+)
+
+install(DIRECTORY launch/
+  DESTINATION share/${PROJECT_NAME}/launch
+  OPTIONAL
 )
 
 # ============================================================================
