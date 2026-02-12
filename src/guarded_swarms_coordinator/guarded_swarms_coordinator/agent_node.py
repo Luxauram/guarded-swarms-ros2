@@ -116,7 +116,7 @@ class AgentNode(Node):
         """
         zones = {
             "agent_A": {"center": [0.0, 0.0, 5.0], "size": 10.0},
-            "agent_B": {"center": [0.0, 0.0, 5.0], "size": 10.0},
+            "agent_B": {"center": [15.0, 0.0, 5.0], "size": 10.0},
             "agent_C": {"center": [0.0, 15.0, 5.0], "size": 10.0},
             "agent_D": {"center": [15.0, 15.0, 5.0], "size": 10.0},
         }
