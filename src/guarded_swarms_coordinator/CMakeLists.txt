@@ -23,6 +23,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # ============================================================================
 install(PROGRAMS
   ${PROJECT_NAME}/agent_node.py
+  ${PROJECT_NAME}/coordinator_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
@@ -45,5 +46,6 @@ install(FILES
   ${PROJECT_NAME}/__init__.py
   ${PROJECT_NAME}/token.py
   ${PROJECT_NAME}/agent_node.py
+  ${PROJECT_NAME}/coordinator_node.py
   DESTINATION local/lib/python3.10/dist-packages/${PROJECT_NAME}
 )
