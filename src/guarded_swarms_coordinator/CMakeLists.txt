@@ -21,6 +21,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 # ============================================================================
 # Install
 # ============================================================================
+install(PROGRAMS
+  ${PROJECT_NAME}/agent_node.py
+  DESTINATION lib/${PROJECT_NAME}
+)
+
 install(DIRECTORY launch/
   DESTINATION share/${PROJECT_NAME}/launch
   OPTIONAL
@@ -39,5 +44,6 @@ ament_package()
 install(FILES
   ${PROJECT_NAME}/__init__.py
   ${PROJECT_NAME}/token.py
+  ${PROJECT_NAME}/agent_node.py
   DESTINATION local/lib/python3.10/dist-packages/${PROJECT_NAME}
 )
