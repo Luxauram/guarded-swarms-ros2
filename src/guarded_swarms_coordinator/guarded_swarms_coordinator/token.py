@@ -161,12 +161,22 @@ class GeometryToken(Token):
     spatial conflicts between multiple agents.
     """
 
+    # ========================================================================
+    # Constants
+    # ========================================================================
+    PRIORITY_EMERGENCY = 10
+    PRIORITY_HIGH = 7
+    PRIORITY_NORMAL = 5
+    PRIORITY_LOW = 3
+    PRIORITY_MINIMAL = 0
+
     def __init__(
         self,
         agent_id: str,
         position: List[float],
         dimensions: List[float],
         duration: float,
+        priority: int = 5,
         token_id: Optional[str] = None,
     ):
         """
@@ -176,6 +186,7 @@ class GeometryToken(Token):
         @param position [x, y, z] center point in meters
         @param dimensions [width, height, depth] in meters
         @param duration Time needed for this area in seconds
+        @param priority Priority level 0-10 (default: 5 = normal)
         @param token_id Optional custom token ID
 
         @throws ValueError if position/dimensions not 3D or duration invalid
@@ -188,10 +199,13 @@ class GeometryToken(Token):
             raise ValueError("Dimensions must be [width, height, depth]")
         if duration <= 0:
             raise ValueError("Duration must be positive")
+        if not 0 <= priority <= 10:
+            raise ValueError("Priority must be between 0 and 10")
 
         self.position = position
         self.dimensions = dimensions
         self.duration = duration
+        self.priority = priority
 
     def to_msg(self) -> GeometryTokenMsg:
         """
@@ -204,6 +218,7 @@ class GeometryToken(Token):
         msg.position = self.position
         msg.dimensions = self.dimensions
         msg.duration = self.duration
+        msg.priority = self.priority
         return msg
 
     @staticmethod
@@ -224,6 +239,7 @@ class GeometryToken(Token):
         token.position = list(msg.position)
         token.dimensions = list(msg.dimensions)
         token.duration = msg.duration
+        token.priority = msg.priority
         return token
 
     def overlaps_with(self, other: "GeometryToken") -> bool:
@@ -253,7 +269,7 @@ class GeometryToken(Token):
             f"GeometryToken(id={self.token_id[:8]}..., "
             f"agent={self.agent_id}, "
             f"pos={self.position}, "
-            f"dim={self.dimensions})"
+            f"priority={self.priority})"
         )
 
 
@@ -338,8 +354,6 @@ class AuthToken(Token):
 # ============================================================================
 # Utility Functions
 # ============================================================================
-
-
 def create_geometry_token(
     agent_id: str,
     x: float,
@@ -349,6 +363,7 @@ def create_geometry_token(
     height: float,
     depth: float,
     duration: float,
+    priority: int = 5,
 ) -> GeometryToken:
     """
     Convenience function to create a geometry token.
@@ -357,10 +372,15 @@ def create_geometry_token(
     @param x, y, z Position coordinates in meters
     @param width, height, depth Bounding box dimensions in meters
     @param duration Duration in seconds
+    @param priority Priority level 0-10 (default: 5)
     @return GeometryToken instance
     """
     return GeometryToken(
-        agent_id=agent_id, position=[x, y, z], dimensions=[width, height, depth], duration=duration
+        agent_id=agent_id,
+        position=[x, y, z],
+        dimensions=[width, height, depth],
+        duration=duration,
+        priority=priority,
     )
 
 

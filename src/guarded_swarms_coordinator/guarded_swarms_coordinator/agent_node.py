@@ -60,6 +60,7 @@ class AgentNode(Node):
     QUEUE_SIZE = 10
 
     DEFAULT_PUBLISH_RATE_HZ = 1.0
+    DEFAULT_PRIORITY = 5
 
     STANDARD_BBOX_WIDTH = 5.0
     STANDARD_BBOX_HEIGHT = 5.0
@@ -74,16 +75,23 @@ class AgentNode(Node):
     # Initialization
     # ========================================================================
 
-    def __init__(self, agent_id: str, publish_rate: float = DEFAULT_PUBLISH_RATE_HZ):
+    def __init__(
+        self,
+        agent_id: str,
+        publish_rate: float = DEFAULT_PUBLISH_RATE_HZ,
+        priority: int = DEFAULT_PRIORITY,
+    ):
         """
         Initialize agent node with operational parameters.
 
         @param agent_id Unique agent identifier (e.g., "agent_A")
         @param publish_rate Token publishing frequency in Hz (default: 1.0)
+        @param priority Mission priority level 0-10 (default: 5)
         """
         super().__init__(f"{agent_id}_node")
 
         self.agent_id = agent_id
+        self.priority = priority
         self.operational_area = self._initialize_operational_area()
 
         self.geometry_publisher = self.create_publisher(
@@ -93,7 +101,9 @@ class AgentNode(Node):
         timer_period = 1.0 / publish_rate
         self.timer = self.create_timer(timer_period, self.publish_geometry_token)
 
-        self.get_logger().info(f"{self.agent_id} initialized. Publishing at {publish_rate} Hz")
+        self.get_logger().info(
+            f"{self.agent_id} initialized. " f"Publishing at {publish_rate} Hz, priority={priority}"
+        )
 
     def _initialize_operational_area(self) -> dict:
         """
@@ -106,7 +116,7 @@ class AgentNode(Node):
         """
         zones = {
             "agent_A": {"center": [0.0, 0.0, 5.0], "size": 10.0},
-            "agent_B": {"center": [15.0, 0.0, 5.0], "size": 10.0},
+            "agent_B": {"center": [0.0, 0.0, 5.0], "size": 10.0},
             "agent_C": {"center": [0.0, 15.0, 5.0], "size": 10.0},
             "agent_D": {"center": [15.0, 15.0, 5.0], "size": 10.0},
         }
@@ -123,7 +133,7 @@ class AgentNode(Node):
 
         Generates spatial request with random offset from zone center to
         simulate dynamic monitoring scenarios. Token includes cryptographic
-        signature for coordinator validation.
+        signature and priority level for coordinator validation.
         """
         center = self.operational_area["center"]
         zone_size = self.operational_area["size"]
@@ -139,6 +149,7 @@ class AgentNode(Node):
 
         duration = random.uniform(self.DURATION_MIN_SECONDS, self.DURATION_MAX_SECONDS)
 
+        # Create token with priority
         token = create_geometry_token(
             agent_id=self.agent_id,
             x=position[0],
@@ -148,6 +159,7 @@ class AgentNode(Node):
             height=dimensions[1],
             depth=dimensions[2],
             duration=duration,
+            priority=self.priority,
         )
 
         msg = token.to_msg()
@@ -156,6 +168,7 @@ class AgentNode(Node):
         self.get_logger().info(
             f"{self.agent_id} published token: "
             f"pos=[{position[0]:.1f}, {position[1]:.1f}, {position[2]:.1f}], "
+            f"priority={self.priority}, "
             f"id={token.token_id[:8]}..."
         )
 
@@ -169,19 +182,20 @@ def main(args=None):
     """
     Main entry point for agent node.
 
-    Initializes ROS 2, parses agent ID from parameters, and spins the node
-    until shutdown. Agent ID must be provided via ROS 2 parameter.
-
-    @param args Command line arguments (unused, handled by ROS 2)
+    Initializes ROS 2, parses agent ID and priority from parameters,
+    and spins the node until shutdown.
     """
     rclpy.init(args=args)
 
     temp_node = rclpy.create_node("temp_param_reader")
     temp_node.declare_parameter("agent_id", "agent_A")
+    temp_node.declare_parameter("priority", 5)
+
     agent_id = temp_node.get_parameter("agent_id").value
+    priority = temp_node.get_parameter("priority").value
     temp_node.destroy_node()
 
-    node = AgentNode(agent_id=agent_id)
+    node = AgentNode(agent_id=agent_id, priority=priority)
 
     try:
         rclpy.spin(node)

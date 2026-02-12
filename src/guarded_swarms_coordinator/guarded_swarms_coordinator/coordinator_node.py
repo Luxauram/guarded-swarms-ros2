@@ -65,24 +65,32 @@ class CoordinatorNode(Node):
     TOPIC_AUTH_TOKENS = "/auth_tokens"
     QUEUE_SIZE = 10
 
+    MODE_FCFS = "fcfs"
+    MODE_PRIORITY = "priority"
+    MODE_HYBRID = "hybrid"
+
     CONCURRENCY_WINDOW_MS = 300
     BUFFER_CLEANUP_RATE_HZ = 10
+    PRIORITY_THRESHOLD = 3
 
     # ========================================================================
     # Initialization
     # ========================================================================
 
-    def __init__(self, coordinator_id: str = "coordinator_R1"):
+    def __init__(self, coordinator_id: str = "coordinator_R1", arbitration_mode: str = "priority"):
         """
         Initialize coordinator node with arbitration structures.
 
         @param coordinator_id Unique coordinator identifier
+        @param arbitration_mode "fcfs", "priority", or "hybrid"
         """
         super().__init__(f"{coordinator_id}_node")
 
         self.coordinator_id = coordinator_id
+        self.arbitration_mode = arbitration_mode
 
         self.token_buffer = deque()
+
         self.approved_tokens = {}
 
         self.geometry_subscriber = self.create_subscription(
@@ -101,6 +109,7 @@ class CoordinatorNode(Node):
 
         self.get_logger().info(
             f"{self.coordinator_id} initialized. "
+            f"Mode: {arbitration_mode}, "
             f"Concurrency window: {self.CONCURRENCY_WINDOW_MS}ms"
         )
 
@@ -113,7 +122,7 @@ class CoordinatorNode(Node):
         Processes incoming geometry token and makes authorization decision.
 
         Validates signature, checks expiration, detects spatial conflicts,
-        and publishes authorization result.
+        applies arbitration policy, and publishes authorization result.
 
         @param msg Incoming GeometryTokenMsg from agent
         """
@@ -122,7 +131,8 @@ class CoordinatorNode(Node):
         self.get_logger().info(
             f"Received token from {token.agent_id}: "
             f"id={token.token_id[:8]}..., "
-            f"pos={token.position}"
+            f"pos={token.position}, "
+            f"priority={token.priority}"
         )
 
         if not self._validate_signature(token):
@@ -138,7 +148,15 @@ class CoordinatorNode(Node):
         conflict_detected, conflicting_token = self._detect_conflict(token)
 
         if conflict_detected:
-            self._reject_token(token, f"conflict_with_{conflicting_token.agent_id}")
+            decision = self._arbitrate_conflict(token, conflicting_token)
+
+            if decision == "approve_new":
+                self._approve_token(token)
+            else:
+                self._reject_token(
+                    token,
+                    f"conflict_with_{conflicting_token.agent_id}_priority_{conflicting_token.priority}",
+                )
         else:
             self._approve_token(token)
 
@@ -164,7 +182,8 @@ class CoordinatorNode(Node):
         Detects spatial conflicts with currently approved tokens.
 
         Uses AABB collision detection to check if requested volume intersects
-        with any active approved volumes from other agents.
+        with any active approved volumes from OTHER agents. Same-agent tokens
+        are ignored as they will be auto-replaced.
 
         @param token GeometryToken to check for conflicts
         @return Tuple of (conflict_detected, conflicting_token)
@@ -178,12 +197,66 @@ class CoordinatorNode(Node):
 
             if token.overlaps_with(approved_token):
                 self.get_logger().warn(
-                    f"Conflict detected: {token.agent_id} overlaps with "
-                    f"{approved_token.agent_id} (token {approved_id[:8]}...)"
+                    f"Conflict detected: {token.agent_id} (priority={token.priority}) "
+                    f"overlaps with {approved_token.agent_id} "
+                    f"(priority={approved_token.priority})"
                 )
                 return True, approved_token
 
         return False, None
+
+    # ========================================================================
+    # Arbitration Logic
+    # ========================================================================
+
+    def _arbitrate_conflict(self, new_token: GeometryToken, existing_token: GeometryToken) -> str:
+        """
+        Arbitrates between conflicting tokens based on configured mode.
+
+        @param new_token Incoming token requesting space
+        @param existing_token Currently approved conflicting token
+        @return "approve_new" if new token wins, "reject_new" if existing wins
+        """
+        if self.arbitration_mode == self.MODE_FCFS:
+            self.get_logger().debug("FCFS mode: existing token wins")
+            return "reject_new"
+
+        elif self.arbitration_mode == self.MODE_PRIORITY:
+            if new_token.priority > existing_token.priority:
+                self.get_logger().info(
+                    f"Priority mode: new token (priority={new_token.priority}) "
+                    f"preempts existing (priority={existing_token.priority})"
+                )
+                self._revoke_token(
+                    existing_token,
+                    f"preempted_by_{new_token.agent_id}_priority_{new_token.priority}",
+                )
+                return "approve_new"
+            else:
+                self.get_logger().debug(
+                    f"Priority mode: existing token priority "
+                    f"({existing_token.priority}) >= new ({new_token.priority})"
+                )
+                return "reject_new"
+
+        elif self.arbitration_mode == self.MODE_HYBRID:
+            priority_diff = new_token.priority - existing_token.priority
+
+            if priority_diff >= self.PRIORITY_THRESHOLD:
+                self.get_logger().info(
+                    f"Hybrid mode: priority difference ({priority_diff}) >= threshold "
+                    f"({self.PRIORITY_THRESHOLD}), preempting existing token"
+                )
+                self._revoke_token(existing_token, f"priority_override_diff_{priority_diff}")
+                return "approve_new"
+            else:
+                self.get_logger().debug(
+                    f"Hybrid mode: priority difference ({priority_diff}) < threshold "
+                    f"({self.PRIORITY_THRESHOLD}), FCFS applies"
+                )
+                return "reject_new"
+
+        return "reject_new"
 
     # ========================================================================
     # Authorization Decisions
@@ -222,7 +295,7 @@ class CoordinatorNode(Node):
 
         self.get_logger().info(
             f"✓ APPROVED: {token.agent_id} token {token.token_id[:8]}... "
-            f"at pos={token.position}"
+            f"at pos={token.position}, priority={token.priority}"
         )
 
     def _reject_token(self, token: GeometryToken, reason: str):
@@ -243,7 +316,35 @@ class CoordinatorNode(Node):
         self.auth_publisher.publish(auth_msg)
 
         self.get_logger().warn(
-            f"✗ REJECTED: {token.agent_id} token {token.token_id[:8]}... " f"reason: {reason}"
+            f"✗ REJECTED: {token.agent_id} token {token.token_id[:8]}... "
+            f"priority={token.priority}, reason: {reason}"
+        )
+
+    def _revoke_token(self, token: GeometryToken, reason: str):
+        """
+        Revokes previously approved token due to higher priority request.
+
+        Sends revocation authorization to notify agent that their previously
+        approved spatial allocation has been preempted.
+
+        @param token GeometryToken to revoke
+        @param reason Reason for revocation
+        """
+        if token.token_id in self.approved_tokens:
+            self.approved_tokens.pop(token.token_id)
+
+        revoke_auth = create_auth_token(
+            geometry_token=token,
+            approved=False,
+            coordinator_id=self.coordinator_id,
+            reason=f"revoked_{reason}",
+        )
+
+        self.auth_publisher.publish(revoke_auth.to_msg())
+
+        self.get_logger().warn(
+            f"⚠ REVOKED: {token.agent_id} token {token.token_id[:8]}... "
+            f"priority={token.priority}, reason: {reason}"
         )
 
     # ========================================================================
@@ -294,20 +395,20 @@ class CoordinatorNode(Node):
             "buffer_size": len(self.token_buffer),
             "approved_count": len(self.approved_tokens),
             "coordinator_id": self.coordinator_id,
+            "arbitration_mode": self.arbitration_mode,
         }
 
 
 # ============================================================================
 # Main Function
 # ============================================================================
-
-
 def main(args=None):
     """
     Main entry point for coordinator node.
 
-    Initializes ROS 2, parses coordinator ID from parameters, and spins
-    the node until shutdown. Prints final statistics on exit.
+    Initializes ROS 2, parses coordinator ID and arbitration mode from
+    parameters, and spins the node until shutdown. Prints final statistics
+    on exit.
 
     @param args Command line arguments (unused, handled by ROS 2)
     """
@@ -315,10 +416,13 @@ def main(args=None):
 
     temp_node = rclpy.create_node("temp_param_reader")
     temp_node.declare_parameter("coordinator_id", "coordinator_R1")
+    temp_node.declare_parameter("arbitration_mode", "priority")
+
     coordinator_id = temp_node.get_parameter("coordinator_id").value
+    arbitration_mode = temp_node.get_parameter("arbitration_mode").value
     temp_node.destroy_node()
 
-    node = CoordinatorNode(coordinator_id=coordinator_id)
+    node = CoordinatorNode(coordinator_id=coordinator_id, arbitration_mode=arbitration_mode)
 
     try:
         rclpy.spin(node)
@@ -327,7 +431,9 @@ def main(args=None):
     finally:
         stats = node.get_buffer_stats()
         node.get_logger().info(
-            f"Final stats: {stats['buffer_size']} in buffer, " f"{stats['approved_count']} approved"
+            f"Final stats: {stats['buffer_size']} in buffer, "
+            f"{stats['approved_count']} approved, "
+            f"mode: {stats['arbitration_mode']}"
         )
         node.destroy_node()
         rclpy.shutdown()
