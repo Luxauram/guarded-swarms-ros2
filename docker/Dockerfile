@@ -1,4 +1,8 @@
-FROM osrf/ros:humble-desktop-full
+# Copyright 2026 Luca D'Aurizio
+# Licensed under Apache-2.0
+# Guarded Swarms ROS2 Development Container
+
+FROM osrf/ros:humble-desktop
 
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /workspace
@@ -11,7 +15,6 @@ RUN apt-get update && apt-get install -y \
     python3-pip \
     python3-rosdep \
     git \
-    vim \
     wget \
     curl \
     cmake \
@@ -22,7 +25,7 @@ RUN apt-get update && apt-get install -y \
 # ============================================================================
 # LAYER 2: Gazebo Harmonic
 # ============================================================================
-RUN wget https://packages.osrfoundation.org/gazebo.gpg \
+RUN wget -q https://packages.osrfoundation.org/gazebo.gpg \
     -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
     http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
@@ -36,11 +39,11 @@ RUN wget https://packages.osrfoundation.org/gazebo.gpg \
 # LAYER 3: Micro-XRCE-DDS Agent (PX4 Bridge)
 # ============================================================================
 RUN cd /tmp && \
-    git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
+    git clone --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git && \
     cd Micro-XRCE-DDS-Agent && \
     mkdir build && cd build && \
     cmake .. && \
-    make && \
+    make -j$(nproc) && \
     make install && \
     ldconfig /usr/local/lib/ && \
     cd / && \
@@ -65,7 +68,28 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
-# LAYER 5: Auto-source ROS 2
+# LAYER 5: Web Dashboard Backend Dependencies
+# ============================================================================
+RUN pip3 install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    websockets==12.0 \
+    pydantic==2.5.0 \
+    python-multipart==0.0.6
+
+# ============================================================================
+# LAYER 6: Frontend Tools (Bun + TypeScript)
+# ============================================================================
+RUN curl -fsSL https://bun.sh/install | bash && \
+    ln -s /root/.bun/bin/bun /usr/local/bin/bun && \
+    ln -s /root/.bun/bin/bunx /usr/local/bin/bunx && \
+    /root/.bun/bin/bun add -g typescript
+
+ENV BUN_INSTALL="/root/.bun"
+ENV PATH="${BUN_INSTALL}/bin:${PATH}"
+
+# ============================================================================
+# LAYER 7: Auto-source ROS 2 Workspace
 # ============================================================================
 RUN echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc && \
     echo "if [ -f /workspace/install/setup.bash ]; then source /workspace/install/setup.bash; fi" >> ~/.bashrc
