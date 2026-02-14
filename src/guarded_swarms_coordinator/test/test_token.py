@@ -32,8 +32,15 @@ Comprehensive test suite covering:
 
 import time
 import unittest
-from guarded_swarms_coordinator.token import Token, GeometryToken, AuthToken
-from guarded_swarms_coordinator.token import create_geometry_token, create_auth_token
+from guarded_swarms_coordinator.guarded_swarms_coordinator.token_system import (
+    Token,
+    GeometryToken,
+    AuthToken,
+)
+from guarded_swarms_coordinator.guarded_swarms_coordinator.token_system import (
+    create_geometry_token,
+    create_auth_token,
+)
 
 
 class TestToken(unittest.TestCase):

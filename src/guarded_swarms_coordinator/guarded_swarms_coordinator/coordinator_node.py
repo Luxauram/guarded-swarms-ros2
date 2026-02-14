@@ -43,7 +43,10 @@ import rclpy
 from rclpy.node import Node
 from guarded_swarms_coordinator.msg import GeometryToken as GeometryTokenMsg
 from guarded_swarms_coordinator.msg import AuthToken as AuthTokenMsg
-from guarded_swarms_coordinator.token import GeometryToken, create_auth_token
+from guarded_swarms_coordinator.token_system import (
+    GeometryToken,
+    create_auth_token,
+)
 from collections import deque
 import time
 

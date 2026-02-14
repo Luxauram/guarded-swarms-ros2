@@ -44,7 +44,7 @@ ament_package()
 
 install(FILES
   ${PROJECT_NAME}/__init__.py
-  ${PROJECT_NAME}/token.py
+  ${PROJECT_NAME}/token_system.py
   ${PROJECT_NAME}/agent_node.py
   ${PROJECT_NAME}/coordinator_node.py
   DESTINATION local/lib/python3.10/dist-packages/${PROJECT_NAME}

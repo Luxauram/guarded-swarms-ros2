@@ -39,7 +39,7 @@ Typical usage:
 import rclpy
 from rclpy.node import Node
 from guarded_swarms_coordinator.msg import GeometryToken as GeometryTokenMsg
-from guarded_swarms_coordinator.token import create_geometry_token
+from guarded_swarms_coordinator.token_system import create_geometry_token
 import random
 
 

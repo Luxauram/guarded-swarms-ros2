@@ -24,7 +24,7 @@ and temporal concurrency control.
 Author: Luca D'Aurizio
 """
 
-from .token import (
+from .token_system import (
     Token,
     GeometryToken,
     AuthToken,
