@@ -19,18 +19,79 @@
 
 .PHONY: help show-guide \
         setup-all setup-docker setup-workspace setup-px4 diagnose kill-all \
-        demo-coordinator demo-tkinter demo-web coordinator-rebuild \
+        demo-coordinator demo-tkinter demo-web \
         docker-start docker-stop docker-restart docker-shell docker-logs \
         docker-status docker-clean \
         ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-test-topics \
-        ros2-graph ros2-agent ros2-node \
+        ros2-graph ros2-agent ros2-node ros2-coordinator-reb \
         px4-run px4-kill px4-console px4-gui px4-config px4-reset-params \
         gazebo-test gazebo-worlds \
         web-dev web-stop web-logs web-status web-clean web-shell web-ts-build web-ts-watch
 
 .DEFAULT_GOAL := help
+
+# ==============================================================================
+# Constants - Paths
+# ==============================================================================
+
+DOCKER_DIR := docker
+WORKSPACE_DIR := /workspace
+SRC_DIR := $(WORKSPACE_DIR)/src
+INSTALL_DIR := $(WORKSPACE_DIR)/install
+BUILD_DIR := $(WORKSPACE_DIR)/build
+PX4_DIR := $(WORKSPACE_DIR)/PX4-Autopilot
+
 WEB_BACKEND_DIR := src/web_dashboard/backend
 WEB_FRONTEND_DIR := src/web_dashboard/frontend
+
+TOOLS_LAUNCH_DIR := src/tools/launch
+TOOLS_VIZ_DIR := src/tools/visualization
+
+# ==============================================================================
+# Constants - Docker
+# ==============================================================================
+
+CONTAINER_NAME := guarded_swarms
+DOCKER_EXEC := docker exec $(CONTAINER_NAME)
+DOCKER_EXEC_IT := docker exec -it $(CONTAINER_NAME)
+
+# ==============================================================================
+# Constants - ROS 2
+# ==============================================================================
+
+ROS2_SOURCE := source /opt/ros/humble/setup.bash
+WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
+FULL_SOURCE := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
+
+COORDINATOR_PKG := guarded_swarms_coordinator
+CONTROL_PKG := guarded_swarms_control
+
+# ==============================================================================
+# Constants - Process Management
+# ==============================================================================
+
+KILL_PX4 := pkill -9 px4 2>/dev/null || true
+KILL_GAZEBO := pkill -9 -f 'gz sim' 2>/dev/null || true; \
+               pkill -9 ruby 2>/dev/null || true; \
+               pkill -9 gzserver 2>/dev/null || true; \
+               pkill -9 gzclient 2>/dev/null || true
+KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
+KILL_ROS2_NODES := pkill -9 -f 'ros2' 2>/dev/null || true; \
+                   pkill -9 python3 2>/dev/null || true
+KILL_WEB := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; \
+            pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; \
+            fuser -k 8080/tcp 2>/dev/null || true
+
+CLEANUP_TMP := rm -rf /tmp/.gazebo* /tmp/.X* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
+
+# ==============================================================================
+# Constants - Build Commands
+# ==============================================================================
+
+COLCON_BUILD := colcon build --symlink-install
+COLCON_BUILD_PKG = colcon build --packages-select
+COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers console_direct+
+
 
 # ==============================================================================
 # Help - Command Reference
@@ -82,7 +143,7 @@ help:
 	@echo "    make ros2-graph           Show ROS 2 node/topic graph"
 	@echo "    make ros2-agent           Launch micro-ROS bridge"
 	@echo "    make ros2-node            Launch offboard control node"
-	@echo "    make ro2-coordinator-reb  Quick rebuild coordinator package"
+	@echo "    make ros2-coordinator-reb  Quick rebuild coordinator package"
 	@echo ""
 	@echo "===================================="
 	@echo "  PX4 MANAGEMENT"
@@ -228,7 +289,7 @@ show-guide:
 	@echo "======================================="
 	@echo ""
 	@echo "  After modifying code:"
-	@echo "    $$ make coordinator-rebuild     # Quick rebuild coordinator"
+	@echo "    $$ make ros2-coordinator-reb     # Quick rebuild coordinator"
 	@echo "    $$ make ros2-rebuild-ws         # Full workspace rebuild"
 	@echo ""
 	@echo "  Web dashboard development:"
@@ -287,10 +348,10 @@ setup-docker:
 	@echo ""
 	@echo "Building Docker image. This may take some time on first run."
 	@echo ""
-	@cd docker && docker-compose build
+	@cd $(DOCKER_DIR) && docker-compose build
 	@echo ""
 	@echo "Starting container..."
-	@cd docker && docker-compose up -d
+	@cd $(DOCKER_DIR) && docker-compose up -d
 	@sleep 2
 	@echo ""
 	@echo "Docker environment ready."
@@ -306,7 +367,7 @@ setup-workspace:
 		echo "Error: src/ directory not found in project root!"; \
 		echo ""; \
 		echo "Please create your ROS 2 workspace structure:"; \
-		echo "  mkdir -p src/guarded_swarms_control/src"; \
+		echo "  mkdir -p src/$(CONTROL_PKG)/src"; \
 		echo ""; \
 		exit 1; \
 	fi
@@ -314,15 +375,15 @@ setup-workspace:
 	@echo ""
 	@echo "Verifying container mount..."
 	@sleep 2
-	@docker exec guarded_swarms bash -c "ls -la /workspace/src" > /dev/null 2>&1 || \
-		(echo "Error: /workspace/src not accessible in container!" && exit 1)
+	@$(DOCKER_EXEC) bash -c "ls -la $(SRC_DIR)" > /dev/null 2>&1 || \
+		(echo "Error: $(SRC_DIR) not accessible in container!" && exit 1)
 	@echo "Container mount verified."
 	@echo ""
 	@echo "Cleaning previous build artifacts..."
-	@docker exec guarded_swarms bash -c "cd /workspace && rm -rf build/* install/* log/*" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/* install/* log/*" 2>/dev/null || true
 	@echo ""
 	@echo "Building packages (this may take 5-10 minutes for px4_msgs)..."
-	docker exec guarded_swarms bash -c "source /opt/ros/humble/setup.bash && cd /workspace && colcon build --symlink-install --parallel-workers 4 --event-handlers console_direct+"
+	@$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL)"
 	@echo ""
 	@echo "Workspace built successfully."
 	@echo ""
@@ -333,24 +394,24 @@ setup-px4:
 	@echo "=========================================="
 	@echo ""
 	@echo "Stopping any running PX4 instances..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 2>/dev/null || true"
-	@docker exec guarded_swarms bash -c "pkill -9 gz 2>/dev/null || true"
+	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
+	@$(DOCKER_EXEC) bash -c "$(KILL_GAZEBO)"
 	@sleep 2
-	@if docker exec guarded_swarms bash -c "test -d /workspace/PX4-Autopilot"; then \
+	@if $(DOCKER_EXEC) bash -c "test -d $(PX4_DIR)"; then \
 		echo "PX4-Autopilot directory exists. Skipping clone."; \
 		echo ""; \
 	else \
 		echo "Step 1/3: Cloning PX4-Autopilot (latest main branch)..."; \
-		docker exec guarded_swarms bash -c "cd /workspace && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1"; \
+		$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1"; \
 		echo "Repository cloned."; \
 		echo ""; \
 	fi
 	@echo "Step 2/3: Installing dependencies..."
-	@docker exec guarded_swarms bash -c "cd /workspace/PX4-Autopilot && timeout 300 bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools 2>&1 | grep -v 'debconf'" || true
+	@$(DOCKER_EXEC) bash -c "cd $(PX4_DIR) && timeout 300 bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools 2>&1 | grep -v 'debconf'" || true
 	@echo "Dependencies installed."
 	@echo ""
 	@echo "Step 3/3: Building PX4 SITL (this will take some time)..."
-	@docker exec guarded_swarms bash -c "cd /workspace/PX4-Autopilot && HEADLESS=1 make px4_sitl gz_x500"
+	@$(DOCKER_EXEC) bash -c "cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500"
 	@echo ""
 	@echo "PX4 setup complete."
 	@echo ""
@@ -361,13 +422,13 @@ setup-px4:
 
 docker-start:
 	@echo "Starting container..."
-	@cd docker && docker-compose up -d
+	@cd $(DOCKER_DIR) && docker-compose up -d
 	@sleep 1
 	@echo "Container started. Use 'make docker-shell' to access shell."
 
 docker-stop:
 	@echo "Stopping container..."
-	@cd docker && docker-compose down
+	@cd $(DOCKER_DIR) && docker-compose down
 	@echo "Container stopped."
 
 docker-restart: docker-stop docker-start
@@ -376,15 +437,15 @@ docker-shell:
 	@echo "Opening interactive shell in container."
 	@echo "Type 'exit' to return to host."
 	@echo ""
-	@docker exec -it guarded_swarms bash
+	@$(DOCKER_EXEC_IT) bash
 
 docker-logs:
-	@cd docker && docker-compose logs --tail=100
+	@cd $(DOCKER_DIR) && docker-compose logs --tail=100
 
 docker-status:
 	@echo "Container status:"
 	@echo ""
-	@docker ps -a | grep guarded_swarms || echo "Container not found."
+	@docker ps -a | grep $(CONTAINER_NAME) || echo "Container not found."
 
 docker-clean:
 	@echo "=========================================="
@@ -396,7 +457,7 @@ docker-clean:
 	@echo ""
 	@read -p "Continue? [y/N] " confirm && [ "$$confirm" = "y" ] || exit 1
 	@echo ""
-	@cd docker && docker-compose down -v
+	@cd $(DOCKER_DIR) && docker-compose down -v
 	@echo "Cleanup complete."
 
 # ==============================================================================
@@ -405,12 +466,12 @@ docker-clean:
 
 ros2-build-ws:
 	@echo "Rebuilding ROS 2 workspace..."
-	@docker exec -it guarded_swarms bash -c "source /opt/ros/humble/setup.bash && cd /workspace && colcon build --symlink-install"
+	@$(DOCKER_EXEC_IT) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD)"
 	@echo "Build complete."
 
 ros2-clean-ws:
 	@echo "Cleaning workspace build artifacts..."
-	@docker exec guarded_swarms bash -c "cd /workspace && rm -rf build/ install/ log/ 2>/dev/null || true"
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/ install/ log/ 2>/dev/null || true"
 	@echo "Workspace cleaned."
 
 ros2-rebuild-ws: ros2-clean-ws ros2-build-ws
@@ -420,14 +481,14 @@ ros2-test-topics:
 	@echo ""
 	@echo "Prerequisites: ros2-agent and px4-run must be running."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && ros2 topic list | grep fmu || echo 'No PX4 topics found. Ensure agent and SITL are running.'"
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 topic list | grep fmu || echo 'No PX4 topics found. Ensure agent and SITL are running.'"
 
 ros2-graph:
 	@echo "=========================================="
 	@echo "ROS 2 Graph Visualization"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/install"; then \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)"; then \
 		echo "Error: ROS 2 workspace not built."; \
 		echo "Run 'make ros2-build-ws' first."; \
 		echo ""; \
@@ -438,34 +499,34 @@ ros2-graph:
 	@echo "  - System should be running (agent, px4-run, node)"
 	@echo ""
 	@echo "Opening rqt_graph window..."
-	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && rqt_graph"
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && rqt_graph"
 
 ros2-agent:
 	@echo "=========================================="
 	@echo "Launching micro-ROS Agent"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms which MicroXRCEAgent > /dev/null 2>&1; then \
+	@if ! $(DOCKER_EXEC) which MicroXRCEAgent > /dev/null 2>&1; then \
 		echo "Error: MicroXRCEAgent not found."; \
 		echo "Run 'make setup-docker' to build the environment."; \
 		echo ""; \
 		exit 1; \
 	fi
 	@echo "Stopping any existing micro-ROS agent..."
-	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "$(KILL_MICRO_ROS)" 2>/dev/null || true
 	@sleep 1
 	@echo "Bridge listening on UDP port 8888."
 	@echo "Keep this terminal open. Press Ctrl+C to stop."
 	@echo ""
-	@docker exec -it guarded_swarms MicroXRCEAgent udp4 -p 8888
+	@$(DOCKER_EXEC_IT) MicroXRCEAgent udp4 -p 8888
 
 ros2-node:
 	@echo "=========================================="
 	@echo "Launching Offboard Control Node"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/install/guarded_swarms_control"; then \
-		echo "Error: guarded_swarms_control package not built."; \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(CONTROL_PKG)"; then \
+		echo "Error: $(CONTROL_PKG) package not built."; \
 		echo "Run 'make ros2-build-ws' first."; \
 		echo ""; \
 		exit 1; \
@@ -475,17 +536,17 @@ ros2-node:
 	@echo "  Terminal 2: make px4-run"
 	@echo ""
 	@echo "Stopping any existing offboard control node..."
-	@docker exec guarded_swarms bash -c "pkill -9 -f offboard_control_node 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f offboard_control_node 2>/dev/null || true" 2>/dev/null || true
 	@sleep 1
 	@echo "Keep this terminal open. Press Ctrl+C to stop."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && ros2 run guarded_swarms_control offboard_control_node"
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run $(CONTROL_PKG) offboard_control_node"
 
-ro2-coordinator-reb:
-	@echo "Quick rebuild: guarded_swarms_coordinator"
-	@docker exec guarded_swarms bash -c "cd /workspace && rm -rf build/guarded_swarms_coordinator install/guarded_swarms_coordinator"
-	@docker exec guarded_swarms bash -c "source /opt/ros/humble/setup.bash && cd /workspace && colcon build --packages-select guarded_swarms_coordinator"
-	@echo "✓ Rebuild complete. Source workspace: source /workspace/install/setup.bash"
+ros2-coordinator-reb:
+	@echo "Quick rebuild: $(COORDINATOR_PKG)"
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/$(COORDINATOR_PKG) install/$(COORDINATOR_PKG)"
+	@$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"
+	@echo "Rebuild complete. Source workspace: source $(INSTALL_DIR)/setup.bash"
 
 # ==============================================================================
 # PX4 Management
@@ -496,14 +557,14 @@ px4-run:
 	@echo "Launching PX4 SITL"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/PX4-Autopilot"; then \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(PX4_DIR)"; then \
 		echo "Error: PX4-Autopilot not found."; \
 		echo "Run 'make setup-px4' first."; \
 		echo ""; \
 		exit 1; \
 	fi
 	@echo "Stopping any existing PX4 instances..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 || true"
+	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
 	@sleep 1
 	@echo "Starting Gazebo simulation (headless mode)."
 	@echo "Keep this terminal open."
@@ -512,25 +573,25 @@ px4-run:
 	@echo "  commander arm -f"
 	@echo "  commander mode offboard"
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "cd /workspace/PX4-Autopilot && HEADLESS=1 make px4_sitl gz_x500"
+	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500"
 
 px4-gui:
 	@echo "=========================================="
 	@echo "Launching PX4 SITL with Gazebo GUI"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/PX4-Autopilot"; then \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(PX4_DIR)"; then \
 		echo "Error: PX4-Autopilot not found."; \
 		echo "Run 'make setup-px4' first."; \
 		echo ""; \
 		exit 1; \
 	fi
 	@echo "Stopping any existing PX4 and Gazebo instances..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
 	@sleep 3
 	@echo "Prerequisites:"
 	@echo "  - X server must be running"
@@ -540,24 +601,24 @@ px4-gui:
 	@echo "Starting Gazebo with 3D visualization..."
 	@echo "Gazebo window will open on your desktop."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "cd /workspace/PX4-Autopilot && make px4_sitl gz_x500"
+	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && make px4_sitl gz_x500"
 
 px4-console:
 	@echo "Opening PX4 interactive console..."
 	@echo ""
-	@if ! docker exec guarded_swarms test -d /workspace/PX4-Autopilot; then \
+	@if ! $(DOCKER_EXEC) test -d $(PX4_DIR); then \
 		echo "Error: PX4-Autopilot not found."; \
 		echo "Run 'make setup-px4' first."; \
 		echo ""; \
 		exit 1; \
 	fi
-	@docker exec -it guarded_swarms bash -c "cd /workspace/PX4-Autopilot && HEADLESS=1 make px4_sitl gz_x500"
+	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500"
 
 px4-kill:
 	@echo "Killing all PX4 and Gazebo processes..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 || true"
-	@docker exec guarded_swarms bash -c "pkill -9 gz || true"
-	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent || true"
+	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
+	@$(DOCKER_EXEC) bash -c "$(KILL_GAZEBO)"
+	@$(DOCKER_EXEC) bash -c "$(KILL_MICRO_ROS)"
 	@echo "All processes stopped."
 
 px4-config:
@@ -611,12 +672,12 @@ gazebo-test:
 	@echo "Launching Gazebo with empty world..."
 	@echo "Close the Gazebo window to continue."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "gz sim worlds/empty.sdf"
+	@$(DOCKER_EXEC_IT) bash -c "gz sim worlds/empty.sdf"
 
 gazebo-worlds:
 	@echo "Available Gazebo worlds:"
 	@echo ""
-	@docker exec guarded_swarms bash -c "ls -1 /workspace/PX4-Autopilot/Tools/simulation/gz/worlds/ 2>/dev/null || echo 'PX4-Autopilot not found. Run make setup-px4 first.'"
+	@$(DOCKER_EXEC) bash -c "ls -1 $(PX4_DIR)/Tools/simulation/gz/worlds/ 2>/dev/null || echo 'PX4-Autopilot not found. Run make setup-px4 first.'"
 	@echo ""
 	@echo "To launch a specific world:"
 	@echo "  make docker-shell"
@@ -645,13 +706,13 @@ web-dev:
 	@echo ""
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "source /opt/ros/humble/setup.bash && source /workspace/install/setup.bash && cd /workspace/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload"
+	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload"
 
 web-stop:
 	@echo "Stopping web dashboard..."
-	@docker exec guarded_swarms bash -c "pkill -9 -f 'uvicorn.*app:app'" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 -f 'python3.*uvicorn'" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "fuser -k 8080/tcp" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'uvicorn.*app:app'" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'python3.*uvicorn'" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "fuser -k 8080/tcp" 2>/dev/null || true
 	@sleep 1
 	@echo "Dashboard stopped."
 
@@ -661,25 +722,25 @@ web-status:
 	@echo "=========================================="
 	@echo ""
 	@echo "[Backend Process]"
-	@docker exec guarded_swarms bash -c "ps aux | grep -E 'uvicorn.*app:app' | grep -v grep || echo 'Not running'"
+	@$(DOCKER_EXEC) bash -c "ps aux | grep -E 'uvicorn.*app:app' | grep -v grep || echo 'Not running'"
 	@echo ""
 	@echo "[Port 8080 Check]"
-	@docker exec guarded_swarms bash -c "python3 -c \"import socket; s=socket.socket(); s.settimeout(0.5); result=s.connect_ex(('127.0.0.1',8080)); s.close(); print('Port 8080 is open' if result==0 else 'Port 8080 is not accessible')\" 2>/dev/null"
+	@$(DOCKER_EXEC) bash -c "python3 -c \"import socket; s=socket.socket(); s.settimeout(0.5); result=s.connect_ex(('127.0.0.1',8080)); s.close(); print('Port 8080 is open' if result==0 else 'Port 8080 is not accessible')\" 2>/dev/null"
 	@echo ""
 	@echo "[Runtime Versions]"
-	@docker exec guarded_swarms bash -c "python3 --version | sed 's/^/  Python: /'"
-	@docker exec guarded_swarms bash -c "bun --version | sed 's/^/  Bun: /'"
-	@docker exec guarded_swarms bash -c "tsc --version 2>/dev/null | sed 's/^/  TypeScript: /' || echo '  TypeScript: Not found'"
+	@$(DOCKER_EXEC) bash -c "python3 --version | sed 's/^/  Python: /'"
+	@$(DOCKER_EXEC) bash -c "bun --version | sed 's/^/  Bun: /'"
+	@$(DOCKER_EXEC) bash -c "tsc --version 2>/dev/null | sed 's/^/  TypeScript: /' || echo '  TypeScript: Not found'"
 	@echo ""
 	@echo "[ROS2 Environment]"
-	@docker exec guarded_swarms bash -c "source /opt/ros/humble/setup.bash && python3 -c 'import rclpy; print(\"rclpy: Available\")' 2>/dev/null || echo 'rclpy: Not available'"
-	@docker exec guarded_swarms bash -c "source /opt/ros/humble/setup.bash && source /workspace/install/setup.bash && python3 -c 'import guarded_swarms_coordinator.msg; print(\"guarded_swarms_coordinator: Available\")' 2>/dev/null || echo 'guarded_swarms_coordinator: Not built (run make ros2-build-ws)'"
+	@$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && python3 -c 'import rclpy; print(\"rclpy: Available\")' 2>/dev/null || echo 'rclpy: Not available'"
+	@$(DOCKER_EXEC) bash -c "$(FULL_SOURCE) && python3 -c 'import $(COORDINATOR_PKG).msg; print(\"$(COORDINATOR_PKG): Available\")' 2>/dev/null || echo '$(COORDINATOR_PKG): Not built (run make ros2-build-ws)'"
 	@echo ""
 	@echo "[TypeScript Build]"
-	@docker exec guarded_swarms bash -c "test -d /workspace/$(WEB_FRONTEND_DIR)/dist && echo 'dist/: Built' || echo 'dist/: Not built (run make web-ts-build)'"
+	@$(DOCKER_EXEC) bash -c "test -d $(WORKSPACE_DIR)/$(WEB_FRONTEND_DIR)/dist && echo 'dist/: Built' || echo 'dist/: Not built (run make web-ts-build)'"
 	@echo ""
 	@echo "[Server Performance]"
-	@docker exec guarded_swarms bash -c "ps aux | grep -E 'uvicorn.*app:app' | grep -v grep | awk '{print \"  PID: \" \$$2 \"  |  CPU: \" \$$3 \"%  |  Memory: \" \$$4 \"%\"}' || echo '  Server not running'"
+	@$(DOCKER_EXEC) bash -c "ps aux | grep -E 'uvicorn.*app:app' | grep -v grep | awk '{print \"  PID: \" \$$2 \"  |  CPU: \" \$$3 \"%  |  Memory: \" \$$4 \"%\"}' || echo '  Server not running'"
 	@echo ""
 	@echo "=========================================="
 	@echo ""
@@ -688,7 +749,7 @@ web-status:
 
 web-ts-build:
 	@echo "Building TypeScript files..."
-	@docker exec guarded_swarms bash -c "cd /workspace/$(WEB_FRONTEND_DIR) && bun run build"
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR)/$(WEB_FRONTEND_DIR) && bun run build"
 	@echo "TypeScript compiled successfully."
 
 web-ts-watch:
@@ -699,12 +760,12 @@ web-ts-watch:
 	@echo "Auto-compiling on file changes..."
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "cd /workspace/$(WEB_FRONTEND_DIR) && bun run dev"
+	@$(DOCKER_EXEC_IT) bash -c "cd $(WORKSPACE_DIR)/$(WEB_FRONTEND_DIR) && bun run dev"
 
 web-clean:
 	@echo "Cleaning web dashboard artifacts..."
-	@docker exec guarded_swarms bash -c "cd /workspace/$(WEB_FRONTEND_DIR) && rm -rf node_modules .bun dist 2>/dev/null || true"
-	@docker exec guarded_swarms bash -c "cd /workspace/$(WEB_BACKEND_DIR) && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true"
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR)/$(WEB_FRONTEND_DIR) && rm -rf node_modules .bun dist 2>/dev/null || true"
+	@$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && find . -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null || true"
 	@echo "Cleanup complete."
 
 # ==============================================================================
@@ -716,16 +777,77 @@ demo-coordinator:
 	@echo "Launching Token Coordination Demo"
 	@echo "=========================================="
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/install/guarded_swarms_coordinator" 2>/dev/null; then \
-		echo "Package not built. Building guarded_swarms_coordinator..."; \
-		docker exec guarded_swarms bash -c "cd /workspace && rm -rf build/guarded_swarms_coordinator install/guarded_swarms_coordinator 2>/dev/null || true"; \
-		docker exec guarded_swarms bash -c "source /opt/ros/humble/setup.bash && cd /workspace && colcon build --packages-select guarded_swarms_coordinator"; \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
+		echo "Package not built. Building $(COORDINATOR_PKG)..."; \
+		$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/$(COORDINATOR_PKG) install/$(COORDINATOR_PKG) 2>/dev/null || true"; \
+		$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
 		echo ""; \
 	fi
-	@echo "Starting 4 agents + coordinator..."
-	@echo "Press Ctrl+C to stop."
-	@echo ""
-	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && ros2 launch /workspace/src/tools/launch/demo.launch.py"
+	@echo "Step 1/3: Number of Agents"; \
+	echo ""; \
+	read -p "How many agents to launch? [1-4, default=4]: " num_agents; \
+	num_agents=$${num_agents:-4}; \
+	if [ $$num_agents -lt 1 ] || [ $$num_agents -gt 4 ]; then \
+		echo "Invalid number. Must be 1-4. Using 4."; \
+		num_agents=4; \
+	fi; \
+	echo ""; \
+	echo "Step 2/3: Arbitration Mode"; \
+	echo "  1) FCFS (First-Come-First-Serve)"; \
+	echo "  2) Priority-based (default)"; \
+	echo "  3) Hybrid"; \
+	read -p "Choice [1-3, default=2]: " mode_choice; \
+	mode_choice=$${mode_choice:-2}; \
+	case $$mode_choice in \
+		1) arb_mode="fcfs" ;; \
+		2) arb_mode="priority" ;; \
+		3) arb_mode="hybrid" ;; \
+		*) echo "Invalid choice. Using priority mode."; arb_mode="priority" ;; \
+	esac; \
+	echo ""; \
+	echo "Step 3/3: Agent Priorities (0-10)"; \
+	prio_a=5; prio_b=5; prio_c=5; prio_d=5; \
+	read -p "  Agent A priority [default=5]: " input_a; \
+	prio_a=$${input_a:-5}; \
+	if [ $$num_agents -ge 2 ]; then \
+		read -p "  Agent B priority [default=5]: " input_b; \
+		prio_b=$${input_b:-5}; \
+	fi; \
+	if [ $$num_agents -ge 3 ]; then \
+		read -p "  Agent C priority [default=5]: " input_c; \
+		prio_c=$${input_c:-5}; \
+	fi; \
+	if [ $$num_agents -ge 4 ]; then \
+		read -p "  Agent D priority [default=5]: " input_d; \
+		prio_d=$${input_d:-5}; \
+	fi; \
+	echo ""; \
+	echo "Launch Configuration:"; \
+	echo "  - Agents: $$num_agents"; \
+	echo "  - Mode: $$arb_mode"; \
+	echo -n "  - Priorities: A=$$prio_a"; \
+	if [ $$num_agents -ge 2 ]; then echo -n ", B=$$prio_b"; fi; \
+	if [ $$num_agents -ge 3 ]; then echo -n ", C=$$prio_c"; fi; \
+	if [ $$num_agents -ge 4 ]; then echo -n ", D=$$prio_d"; fi; \
+	echo ""; \
+	echo ""; \
+	read -p "Proceed? [Y/n]: " confirm; \
+	confirm=$${confirm:-Y}; \
+	if [ "$$confirm" != "Y" ] && [ "$$confirm" != "y" ]; then \
+		echo "Cancelled."; \
+		exit 0; \
+	fi; \
+	echo ""; \
+	echo "Starting demo..."; \
+	echo "Press Ctrl+C to stop."; \
+	echo ""; \
+	$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 launch $(WORKSPACE_DIR)/$(TOOLS_LAUNCH_DIR)/demo.launch.py \
+		arbitration_mode:=$$arb_mode \
+		priority_A:=$$prio_a \
+		priority_B:=$$prio_b \
+		priority_C:=$$prio_c \
+		priority_D:=$$prio_d \
+		num_agents:=$$num_agents"
 
 demo-tkinter:
 	@echo "=========================================="
@@ -736,13 +858,13 @@ demo-tkinter:
 	@echo "X server must be running"
 	@echo "demo-coordinator running in Terminal 1"
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/install/guarded_swarms_coordinator" 2>/dev/null; then \
-		echo "Error: guarded_swarms_coordinator not built."; \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
+		echo "Error: $(COORDINATOR_PKG) not built."; \
 		echo "Run 'make demo-coordinator' first."; \
 		exit 1; \
 	fi
 	@echo "Opening Tkinter GUI window..."
-	@docker exec -it guarded_swarms bash -c "source /workspace/install/setup.bash && python3 /workspace/src/tools/visualization/dashboard.py"
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && python3 $(WORKSPACE_DIR)/$(TOOLS_VIZ_DIR)/dashboard.py"
 
 demo-web:
 	@echo "=========================================="
@@ -753,8 +875,8 @@ demo-web:
 	@echo "demo-coordinator running in Terminal 1"
 	@echo "TypeScript compiled (run once): make web-ts-build"
 	@echo ""
-	@if ! docker exec guarded_swarms bash -c "test -d /workspace/install/guarded_swarms_coordinator" 2>/dev/null; then \
-		echo "Error: guarded_swarms_coordinator not built."; \
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
+		echo "Error: $(COORDINATOR_PKG) not built."; \
 		echo "Run 'make demo-coordinator' first."; \
 		exit 1; \
 	fi
@@ -763,7 +885,7 @@ demo-web:
 	@echo ""
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@docker exec -it guarded_swarms bash -c "source /opt/ros/humble/setup.bash && source /workspace/install/setup.bash && cd /workspace/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080"
+	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080"
 
 # ==============================================================================
 # Diagnostics
@@ -775,20 +897,20 @@ diagnose:
 	@echo "=========================================="
 	@echo ""
 	@echo "[1] Container Status:"
-	@docker ps -a | grep guarded_swarms || echo "Container not found"
+	@docker ps -a | grep $(CONTAINER_NAME) || echo "Container not found"
 	@echo ""
 	@echo "[2] Display Configuration:"
-	@if docker exec guarded_swarms printenv DISPLAY 2>/dev/null; then \
+	@if $(DOCKER_EXEC) printenv DISPLAY 2>/dev/null; then \
 		echo "DISPLAY variable set"; \
 	else \
 		echo "DISPLAY not set"; \
 	fi
 	@echo ""
 	@echo "[3] ROS 2 Workspace:"
-	@docker exec guarded_swarms bash -c '\
-		if [ -d /workspace/src ]; then \
+	@$(DOCKER_EXEC) bash -c '\
+		if [ -d $(SRC_DIR) ]; then \
 			echo "Source directory exists"; \
-			if [ -d /workspace/install ]; then \
+			if [ -d $(INSTALL_DIR) ]; then \
 				echo "Workspace built successfully"; \
 			else \
 				echo "Workspace not yet built - run make ros2-build-ws"; \
@@ -798,10 +920,10 @@ diagnose:
 		fi'
 	@echo ""
 	@echo "[4] PX4-Autopilot:"
-	@docker exec guarded_swarms bash -c '\
-		if [ -d /workspace/PX4-Autopilot ]; then \
+	@$(DOCKER_EXEC) bash -c '\
+		if [ -d $(PX4_DIR) ]; then \
 			echo "PX4 directory exists"; \
-			if [ -f /workspace/PX4-Autopilot/build/px4_sitl_default/bin/px4 ]; then \
+			if [ -f $(PX4_DIR)/build/px4_sitl_default/bin/px4 ]; then \
 				echo "PX4 built successfully"; \
 			else \
 				echo "PX4 not built - run make setup-px4"; \
@@ -811,12 +933,12 @@ diagnose:
 		fi'
 	@echo ""
 	@echo "[5] Gazebo:"
-	@docker exec guarded_swarms bash -c "gz sim --version 2>&1 | head -1" || echo "Gazebo not installed"
+	@$(DOCKER_EXEC) bash -c "gz sim --version 2>&1 | head -1" || echo "Gazebo not installed"
 	@echo ""
 	@echo "[6] Running Processes:"
-	@docker exec guarded_swarms bash -c "pgrep -a px4 || echo '  No PX4 processes running'"
-	@docker exec guarded_swarms bash -c "pgrep -a gz || echo '  No Gazebo processes running'"
-	@docker exec guarded_swarms bash -c "pgrep -a MicroXRCE || echo '  No micro-ROS agent running'"
+	@$(DOCKER_EXEC) bash -c "pgrep -a px4 || echo '  No PX4 processes running'"
+	@$(DOCKER_EXEC) bash -c "pgrep -a gz || echo '  No Gazebo processes running'"
+	@$(DOCKER_EXEC) bash -c "pgrep -a MicroXRCE || echo '  No micro-ROS agent running'"
 	@echo ""
 	@echo "=========================================="
 
@@ -828,23 +950,23 @@ kill-all:
 	@echo "Stopping all running processes..."
 	@echo ""
 	@echo "[1/5] Terminating PX4 SITL processes..."
-	@docker exec guarded_swarms bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)" 2>/dev/null || true
 	@echo "[2/5] Terminating Gazebo processes..."
-	@docker exec guarded_swarms bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
 	@echo "[3/5] Terminating micro-ROS agent..."
-	@docker exec guarded_swarms bash -c "pkill -9 MicroXRCEAgent 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "$(KILL_MICRO_ROS)" 2>/dev/null || true
 	@echo "[4/5] Terminating ROS2 nodes..."
-	@docker exec guarded_swarms bash -c "pkill -9 -f 'ros2' 2>/dev/null || true" 2>/dev/null || true
-	@docker exec guarded_swarms bash -c "pkill -9 python3 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'ros2' 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "pkill -9 python3 2>/dev/null || true" 2>/dev/null || true
 	@echo "[5/5] Cleaning up shared memory and lock files..."
-	@docker exec guarded_swarms bash -c "rm -rf /tmp/.gazebo* /tmp/.X* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "$(CLEANUP_TMP)" 2>/dev/null || true
 	@sleep 2
 	@echo ""
 	@echo "Stopping Docker container..."
-	@cd docker && docker-compose down 2>/dev/null || true
+	@cd $(DOCKER_DIR) && docker-compose down 2>/dev/null || true
 	@echo ""
 	@echo "=========================================="
 	@echo "Shutdown Complete"
