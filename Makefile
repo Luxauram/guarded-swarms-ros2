@@ -849,6 +849,25 @@ demo-coordinator:
 		priority_D:=$$prio_d \
 		num_agents:=$$num_agents"
 
+demo-coordinator-batch:
+	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
+		$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/$(COORDINATOR_PKG) install/$(COORDINATOR_PKG) 2>/dev/null || true"; \
+		$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
+	fi
+	@echo "Launching demo in background..."
+	@$(DOCKER_EXEC) bash -c " \
+		$(WORKSPACE_SOURCE) && \
+		nohup ros2 launch $(WORKSPACE_DIR)/$(TOOLS_LAUNCH_DIR)/demo.launch.py \
+			arbitration_mode:=$(ARB_MODE) \
+			priority_A:=$(PRIO_A) \
+			priority_B:=$(PRIO_B) \
+			priority_C:=$(PRIO_C) \
+			priority_D:=$(PRIO_D) \
+			num_agents:=$(NUM_AGENTS) \
+			> /tmp/demo.log 2>&1 & \
+		echo Demo launched with PID \$$! \
+	"
+
 demo-tkinter:
 	@echo "=========================================="
 	@echo "Launching Tkinter Dashboard"
