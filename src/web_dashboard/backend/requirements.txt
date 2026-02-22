@@ -1,0 +1,26 @@
+# ==============================================================================
+# Guarded Swarms Web Dashboard — Python Dependencies
+#
+# Core dependencies for the FastAPI-based real-time dashboard backend.
+# Packages are pinned to exact versions to ensure reproducible builds
+# across development, CI, and production environments.
+#
+# Author:  Luca D'Aurizio
+# License: Apache-2.0
+# ==============================================================================
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+
+# Real-time Communication
+websockets==12.0
+
+# Data Validation
+pydantic==2.5.0
+
+# HTTP Client
+requests==2.31.0
+
+# File Handling
+python-multipart==0.0.6
