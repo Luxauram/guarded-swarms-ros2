@@ -1,0 +1,11 @@
+build/
+install/
+log/
+
+.git/
+.gitignore
+
+docs/
+
+.vscode/
+.idea/

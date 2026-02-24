@@ -70,9 +70,6 @@ build/
 Thumbs.db
 *.tmp
 
-# Docker
-.dockerignore
-
 # Logs
 *.log
 *.out
