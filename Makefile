@@ -362,6 +362,10 @@ setup-workspace:
 	@echo "Building ROS 2 Workspace"
 	@echo "=========================================="
 	@echo ""
+	@echo "Initializing git submodules (px4_msgs, px4_ros_com)..."
+	@git submodule update --init --recursive
+	@echo "Submodules ready."
+	@echo ""
 	@echo "Checking workspace structure on host..."
 	@if [ ! -d "src" ]; then \
 		echo "Error: src/ directory not found in project root!"; \
