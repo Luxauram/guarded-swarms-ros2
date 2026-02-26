@@ -71,16 +71,17 @@ CONTROL_PKG := guarded_swarms_control
 # ==============================================================================
 
 KILL_PX4 := pkill -9 px4 2>/dev/null || true
-KILL_GAZEBO := pkill -9 -f 'gz sim' 2>/dev/null || true; \
-               pkill -9 ruby 2>/dev/null || true; \
-               pkill -9 gzserver 2>/dev/null || true; \
-               pkill -9 gzclient 2>/dev/null || true
+# KILL_GAZEBO := pkill -9 -f 'gz sim' 2>/dev/null || true; \
+#                pkill -9 ruby 2>/dev/null || true; \
+#                pkill -9 gzserver 2>/dev/null || true; \
+#                pkill -9 gzclient 2>/dev/null || true
+KILL_GAZEBO := pgrep -f '^gz sim' | xargs -r kill -9 2>/dev/null || true; pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true
 KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
 KILL_ROS2_NODES := pkill -9 -f 'ros2' 2>/dev/null || true; \
                    pkill -9 python3 2>/dev/null || true
 KILL_WEB := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; \
             pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; \
-            fuser -k 8080/tcp 2>/dev/null || true
+            fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true
 
 CLEANUP_TMP := rm -rf /tmp/.gazebo* /tmp/.X* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 
@@ -92,6 +93,11 @@ COLCON_BUILD := colcon build --symlink-install
 COLCON_BUILD_PKG = colcon build --packages-select
 COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers console_direct+
 
+# ==============================================================================
+# Constants - Web Dashboard
+# ==============================================================================
+
+DASHBOARD_PORT := 8765
 
 # ==============================================================================
 # Help - Command Reference
@@ -167,7 +173,7 @@ help:
 	@echo "  WEB DASHBOARD"
 	@echo "===================================="
 	@echo ""
-	@echo "    make web-dev              Start dashboard server (localhost:8080)"
+	@echo "    make web-dev              Start dashboard server (localhost:$(DASHBOARD_PORT))"
 	@echo "    make web-stop             Stop dashboard server"
 	@echo "    make web-status           Check dashboard status and dependencies"
 	@echo "    make web-ts-build         Compile TypeScript"
@@ -256,7 +262,7 @@ show-guide:
 	@echo "    - Web Dashboard (Modern, Browser-based):"
 	@echo "         Terminal 1: $$ make demo-coordinator"
 	@echo "         Terminal 2: $$ make demo-web"
-	@echo "         Browser:    http://localhost:8080"
+	@echo "         Browser:    http://localhost:$(DASHBOARD_PORT)"
 	@echo ""
 	@echo "    - Tkinter Dashboard (Desktop GUI):"
 	@echo "         Terminal 1: $$ make demo-coordinator"
@@ -388,6 +394,9 @@ setup-workspace:
 	@echo ""
 	@echo "Building packages (this may take 5-10 minutes for px4_msgs)..."
 	@$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL)"
+	@echo ""
+	@echo "Setting executable permissions on Python nodes..."
+	@$(DOCKER_EXEC) bash -c "find $(INSTALL_DIR) -name '*.py' -path '*/lib/*' -exec chmod +x {} \;"
 	@echo ""
 	@echo "Workspace built successfully."
 	@echo ""
@@ -593,7 +602,7 @@ px4-gui:
 	@echo "Stopping any existing PX4 and Gazebo instances..."
 	@$(DOCKER_EXEC) bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
 	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
+# 	@$(DOCKER_EXEC) bash -c "pkill -9 ruby 2>/dev/null || true" 2>/dev/null || true
 	@$(DOCKER_EXEC) bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
 	@$(DOCKER_EXEC) bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
 	@sleep 3
@@ -697,7 +706,7 @@ web-dev:
 	@echo "=========================================="
 	@echo ""
 	@echo "Dashboard available at:"
-	@echo "  http://localhost:8080"
+	@echo "  http://localhost:$(DASHBOARD_PORT)"
 	@echo ""
 	@echo "Features:"
 	@echo "  - Real-time token visualization"
@@ -710,13 +719,13 @@ web-dev:
 	@echo ""
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080 --reload"
+	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT) --reload"
 
 web-stop:
 	@echo "Stopping web dashboard..."
 	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'uvicorn.*app:app'" 2>/dev/null || true
 	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'python3.*uvicorn'" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "fuser -k 8080/tcp" 2>/dev/null || true
+	@$(DOCKER_EXEC) bash -c "fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true"
 	@sleep 1
 	@echo "Dashboard stopped."
 
@@ -728,8 +737,8 @@ web-status:
 	@echo "[Backend Process]"
 	@$(DOCKER_EXEC) bash -c "ps aux | grep -E 'uvicorn.*app:app' | grep -v grep || echo 'Not running'"
 	@echo ""
-	@echo "[Port 8080 Check]"
-	@$(DOCKER_EXEC) bash -c "python3 -c \"import socket; s=socket.socket(); s.settimeout(0.5); result=s.connect_ex(('127.0.0.1',8080)); s.close(); print('Port 8080 is open' if result==0 else 'Port 8080 is not accessible')\" 2>/dev/null"
+	@echo "[Port $(DASHBOARD_PORT) Check]"
+	@$(DOCKER_EXEC) bash -c "python3 -c \"import socket; s=socket.socket(); s.settimeout(0.5); result=s.connect_ex(('127.0.0.1',$(DASHBOARD_PORT))); s.close(); print('Port $(DASHBOARD_PORT) is open' if result==0 else 'Port $(DASHBOARD_PORT) is not accessible')\" 2>/dev/null"
 	@echo ""
 	@echo "[Runtime Versions]"
 	@$(DOCKER_EXEC) bash -c "python3 --version | sed 's/^/  Python: /'"
@@ -748,7 +757,7 @@ web-status:
 	@echo ""
 	@echo "=========================================="
 	@echo ""
-	@echo "Dashboard URL: http://localhost:8080"
+	@echo "Dashboard URL: http://localhost:$(DASHBOARD_PORT)"
 	@echo ""
 
 web-ts-build:
@@ -904,11 +913,11 @@ demo-web:
 		exit 1; \
 	fi
 	@echo "Dashboard will be available at:"
-	@echo "http://localhost:8080"
+	@echo "http://localhost:$(DASHBOARD_PORT)"
 	@echo ""
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port 8080"
+	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT)"
 
 # ==============================================================================
 # Diagnostics
