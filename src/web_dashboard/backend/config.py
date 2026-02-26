@@ -46,7 +46,7 @@ class Settings:
     # ========================================================================
 
     HOST: str = os.getenv("DASHBOARD_HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("DASHBOARD_PORT", "8080"))
+    PORT: int = int(os.getenv("DASHBOARD_PORT", "8765"))
     RELOAD: bool = os.getenv("DASHBOARD_RELOAD", "true").lower() == "true"
 
     # ========================================================================

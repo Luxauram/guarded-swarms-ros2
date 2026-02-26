@@ -31,7 +31,7 @@ Architecture:
   5. Static file serving delivers the frontend SPA.
 
 Typical usage via uvicorn:
-  uvicorn app:app --host 0.0.0.0 --port 8080
+  uvicorn app:app --host 0.0.0.0 --port 8765
 
 @author Luca D'Aurizio
 """

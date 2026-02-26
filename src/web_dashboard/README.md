@@ -29,7 +29,7 @@ pip3 install -r requirements.txt --break-system-packages
 python3 -m app
 
 # 3 — open the browser
-http://localhost:8080
+http://localhost:8765
 ```
 
 The ROS 2 system (demo.launch.py) can be started and stopped directly from the dashboard's control panel, or manually from a separate terminal:
