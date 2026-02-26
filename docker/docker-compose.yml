@@ -7,7 +7,9 @@ services:
     container_name: guarded_swarms
     stdin_open: true
     tty: true
-    network_mode: host
+    # network_mode: host
+    ports:
+      - "${DASHBOARD_PORT:-8765}:8765"
     volumes:
       - ../src:/workspace/src
       - ros2_build:/workspace/build
@@ -20,10 +22,13 @@ services:
       # macOS: DISPLAY=<your-ip>:0
       - DISPLAY=host.docker.internal:0.0
       - ROS_DOMAIN_ID=42
+      # - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
+      # - FASTRTPS_DEFAULT_PROFILES_FILE=/workspace/fastrtps_profile.xml
       - QT_X11_NO_MITSHM=1
       - LIBGL_ALWAYS_INDIRECT=0
       - LIBGL_ALWAYS_SOFTWARE=1
       - GALLIUM_DRIVER=llvmpipe
+
     command: /bin/bash
 
 volumes:
