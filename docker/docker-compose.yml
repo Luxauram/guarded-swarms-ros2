@@ -17,10 +17,7 @@ services:
       - ros2_log:/workspace/log
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
     environment:
-      # Windows: DISPLAY=host.docker.internal:0.0
-      # Linux: DISPLAY=:0
-      # macOS: DISPLAY=<your-ip>:0
-      - DISPLAY=host.docker.internal:0.0
+      - DISPLAY=${DISPLAY:-host.docker.internal:0.0}
       - ROS_DOMAIN_ID=42
       # - RMW_IMPLEMENTATION=rmw_fastrtps_cpp
       # - FASTRTPS_DEFAULT_PROFILES_FILE=/workspace/fastrtps_profile.xml
