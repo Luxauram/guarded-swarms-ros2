@@ -85,11 +85,11 @@ Progress is tracked against the thesis milestones defined in the project plan.
 
 ### Phase 2 — Analog Safety Enforcement Layer
 
-- [ ] Implement `safety_board` ROS 2 node with configurable sensor thresholds
-- [ ] Subscribe to simulated sensor topics (proximity, attitude, battery)
-- [ ] Implement OR-logic veto on PWM commands upon threshold violation
+- [x] Implement `safety_board` ROS 2 node with configurable sensor thresholds
+- [x] Subscribe to simulated sensor topics (proximity, attitude, battery)
+- [x] Implement OR-logic veto on PWM commands upon threshold violation
 - [ ] Integrate safety board with Gazebo UAV/UGV sensor plugins
-- [ ] Validate safety interventions: obstacle proximity → thrust cutoff, pitch limit → command block
+- [x] Validate safety interventions: obstacle proximity → thrust cutoff, pitch limit → command block
 
 ### Phase 3 — Integration and Digital Twin
 

@@ -187,6 +187,9 @@ help:
 	@echo "    make demo-coordinator     Launch token coordination demo"
 	@echo "    make demo-tkinter         Launch Tkinter Dashboard"
 	@echo "    make demo-web             Launch web dashboard"
+	@echo "    make demo-safety          Show safety board scenario info"
+	@echo "    make demo-safety-board    Launch safety board node"
+	@echo "    make demo-safety-sensors  Launch mock sensor publisher"
 	@echo ""
 	@echo "===================================="
 	@echo "  DIAGNOSTICS & CLEANUP"
@@ -918,6 +921,29 @@ demo-web:
 	@echo "Press Ctrl+C to stop."
 	@echo ""
 	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT)"
+
+demo-safety:
+	@echo "=========================================="
+	@echo "Launching Safety Board Demo (Phase 2)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Terminal 1 (safety board): make demo-safety-board"
+	@echo "Terminal 2 (mock sensors): make demo-safety-sensors"
+	@echo ""
+	@echo "Scenarios cycle every 10s:"
+	@echo "  0 - NOMINAL        (all safe)"
+	@echo "  1 - PROXIMITY      (obstacle at 0.8m)"
+	@echo "  2 - ATTITUDE       (pitch at 45deg)"
+	@echo "  3 - BATTERY LOW    (10%)"
+	@echo "  4 - ALTITUDE HIGH  (60m)"
+	@echo "  5 - NOMINAL RECOVERY"
+	@echo ""
+
+demo-safety-board:
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run guarded_swarms_safety safety_board_node"
+
+demo-safety-sensors:
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run guarded_swarms_safety mock_sensor_publisher"
 
 # ==============================================================================
 # Diagnostics
