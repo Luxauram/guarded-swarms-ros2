@@ -106,7 +106,6 @@ public:
     proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
     battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/drone/battery", 10);
     altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
-    cmd_raw_pub_ = this->create_publisher<std_msgs::msg::Float32>("/actuator_cmd_raw", 10);
 
     start_time_ = this->now().seconds();
 
@@ -156,7 +155,6 @@ private:
     publish_proximity(s.proximity_m);
     publish_battery(s.battery_pct);
     publish_altitude(s.altitude_m);
-    publish_cmd_raw(0.5f);
   }
 
   /**
@@ -231,26 +229,12 @@ private:
     altitude_pub_->publish(msg);
   }
 
-  /**
-   * @brief Publishes a Float32 message containing a raw actuator thrust command.
-   *
-   * @param thrust Normalised thrust value in the range [0.0, 1.0].
-   */
-  void publish_cmd_raw(float thrust)
-  {
-    std_msgs::msg::Float32 msg;
-    msg.data = thrust;
-    cmd_raw_pub_->publish(msg);
-  }
-
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr proximity_pub_;
   rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_;
-  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
 
   rclcpp::TimerBase::SharedPtr timer_;
-
   double start_time_;
   size_t current_scenario_idx_;
 };
