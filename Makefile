@@ -19,7 +19,7 @@
 
 .PHONY: help show-guide \
         setup-all setup-docker setup-workspace setup-px4 diagnose kill-all \
-        demo-coordinator demo-tkinter demo-web \
+        demo-coordinator demo-tkinter demo-web demo-safety demo-safety-board demo-safety-sensors demo-pipeline demo-bridge \
         docker-start docker-stop docker-restart docker-shell docker-logs \
         docker-status docker-clean \
         ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-test-topics \
@@ -190,6 +190,8 @@ help:
 	@echo "    make demo-safety          Show safety board scenario info"
 	@echo "    make demo-safety-board    Launch safety board node"
 	@echo "    make demo-safety-sensors  Launch mock sensor publisher"
+	@echo "    make demo-bridge          Launch command bridge node"
+	@echo "    make demo-pipeline        Show full pipeline launch instructions"
 	@echo ""
 	@echo "===================================="
 	@echo "  DIAGNOSTICS & CLEANUP"
@@ -293,6 +295,43 @@ show-guide:
 	@echo "  With Gazebo GUI:"
 	@echo "    Terminal 2: $$ make px4-gui        # 3D visualization"
 	@echo ""
+	@echo "================================================================"
+	@echo "    C) Safety Board Demo (Phase 2)                              "
+	@echo "================================================================"
+	@echo ""
+	@echo "  What it does:"
+	@echo "    - Simulates sensor violations (proximity, attitude, battery, altitude)"
+	@echo "    - Safety board vetoes actuator commands on any violation (OR-logic)"
+	@echo "    - Cycles through 6 scenarios every 10s"
+	@echo ""
+	@echo "  Launch workflow:"
+	@echo "    Terminal 1: $$ make demo-safety-board    # Safety enforcement node"
+	@echo "    Terminal 2: $$ make demo-safety-sensors  # Mock sensor scenarios"
+	@echo ""
+	@echo "  Monitor:"
+	@echo "    $$ ros2 topic echo /safety_status        # 1.0=safe 0.0=unsafe"
+	@echo "    $$ ros2 topic echo /actuator_cmd_safe    # vetoed=0.0 cleared=0.6"
+	@echo ""
+	@echo "================================================================"
+	@echo "    D) Full Pipeline Demo (Phase 3)                             "
+	@echo "================================================================"
+	@echo ""
+	@echo "  What it does:"
+	@echo "    - Token coordination feeds approved commands to safety board"
+	@echo "    - Complete flow: agent -> coordinator -> bridge -> safety -> actuator"
+	@echo "    - Safety board independently vetoes unsafe commands"
+	@echo ""
+	@echo "  Launch workflow:"
+	@echo "    Terminal 1: $$ make demo-coordinator     # Token coordination"
+	@echo "    Terminal 2: $$ make demo-bridge          # Command bridge"
+	@echo "    Terminal 3: $$ make demo-safety-board    # Safety enforcement"
+	@echo "    Terminal 4: $$ make demo-safety-sensors  # Mock sensors"
+	@echo ""
+	@echo "  Monitor the pipeline:"
+	@echo "    $$ ros2 topic echo /actuator_cmd_raw     # bridge output (0.6)"
+	@echo "    $$ ros2 topic echo /actuator_cmd_safe    # safety output (0.6 or 0.0)"
+	@echo "    $$ ros2 topic echo /safety_status        # 1.0=safe 0.0=unsafe"
+	@echo ""
 	@echo "======================================="
 	@echo "  4. DEVELOPMENT WORKFLOW"
 	@echo "======================================="
@@ -322,6 +361,8 @@ show-guide:
 	@echo "  ROS2 Packages:"
 	@echo "    - Coordinator:          src/guarded_swarms_coordinator/"
 	@echo "    - PX4 Control:          src/guarded_swarms_control/"
+	@echo "    - Safety board:         src/guarded_swarms_safety/"
+	@echo "    - Command bridge:       src/guarded_swarms_control/"
 	@echo ""
 	@echo "======================================="
 	@echo ""
@@ -944,6 +985,27 @@ demo-safety-board:
 
 demo-safety-sensors:
 	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run guarded_swarms_safety mock_sensor_publisher"
+
+demo-bridge:
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run guarded_swarms_control command_bridge_node"
+
+demo-pipeline:
+	@echo "=========================================="
+	@echo "Launching Full Pipeline Demo (Phase 3)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Open 4 terminals in this order:"
+	@echo ""
+	@echo "  Terminal 1 (coordinator):  make demo-coordinator"
+	@echo "  Terminal 2 (bridge):       make demo-bridge"
+	@echo "  Terminal 3 (safety board): make demo-safety-board"
+	@echo "  Terminal 4 (sensors):      make demo-safety-sensors"
+	@echo ""
+	@echo "Monitor the pipeline:"
+	@echo "  ros2 topic echo /actuator_cmd_raw   (bridge output)"
+	@echo "  ros2 topic echo /actuator_cmd_safe  (safety output)"
+	@echo "  ros2 topic echo /safety_status      (0.0=unsafe 1.0=safe)"
+	@echo ""
 
 # ==============================================================================
 # Diagnostics
