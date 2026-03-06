@@ -23,20 +23,21 @@
  * keeps the safety board completely decoupled from PX4-specific message types.
  *
  * Topic mapping:
- * | PX4 source topic                          | Safety board topic  | Message type                  |
+ * | PX4 / Gazebo source topic                 | Safety board topic  | Message type                  |
  * |-------------------------------------------|---------------------|-------------------------------|
  * | /fmu/out/vehicle_attitude                 | /drone/imu          | sensor_msgs/Imu               |
  * | /fmu/out/battery_status_v1                | /drone/battery      | sensor_msgs/BatteryState      |
  * | /fmu/out/vehicle_local_position_v1        | /drone/altitude     | std_msgs/Float32              |
- * | placeholder (fixed 999 m)                 | /drone/proximity    | sensor_msgs/Range             |
+ * | Gazebo lidar/scan (via ros_gz_bridge)     | /drone/proximity    | sensor_msgs/Range             |
  *
- * @note The proximity topic is driven by a periodic placeholder publisher at
- *       10 Hz until a Gazebo distance sensor plugin is integrated.
+ * @note The lidar topic name is configurable via the ROS parameter
+ *       @c lidar_topic, defaulting to the x500_lidar_front_0 model path.
  *
  * @author Luca D'Aurizio
  */
 
 #include <rclcpp/rclcpp.hpp>
+#include <cmath>
 
 #include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/battery_status.hpp>
@@ -45,6 +46,7 @@
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/range.hpp>
+#include <sensor_msgs/msg/laser_scan.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 using namespace std::chrono_literals;
@@ -54,23 +56,26 @@ using namespace std::chrono_literals;
 // ============================================================================
 
 /**
- * @brief ROS 2 adapter node bridging PX4 uORB topics to the SafetyBoard
- *        sensor interface.
+ * @brief ROS 2 adapter node bridging PX4 uORB topics and Gazebo lidar data
+ *        to the SafetyBoard sensor interface.
  *
  * All PX4 subscriptions use @c BEST_EFFORT QoS to match the reliability
  * policy of the PX4 SITL publishers. The translated messages are republished
  * with the default @c RELIABLE QoS expected by @c SafetyBoardNode.
+ *
+ * The lidar LaserScan is received via ros_gz_bridge and converted to a
+ * sensor_msgs/Range by taking the minimum finite range value.
  */
 class Px4SafetyBridgeNode : public rclcpp::Node
 {
 public:
-  /**
-   * @brief Constructs the node, creates all PX4 subscriptions, standard
-   *        publishers, and the proximity placeholder timer.
-   */
   Px4SafetyBridgeNode()
       : Node("px4_safety_bridge_node")
   {
+    this->declare_parameter("lidar_topic",
+                            "/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan");
+    std::string lidar_topic = this->get_parameter("lidar_topic").as_string();
+
     auto px4_qos = rclcpp::QoS(10)
                        .reliability(rclcpp::ReliabilityPolicy::BestEffort)
                        .durability(rclcpp::DurabilityPolicy::Volatile)
@@ -97,20 +102,23 @@ public:
           on_local_position(msg);
         });
 
+    lidar_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
+        lidar_topic, 10,
+        [this](const sensor_msgs::msg::LaserScan::SharedPtr msg)
+        {
+          on_lidar(msg);
+        });
+
     imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", 10);
     battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/drone/battery", 10);
     altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
     proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
 
-    proximity_timer_ = this->create_wall_timer(
-        100ms, [this]()
-        { publish_proximity_placeholder(); });
-
     RCLCPP_INFO(this->get_logger(), "Px4SafetyBridge initialized (BEST_EFFORT QoS)");
     RCLCPP_INFO(this->get_logger(), "  /fmu/out/vehicle_attitude          -> /drone/imu");
     RCLCPP_INFO(this->get_logger(), "  /fmu/out/battery_status_v1         -> /drone/battery");
     RCLCPP_INFO(this->get_logger(), "  /fmu/out/vehicle_local_position_v1 -> /drone/altitude");
-    RCLCPP_INFO(this->get_logger(), "  proximity placeholder              -> /drone/proximity");
+    RCLCPP_INFO(this->get_logger(), "  %s -> /drone/proximity", lidar_topic.c_str());
   }
 
 private:
@@ -171,31 +179,45 @@ private:
   }
 
   /**
-   * @brief Publishes a fixed-range proximity placeholder on @c /drone/proximity.
+   * @brief Converts Gazebo LaserScan to sensor_msgs/Range for the safety board.
    *
-   * Keeps the SafetyBoard proximity watchdog satisfied at 10 Hz until a
-   * real distance sensor plugin is available. The placeholder range is set
-   * to 999 m so that no proximity veto is triggered.
+   * Takes the minimum finite range value across all rays as the closest
+   * obstacle distance. If all rays return inf (no obstacle), range_max
+   * is used as a safe fallback.
    */
-  void publish_proximity_placeholder()
+  void on_lidar(const sensor_msgs::msg::LaserScan::SharedPtr msg)
   {
+    float min_range = msg->range_max;
+    for (float r : msg->ranges)
+    {
+      if (std::isfinite(r) && r < min_range)
+      {
+        min_range = r;
+      }
+    }
+    if (!std::isfinite(min_range))
+    {
+      min_range = msg->range_max;
+    }
+
     sensor_msgs::msg::Range prox_msg;
-    prox_msg.range = 999.0f;
-    prox_msg.min_range = 0.1f;
-    prox_msg.max_range = 1000.0f;
+    prox_msg.range = min_range;
+    prox_msg.min_range = msg->range_min;
+    prox_msg.max_range = msg->range_max;
     proximity_pub_->publish(prox_msg);
+
+    RCLCPP_DEBUG(this->get_logger(), "proximity=%.2fm", min_range);
   }
 
   rclcpp::Subscription<px4_msgs::msg::VehicleAttitude>::SharedPtr attitude_sub_;
   rclcpp::Subscription<px4_msgs::msg::BatteryStatus>::SharedPtr battery_sub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr local_pos_sub_;
+  rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_sub_;
 
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
   rclcpp::Publisher<sensor_msgs::msg::BatteryState>::SharedPtr battery_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr altitude_pub_;
   rclcpp::Publisher<sensor_msgs::msg::Range>::SharedPtr proximity_pub_;
-
-  rclcpp::TimerBase::SharedPtr proximity_timer_;
 };
 
 // ============================================================================
