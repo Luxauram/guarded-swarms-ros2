@@ -13,6 +13,7 @@ find_package(rclcpp REQUIRED)
 find_package(px4_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(sensor_msgs REQUIRED)
 find_package(guarded_swarms_coordinator REQUIRED)
 
 # ============================================================================
@@ -28,9 +29,7 @@ target_include_directories(offboard_control_node PUBLIC
 )
 
 ament_target_dependencies(offboard_control_node
-  rclcpp
-  px4_msgs
-  geometry_msgs
+  rclcpp px4_msgs geometry_msgs
 )
 
 target_compile_features(offboard_control_node PUBLIC c_std_99 cxx_std_17)
@@ -48,9 +47,25 @@ target_include_directories(command_bridge_node PUBLIC
 )
 
 ament_target_dependencies(command_bridge_node
-  rclcpp
-  std_msgs
-  guarded_swarms_coordinator
+  rclcpp std_msgs guarded_swarms_coordinator
+)
+
+target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
+
+# ============================================================================
+# Executable: px4_safety_bridge_node
+# ============================================================================
+add_executable(px4_safety_bridge_node
+  src/px4_safety_bridge_node.cpp
+)
+
+target_include_directories(px4_safety_bridge_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+
+ament_target_dependencies(px4_safety_bridge_node
+  rclcpp px4_msgs sensor_msgs std_msgs
 )
 
 target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
@@ -61,6 +76,7 @@ target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
 install(TARGETS
   offboard_control_node
   command_bridge_node
+  px4_safety_bridge_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
