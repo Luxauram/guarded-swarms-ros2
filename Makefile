@@ -21,7 +21,7 @@
         setup-all setup-docker setup-workspace setup-px4 diagnose kill-all \
         demo-coordinator demo-tkinter demo-web demo-safety demo-safety-board demo-safety-sensors demo-pipeline demo-bridge \
         docker-start docker-stop docker-restart docker-shell docker-logs \
-        docker-status docker-clean \
+        docker-status docker-clean demo-px4-bridge \
         ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-test-topics \
         ros2-graph ros2-agent ros2-node ros2-coordinator-reb \
         px4-run px4-kill px4-console px4-gui px4-config px4-reset-params \
@@ -192,6 +192,7 @@ help:
 	@echo "    make demo-safety-sensors  Launch mock sensor publisher"
 	@echo "    make demo-bridge          Launch command bridge node"
 	@echo "    make demo-pipeline        Show full pipeline launch instructions"
+	@echo "    make demo-px4-bridge      Launch PX4->SafetyBoard adapter node"
 	@echo ""
 	@echo "===================================="
 	@echo "  DIAGNOSTICS & CLEANUP"
@@ -291,6 +292,9 @@ show-guide:
 	@echo "    Terminal 1: $$ make ros2-agent     # micro-ROS bridge"
 	@echo "    Terminal 2: $$ make px4-run        # PX4 SITL simulator"
 	@echo "    Terminal 3: $$ make ros2-node      # Offboard control"
+	@echo "    Terminal 4: $$ make demo-px4-bridge  # PX4 -> Safety adapter"
+	@echo "    Terminal 5: $$ make demo-safety-board # Safety enforcement"
+	@echo "    Terminal 6: $$ make demo-bridge       # Command bridge"
 	@echo ""
 	@echo "  With Gazebo GUI:"
 	@echo "    Terminal 2: $$ make px4-gui        # 3D visualization"
@@ -1006,6 +1010,9 @@ demo-pipeline:
 	@echo "  ros2 topic echo /actuator_cmd_safe  (safety output)"
 	@echo "  ros2 topic echo /safety_status      (0.0=unsafe 1.0=safe)"
 	@echo ""
+
+demo-px4-bridge:
+	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run guarded_swarms_control px4_safety_bridge_node"
 
 # ==============================================================================
 # Diagnostics
