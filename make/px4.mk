@@ -159,6 +159,8 @@ px4-kill:
 	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
 	@$(DOCKER_EXEC) bash -c "$(KILL_GAZEBO)"
 	@$(DOCKER_EXEC) bash -c "$(KILL_MICRO_ROS)"
+	@$(DOCKER_EXEC) bash -c "find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true"
+	@$(DOCKER_EXEC) bash -c "find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true"
 	@echo "All processes stopped."
 
 px4-console:
