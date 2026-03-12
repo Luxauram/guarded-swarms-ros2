@@ -23,8 +23,12 @@ jobs:
 
       - name: C++ format check
         run: |
-          find src -name "*.cpp" -o -name "*.hpp" | \
-          xargs clang-format --dry-run --Werror --style=file 2>&1 || \
+          FILES=$(find src \( -name "*.cpp" -o -name "*.hpp" \) )
+          if [ -z "$FILES" ]; then
+            echo "No C++ files found, skipping."
+            exit 0
+          fi
+          echo "$FILES" | xargs clang-format --dry-run --Werror --style=file 2>&1 || \
           { echo ""; echo "Run: find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i --style=file"; exit 1; }
 
       - name: Install Python linters
@@ -32,14 +36,22 @@ jobs:
 
       - name: Python format check (black)
         run: |
-          find src -name "*.py" | \
-          xargs black --check --line-length 100 2>&1 || \
+          FILES=$(find src -name "*.py")
+          if [ -z "$FILES" ]; then
+            echo "No Python files found, skipping."
+            exit 0
+          fi
+          echo "$FILES" | xargs black --check --line-length 100 2>&1 || \
           { echo ""; echo "Run: find src -name '*.py' | xargs black --line-length 100"; exit 1; }
 
       - name: Python lint (flake8)
         run: |
-          find src -name "*.py" | \
-          xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 || \
+          FILES=$(find src -name "*.py")
+          if [ -z "$FILES" ]; then
+            echo "No Python files found, skipping."
+            exit 0
+          fi
+          echo "$FILES" | xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 || \
           { echo ""; echo "Fix flake8 errors above."; exit 1; }
 
   # ============================================================
