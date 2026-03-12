@@ -30,7 +30,6 @@ from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional, Dict
 from enum import Enum
 
-
 # ============================================================================
 # Enums
 # ============================================================================

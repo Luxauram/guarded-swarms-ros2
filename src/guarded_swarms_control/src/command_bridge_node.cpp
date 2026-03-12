@@ -32,22 +32,15 @@ using AuthToken = guarded_swarms_coordinator::msg::AuthToken;
 // Constructor
 // ============================================================================
 
-CommandBridgeNode::CommandBridgeNode()
-    : Node("command_bridge_node")
-{
+CommandBridgeNode::CommandBridgeNode() : Node("command_bridge_node") {
   auth_sub_ = this->create_subscription<AuthToken>(
-      TOPIC_AUTH_TOKENS,
-      QUEUE_SIZE,
-      [this](const AuthToken::SharedPtr msg)
-      {
-        auth_token_callback(msg);
-      });
+      TOPIC_AUTH_TOKENS, QUEUE_SIZE,
+      [this](const AuthToken::SharedPtr msg) { auth_token_callback(msg); });
 
-  cmd_raw_pub_ = this->create_publisher<std_msgs::msg::Float32>(
-      TOPIC_CMD_RAW, QUEUE_SIZE);
+  cmd_raw_pub_ =
+      this->create_publisher<std_msgs::msg::Float32>(TOPIC_CMD_RAW, QUEUE_SIZE);
 
-  RCLCPP_INFO(this->get_logger(),
-              "CommandBridge initialized | %s -> %s",
+  RCLCPP_INFO(this->get_logger(), "CommandBridge initialized | %s -> %s",
               TOPIC_AUTH_TOKENS, TOPIC_CMD_RAW);
 }
 
@@ -55,18 +48,15 @@ CommandBridgeNode::CommandBridgeNode()
 // Auth Token Callback
 // ============================================================================
 
-void CommandBridgeNode::auth_token_callback(const AuthToken::SharedPtr msg)
-{
+void CommandBridgeNode::auth_token_callback(const AuthToken::SharedPtr msg) {
   tokens_received_++;
 
   const std::string &agent_id = msg->base_token.agent_id;
   const std::string &reason = msg->reason;
 
-  if (!msg->approved)
-  {
+  if (!msg->approved) {
     tokens_rejected_++;
-    RCLCPP_DEBUG(this->get_logger(),
-                 "[Bridge] REJECTED for %s | reason: %s",
+    RCLCPP_DEBUG(this->get_logger(), "[Bridge] REJECTED for %s | reason: %s",
                  agent_id.c_str(), reason.c_str());
     return;
   }
@@ -79,16 +69,15 @@ void CommandBridgeNode::auth_token_callback(const AuthToken::SharedPtr msg)
   cmd_raw_pub_->publish(cmd);
 
   RCLCPP_INFO(this->get_logger(),
-              "[Bridge] APPROVED for %s | thrust=%.2f -> %s",
-              agent_id.c_str(), thrust, TOPIC_CMD_RAW);
+              "[Bridge] APPROVED for %s | thrust=%.2f -> %s", agent_id.c_str(),
+              thrust, TOPIC_CMD_RAW);
 }
 
 // ============================================================================
 // Helpers
 // ============================================================================
 
-float CommandBridgeNode::compute_thrust(const std::string &agent_id) const
-{
+float CommandBridgeNode::compute_thrust(const std::string &agent_id) const {
   (void)agent_id;
   return DEFAULT_THRUST;
 }
@@ -105,8 +94,7 @@ float CommandBridgeNode::compute_thrust(const std::string &agent_id) const
  * @param argv Argument vector forwarded to @c rclcpp::init.
  * @return 0 on clean exit.
  */
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<CommandBridgeNode>());
   rclcpp::shutdown();

@@ -16,19 +16,23 @@
 
 /**
  * @file px4_safety_bridge_node.cpp
- * @brief Adapter node that converts PX4 SITL topics to standard safety board topics.
+ * @brief Adapter node that converts PX4 SITL topics to standard safety board
+ * topics.
  *
  * Subscribes to PX4 uORB topics exposed via ROS 2 and republishes them as
  * standard ROS 2 sensor messages compatible with @c SafetyBoardNode. This
  * keeps the safety board completely decoupled from PX4-specific message types.
  *
  * Topic mapping:
- * | PX4 / Gazebo source topic                 | Safety board topic  | Message type                  |
+ * | PX4 / Gazebo source topic                 | Safety board topic  | Message
+ * type                  |
  * |-------------------------------------------|---------------------|-------------------------------|
- * | /fmu/out/vehicle_attitude                 | /drone/imu          | sensor_msgs/Imu               |
- * | /fmu/out/battery_status_v1                | /drone/battery      | sensor_msgs/BatteryState      |
- * | /fmu/out/vehicle_local_position_v1        | /drone/altitude     | std_msgs/Float32              |
- * | Gazebo lidar/scan (via ros_gz_bridge)     | /drone/proximity    | sensor_msgs/Range             |
+ * | /fmu/out/vehicle_attitude                 | /drone/imu          |
+ * sensor_msgs/Imu               | | /fmu/out/battery_status_v1                |
+ * /drone/battery      | sensor_msgs/BatteryState      | |
+ * /fmu/out/vehicle_local_position_v1        | /drone/altitude     |
+ * std_msgs/Float32              | | Gazebo lidar/scan (via ros_gz_bridge)     |
+ * /drone/proximity    | sensor_msgs/Range             |
  *
  * @note The lidar topic name is configurable via the ROS parameter
  *       @c lidar_topic, defaulting to the x500_lidar_front_0 model path.
@@ -36,17 +40,17 @@
  * @author Luca D'Aurizio
  */
 
-#include <rclcpp/rclcpp.hpp>
 #include <cmath>
+#include <rclcpp/rclcpp.hpp>
 
-#include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/battery_status.hpp>
+#include <px4_msgs/msg/vehicle_attitude.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
 
-#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
-#include <sensor_msgs/msg/range.hpp>
+#include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/laser_scan.hpp>
+#include <sensor_msgs/msg/range.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 using namespace std::chrono_literals;
@@ -66,14 +70,12 @@ using namespace std::chrono_literals;
  * The lidar LaserScan is received via ros_gz_bridge and converted to a
  * sensor_msgs/Range by taking the minimum finite range value.
  */
-class Px4SafetyBridgeNode : public rclcpp::Node
-{
+class Px4SafetyBridgeNode : public rclcpp::Node {
 public:
-  Px4SafetyBridgeNode()
-      : Node("px4_safety_bridge_node")
-  {
+  Px4SafetyBridgeNode() : Node("px4_safety_bridge_node") {
     this->declare_parameter("lidar_topic",
-                            "/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan");
+                            "/world/default/model/x500_lidar_front_0/link/"
+                            "lidar_sensor_link/sensor/lidar/scan");
     std::string lidar_topic = this->get_parameter("lidar_topic").as_string();
 
     auto px4_qos = rclcpp::QoS(10)
@@ -83,42 +85,47 @@ public:
 
     attitude_sub_ = this->create_subscription<px4_msgs::msg::VehicleAttitude>(
         "/fmu/out/vehicle_attitude", px4_qos,
-        [this](const px4_msgs::msg::VehicleAttitude::SharedPtr msg)
-        {
+        [this](const px4_msgs::msg::VehicleAttitude::SharedPtr msg) {
           on_attitude(msg);
         });
 
     battery_sub_ = this->create_subscription<px4_msgs::msg::BatteryStatus>(
         "/fmu/out/battery_status_v1", px4_qos,
-        [this](const px4_msgs::msg::BatteryStatus::SharedPtr msg)
-        {
+        [this](const px4_msgs::msg::BatteryStatus::SharedPtr msg) {
           on_battery(msg);
         });
 
-    local_pos_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
-        "/fmu/out/vehicle_local_position_v1", px4_qos,
-        [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg)
-        {
-          on_local_position(msg);
-        });
+    local_pos_sub_ =
+        this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
+            "/fmu/out/vehicle_local_position_v1", px4_qos,
+            [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
+              on_local_position(msg);
+            });
 
     lidar_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
         lidar_topic, 10,
-        [this](const sensor_msgs::msg::LaserScan::SharedPtr msg)
-        {
+        [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
           on_lidar(msg);
         });
 
     imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", 10);
-    battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/drone/battery", 10);
-    altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
-    proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
+    battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>(
+        "/drone/battery", 10);
+    altitude_pub_ =
+        this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
+    proximity_pub_ =
+        this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
 
-    RCLCPP_INFO(this->get_logger(), "Px4SafetyBridge initialized (BEST_EFFORT QoS)");
-    RCLCPP_INFO(this->get_logger(), "  /fmu/out/vehicle_attitude          -> /drone/imu");
-    RCLCPP_INFO(this->get_logger(), "  /fmu/out/battery_status_v1         -> /drone/battery");
-    RCLCPP_INFO(this->get_logger(), "  /fmu/out/vehicle_local_position_v1 -> /drone/altitude");
-    RCLCPP_INFO(this->get_logger(), "  %s -> /drone/proximity", lidar_topic.c_str());
+    RCLCPP_INFO(this->get_logger(),
+                "Px4SafetyBridge initialized (BEST_EFFORT QoS)");
+    RCLCPP_INFO(this->get_logger(),
+                "  /fmu/out/vehicle_attitude          -> /drone/imu");
+    RCLCPP_INFO(this->get_logger(),
+                "  /fmu/out/battery_status_v1         -> /drone/battery");
+    RCLCPP_INFO(this->get_logger(),
+                "  /fmu/out/vehicle_local_position_v1 -> /drone/altitude");
+    RCLCPP_INFO(this->get_logger(), "  %s -> /drone/proximity",
+                lidar_topic.c_str());
   }
 
 private:
@@ -131,8 +138,7 @@ private:
    *
    * @param msg Shared pointer to the received @c VehicleAttitude message.
    */
-  void on_attitude(const px4_msgs::msg::VehicleAttitude::SharedPtr msg)
-  {
+  void on_attitude(const px4_msgs::msg::VehicleAttitude::SharedPtr msg) {
     sensor_msgs::msg::Imu imu_msg;
     imu_msg.orientation.w = msg->q[0];
     imu_msg.orientation.x = msg->q[1];
@@ -151,8 +157,7 @@ private:
    *
    * @param msg Shared pointer to the received @c BatteryStatus message.
    */
-  void on_battery(const px4_msgs::msg::BatteryStatus::SharedPtr msg)
-  {
+  void on_battery(const px4_msgs::msg::BatteryStatus::SharedPtr msg) {
     sensor_msgs::msg::BatteryState bat_msg;
     bat_msg.percentage = msg->remaining;
     battery_pub_->publish(bat_msg);
@@ -167,8 +172,8 @@ private:
    *
    * @param msg Shared pointer to the received @c VehicleLocalPosition message.
    */
-  void on_local_position(const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg)
-  {
+  void
+  on_local_position(const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
     if (!msg->z_valid)
       return;
 
@@ -185,18 +190,14 @@ private:
    * obstacle distance. If all rays return inf (no obstacle), range_max
    * is used as a safe fallback.
    */
-  void on_lidar(const sensor_msgs::msg::LaserScan::SharedPtr msg)
-  {
+  void on_lidar(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
     float min_range = msg->range_max;
-    for (float r : msg->ranges)
-    {
-      if (std::isfinite(r) && r < min_range)
-      {
+    for (float r : msg->ranges) {
+      if (std::isfinite(r) && r < min_range) {
         min_range = r;
       }
     }
-    if (!std::isfinite(min_range))
-    {
+    if (!std::isfinite(min_range)) {
       min_range = msg->range_max;
     }
 
@@ -211,7 +212,8 @@ private:
 
   rclcpp::Subscription<px4_msgs::msg::VehicleAttitude>::SharedPtr attitude_sub_;
   rclcpp::Subscription<px4_msgs::msg::BatteryStatus>::SharedPtr battery_sub_;
-  rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr local_pos_sub_;
+  rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr
+      local_pos_sub_;
   rclcpp::Subscription<sensor_msgs::msg::LaserScan>::SharedPtr lidar_sub_;
 
   rclcpp::Publisher<sensor_msgs::msg::Imu>::SharedPtr imu_pub_;
@@ -232,8 +234,7 @@ private:
  * @param argv Argument vector forwarded to @c rclcpp::init.
  * @return 0 on clean exit.
  */
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<Px4SafetyBridgeNode>());
   rclcpp::shutdown();

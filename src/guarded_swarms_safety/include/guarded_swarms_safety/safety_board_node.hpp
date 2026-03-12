@@ -29,9 +29,9 @@
 #pragma once
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/range.hpp>
-#include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 #include <chrono>
@@ -48,18 +48,21 @@
  * All fields are initialised to safe default values so that the node does not
  * veto commands before the first sensor message is received.
  */
-struct SensorSnapshot
-{
-  float proximity_m = 999.0f;     ///< Closest obstacle distance (m).
-  float pitch_deg = 0.0f;         ///< Current pitch angle (degrees).
-  float roll_deg = 0.0f;          ///< Current roll angle (degrees).
-  float battery_percent = 100.0f; ///< Battery state of charge in the range [0, 100].
-  float altitude_m = 0.0f;        ///< Altitude above ground (m).
+struct SensorSnapshot {
+  float proximity_m = 999.0f; ///< Closest obstacle distance (m).
+  float pitch_deg = 0.0f;     ///< Current pitch angle (degrees).
+  float roll_deg = 0.0f;      ///< Current roll angle (degrees).
+  float battery_percent =
+      100.0f;              ///< Battery state of charge in the range [0, 100].
+  float altitude_m = 0.0f; ///< Altitude above ground (m).
 
-  double last_imu_ts = 0.0;       ///< Timestamp of the last IMU message (seconds).
-  double last_proximity_ts = 0.0; ///< Timestamp of the last proximity message (seconds).
-  double last_battery_ts = 0.0;   ///< Timestamp of the last battery message (seconds).
-  double last_altitude_ts = 0.0;  ///< Timestamp of the last altitude message (seconds).
+  double last_imu_ts = 0.0; ///< Timestamp of the last IMU message (seconds).
+  double last_proximity_ts =
+      0.0; ///< Timestamp of the last proximity message (seconds).
+  double last_battery_ts =
+      0.0; ///< Timestamp of the last battery message (seconds).
+  double last_altitude_ts =
+      0.0; ///< Timestamp of the last altitude message (seconds).
 };
 
 // ============================================================================
@@ -72,14 +75,14 @@ struct SensorSnapshot
  * Carries both the overall decision and per-check results, together with a
  * human-readable description of the first constraint violation detected.
  */
-struct SafetyVerdict
-{
-  bool is_safe = true;          ///< Overall safety decision (false if any check fails).
-  bool proximity_ok = true;     ///< Result of the proximity constraint check.
-  bool attitude_ok = true;      ///< Result of the attitude constraint check.
-  bool battery_ok = true;       ///< Result of the battery constraint check.
-  bool altitude_ok = true;      ///< Result of the altitude constraint check.
-  std::string violation_reason; ///< Human-readable description of the first violation.
+struct SafetyVerdict {
+  bool is_safe = true; ///< Overall safety decision (false if any check fails).
+  bool proximity_ok = true; ///< Result of the proximity constraint check.
+  bool attitude_ok = true;  ///< Result of the attitude constraint check.
+  bool battery_ok = true;   ///< Result of the battery constraint check.
+  bool altitude_ok = true;  ///< Result of the altitude constraint check.
+  std::string
+      violation_reason; ///< Human-readable description of the first violation.
 };
 
 // ============================================================================
@@ -94,8 +97,7 @@ struct SafetyVerdict
  * Any single violated constraint causes the current command to be replaced
  * with a zero-thrust output.
  */
-class SafetyBoardNode : public rclcpp::Node
-{
+class SafetyBoardNode : public rclcpp::Node {
 public:
   /**
    * @brief Constructs the node, declares ROS parameters, and initialises all
@@ -165,12 +167,14 @@ private:
   void cmd_raw_callback(const std_msgs::msg::Float32::SharedPtr msg);
 
   /**
-   * @brief Evaluates all safety constraints against the current sensor snapshot.
+   * @brief Evaluates all safety constraints against the current sensor
+   * snapshot.
    *
    * Applies OR-logic: the first failed constraint short-circuits the evaluation
    * and populates the violation reason in the returned verdict.
    *
-   * @return A @c SafetyVerdict describing the overall result and per-check outcomes.
+   * @return A @c SafetyVerdict describing the overall result and per-check
+   * outcomes.
    */
   SafetyVerdict evaluate_safety() const;
 

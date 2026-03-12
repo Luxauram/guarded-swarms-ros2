@@ -20,8 +20,9 @@
  * Offboard position control node for PX4 UAV via ROS 2.
  *
  * This node demonstrates autonomous flight control using the PX4 offboard mode.
- * It publishes trajectory setpoints at 10Hz to maintain a stable hover position,
- * enables offboard control mode, and commands the drone to arm and takeoff.
+ * It publishes trajectory setpoints at 10Hz to maintain a stable hover
+ * position, enables offboard control mode, and commands the drone to arm and
+ * takeoff.
  *
  * The control sequence:
  * 1. Publish position setpoints for 5 seconds (PX4 validation period)
@@ -32,10 +33,10 @@
  * @author Luca D'Aurizio
  */
 
-#include <rclcpp/rclcpp.hpp>
 #include <px4_msgs/msg/offboard_control_mode.hpp>
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
+#include <rclcpp/rclcpp.hpp>
 
 #include <chrono>
 #include <cmath>
@@ -46,39 +47,39 @@ using namespace std::chrono_literals;
  * ROS 2 node for PX4 offboard position control.
  *
  * Publishes trajectory setpoints and vehicle commands to control a PX4 drone
- * in offboard mode. Maintains hover at a fixed altitude above the start position.
+ * in offboard mode. Maintains hover at a fixed altitude above the start
+ * position.
  */
-class OffboardControlNode : public rclcpp::Node
-{
+class OffboardControlNode : public rclcpp::Node {
 public:
   /**
    * Constructor - initializes publishers and timer.
    *
    * Sets up ROS 2 publishers for offboard control mode, trajectory setpoints,
-   * and vehicle commands. Creates a 10Hz timer for continuous setpoint publishing.
+   * and vehicle commands. Creates a 10Hz timer for continuous setpoint
+   * publishing.
    */
-  OffboardControlNode() : Node("offboard_control_node")
-  {
+  OffboardControlNode() : Node("offboard_control_node") {
     offboard_setpoint_counter_ = 0;
 
-    offboard_control_mode_publisher_ = this->create_publisher<px4_msgs::msg::OffboardControlMode>(
-        TOPIC_OFFBOARD_CONTROL_MODE,
-        QUEUE_SIZE);
+    offboard_control_mode_publisher_ =
+        this->create_publisher<px4_msgs::msg::OffboardControlMode>(
+            TOPIC_OFFBOARD_CONTROL_MODE, QUEUE_SIZE);
 
-    trajectory_setpoint_publisher_ = this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
-        TOPIC_TRAJECTORY_SETPOINT,
-        QUEUE_SIZE);
+    trajectory_setpoint_publisher_ =
+        this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
+            TOPIC_TRAJECTORY_SETPOINT, QUEUE_SIZE);
 
-    vehicle_command_publisher_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
-        TOPIC_VEHICLE_COMMAND,
-        QUEUE_SIZE);
+    vehicle_command_publisher_ =
+        this->create_publisher<px4_msgs::msg::VehicleCommand>(
+            TOPIC_VEHICLE_COMMAND, QUEUE_SIZE);
 
     timer_ = this->create_wall_timer(
-        TIMER_PERIOD,
-        std::bind(&OffboardControlNode::timer_callback, this));
+        TIMER_PERIOD, std::bind(&OffboardControlNode::timer_callback, this));
 
     RCLCPP_INFO(this->get_logger(), "Offboard control node started");
-    RCLCPP_INFO(this->get_logger(), "Target hover altitude: %.1f meters", HOVER_ALTITUDE_METERS);
+    RCLCPP_INFO(this->get_logger(), "Target hover altitude: %.1f meters",
+                HOVER_ALTITUDE_METERS);
     RCLCPP_INFO(this->get_logger(), "Waiting %.1f seconds before arming...",
                 ARMING_DELAY_SECONDS);
   }
@@ -89,9 +90,12 @@ private:
   // ========================================================================
 
   // ROS 2 Topic Names
-  static constexpr const char *TOPIC_OFFBOARD_CONTROL_MODE = "/fmu/in/offboard_control_mode";
-  static constexpr const char *TOPIC_TRAJECTORY_SETPOINT = "/fmu/in/trajectory_setpoint";
-  static constexpr const char *TOPIC_VEHICLE_COMMAND = "/fmu/in/vehicle_command";
+  static constexpr const char *TOPIC_OFFBOARD_CONTROL_MODE =
+      "/fmu/in/offboard_control_mode";
+  static constexpr const char *TOPIC_TRAJECTORY_SETPOINT =
+      "/fmu/in/trajectory_setpoint";
+  static constexpr const char *TOPIC_VEHICLE_COMMAND =
+      "/fmu/in/vehicle_command";
 
   // Publisher Configuration
   static constexpr int QUEUE_SIZE = 10;
@@ -119,7 +123,8 @@ private:
   static constexpr float PARAM_CUSTOM_MAIN_MODE = 1.0f;
   static constexpr float PARAM_CUSTOM_SUB_MODE_OFFBOARD = 6.0f;
   static constexpr float PARAM_ARM = 1.0f;
-  static constexpr float PARAM_FORCE_ARM = 21196.0f; // bypasses preflight checks - @TODO
+  static constexpr float PARAM_FORCE_ARM =
+      21196.0f; // bypasses preflight checks - @TODO
 
   // PX4 System IDs
   static constexpr uint8_t PX4_SYSTEM_ID = 1;
@@ -136,24 +141,17 @@ private:
    * After the arming delay period, sends commands to enable offboard mode
    * and arm the drone.
    */
-  void timer_callback()
-  {
+  void timer_callback() {
     publish_offboard_control_mode();
     publish_trajectory_setpoint();
 
-    if (offboard_setpoint_counter_ == ARMING_COUNTER_THRESHOLD)
-    {
+    if (offboard_setpoint_counter_ == ARMING_COUNTER_THRESHOLD) {
       RCLCPP_INFO(this->get_logger(), "Enabling offboard mode...");
-      publish_vehicle_command(
-          CMD_SET_MODE,
-          PARAM_CUSTOM_MAIN_MODE,
-          PARAM_CUSTOM_SUB_MODE_OFFBOARD);
+      publish_vehicle_command(CMD_SET_MODE, PARAM_CUSTOM_MAIN_MODE,
+                              PARAM_CUSTOM_SUB_MODE_OFFBOARD);
 
       RCLCPP_INFO(this->get_logger(), "Arming drone (force flag enabled)...");
-      publish_vehicle_command(
-          CMD_ARM_DISARM,
-          PARAM_ARM,
-          PARAM_FORCE_ARM);
+      publish_vehicle_command(CMD_ARM_DISARM, PARAM_ARM, PARAM_FORCE_ARM);
     }
 
     offboard_setpoint_counter_++;
@@ -165,8 +163,7 @@ private:
    * Informs PX4 which control dimensions are active. This implementation
    * enables position control only, disabling velocity and acceleration control.
    */
-  void publish_offboard_control_mode()
-  {
+  void publish_offboard_control_mode() {
     px4_msgs::msg::OffboardControlMode msg;
 
     msg.timestamp = get_timestamp_microseconds();
@@ -187,8 +184,7 @@ private:
    * Velocity and acceleration fields are set to NaN to indicate they
    * are not used for control.
    */
-  void publish_trajectory_setpoint()
-  {
+  void publish_trajectory_setpoint() {
     px4_msgs::msg::TrajectorySetpoint msg;
 
     msg.timestamp = get_timestamp_microseconds();
@@ -220,11 +216,8 @@ private:
    * @param param1 First command parameter (command-specific meaning)
    * @param param2 Second command parameter (command-specific meaning)
    */
-  void publish_vehicle_command(
-      uint16_t command,
-      float param1 = 0.0f,
-      float param2 = 0.0f)
-  {
+  void publish_vehicle_command(uint16_t command, float param1 = 0.0f,
+                               float param2 = 0.0f) {
     px4_msgs::msg::VehicleCommand msg;
 
     msg.timestamp = get_timestamp_microseconds();
@@ -239,12 +232,9 @@ private:
 
     vehicle_command_publisher_->publish(msg);
 
-    RCLCPP_INFO(
-        this->get_logger(),
-        "Sent vehicle command %d (param1: %.1f, param2: %.1f)",
-        command,
-        param1,
-        param2);
+    RCLCPP_INFO(this->get_logger(),
+                "Sent vehicle command %d (param1: %.1f, param2: %.1f)", command,
+                param1, param2);
   }
 
   /**
@@ -255,8 +245,7 @@ private:
    *
    * @return Current time in microseconds
    */
-  uint64_t get_timestamp_microseconds()
-  {
+  uint64_t get_timestamp_microseconds() {
     return this->get_clock()->now().nanoseconds() / 1000;
   }
 
@@ -292,8 +281,7 @@ private:
  * @param argv Command line argument values
  * @return Exit code (0 on success)
  */
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<OffboardControlNode>());
   rclcpp::shutdown();

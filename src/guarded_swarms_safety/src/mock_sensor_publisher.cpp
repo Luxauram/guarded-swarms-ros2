@@ -36,9 +36,9 @@
  */
 
 #include <rclcpp/rclcpp.hpp>
+#include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/range.hpp>
-#include <sensor_msgs/msg/battery_state.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 #include <chrono>
@@ -58,8 +58,7 @@ using namespace std::chrono_literals;
  * Each field defines the value that will be published on the corresponding
  * sensor topic for the duration of the scenario.
  */
-struct Scenario
-{
+struct Scenario {
   std::string name;  ///< Human-readable scenario identifier.
   float proximity_m; ///< Simulated obstacle distance (m).
   float pitch_deg;   ///< Simulated pitch angle (degrees).
@@ -91,21 +90,21 @@ static constexpr double PUBLISH_RATE_HZ = 10.0;
  * The node cycles through the entries of @c SCENARIOS in order. After the
  * last scenario completes the cycle restarts from the beginning.
  */
-class MockSensorPublisher : public rclcpp::Node
-{
+class MockSensorPublisher : public rclcpp::Node {
 public:
   /**
    * @brief Constructs the node, creates all publishers, and starts the
    *        periodic publish timer.
    */
   MockSensorPublisher()
-      : Node("mock_sensor_publisher"),
-        current_scenario_idx_(0)
-  {
+      : Node("mock_sensor_publisher"), current_scenario_idx_(0) {
     imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", 10);
-    proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
-    battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>("/drone/battery", 10);
-    altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
+    proximity_pub_ =
+        this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
+    battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>(
+        "/drone/battery", 10);
+    altitude_pub_ =
+        this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
 
     start_time_ = this->now().seconds();
 
@@ -127,16 +126,14 @@ private:
    *
    * @return Const reference to the currently active @c Scenario entry.
    */
-  const Scenario &get_current_scenario()
-  {
+  const Scenario &get_current_scenario() {
     double elapsed = this->now().seconds() - start_time_;
-    size_t idx = static_cast<size_t>(elapsed / SCENARIO_DURATION_S) % SCENARIOS.size();
+    size_t idx =
+        static_cast<size_t>(elapsed / SCENARIO_DURATION_S) % SCENARIOS.size();
 
-    if (idx != current_scenario_idx_)
-    {
+    if (idx != current_scenario_idx_) {
       current_scenario_idx_ = idx;
-      RCLCPP_WARN(this->get_logger(),
-                  "[MockSensors] >>> Scenario %zu: %s <<<",
+      RCLCPP_WARN(this->get_logger(), "[MockSensors] >>> Scenario %zu: %s <<<",
                   idx, SCENARIOS[idx].name.c_str());
     }
 
@@ -147,8 +144,7 @@ private:
    * @brief Timer callback that publishes all sensor topics and a constant
    *        raw actuator command for the current scenario.
    */
-  void publish_all()
-  {
+  void publish_all() {
     const Scenario &s = get_current_scenario();
 
     publish_imu(s.pitch_deg, s.roll_deg);
@@ -167,8 +163,7 @@ private:
    * @param pitch_deg Desired pitch angle in degrees.
    * @param roll_deg  Desired roll angle in degrees.
    */
-  void publish_imu(float pitch_deg, float roll_deg)
-  {
+  void publish_imu(float pitch_deg, float roll_deg) {
     double pitch = static_cast<double>(pitch_deg) * M_PI / 180.0;
     double roll = static_cast<double>(roll_deg) * M_PI / 180.0;
     double yaw = 0.0;
@@ -194,8 +189,7 @@ private:
    *
    * @param distance_m Simulated distance to the nearest obstacle in metres.
    */
-  void publish_proximity(float distance_m)
-  {
+  void publish_proximity(float distance_m) {
     sensor_msgs::msg::Range msg;
     msg.range = distance_m;
     msg.min_range = 0.1f;
@@ -210,8 +204,7 @@ private:
    *                The value is converted to the [0.0, 1.0] scale required
    *                by the BatteryState message type.
    */
-  void publish_battery(float percent)
-  {
+  void publish_battery(float percent) {
     sensor_msgs::msg::BatteryState msg;
     msg.percentage = percent / 100.0f;
     battery_pub_->publish(msg);
@@ -222,8 +215,7 @@ private:
    *
    * @param altitude_m Simulated altitude above ground in metres.
    */
-  void publish_altitude(float altitude_m)
-  {
+  void publish_altitude(float altitude_m) {
     std_msgs::msg::Float32 msg;
     msg.data = altitude_m;
     altitude_pub_->publish(msg);
@@ -251,8 +243,7 @@ private:
  * @param argv Argument vector forwarded to @c rclcpp::init.
  * @return 0 on clean exit.
  */
-int main(int argc, char *argv[])
-{
+int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<MockSensorPublisher>());
   rclcpp::shutdown();

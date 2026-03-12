@@ -35,9 +35,9 @@
 
 #pragma once
 
+#include <guarded_swarms_coordinator/msg/auth_token.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
-#include <guarded_swarms_coordinator/msg/auth_token.hpp>
 
 #include <string>
 #include <unordered_map>
@@ -47,7 +47,8 @@
 // ============================================================================
 
 /**
- * @brief ROS 2 node bridging the digital token layer to the analog safety layer.
+ * @brief ROS 2 node bridging the digital token layer to the analog safety
+ * layer.
  *
  * Subscribes to @c /auth_tokens and converts each approved token into a
  * normalised thrust command published on @c /actuator_cmd_raw. Tokens whose
@@ -68,7 +69,8 @@ private:
 
   static constexpr int QUEUE_SIZE = 10;
 
-  static constexpr float DEFAULT_THRUST = 0.6f; ///< Normalised thrust issued on token approval (60 %).
+  static constexpr float DEFAULT_THRUST =
+      0.6f; ///< Normalised thrust issued on token approval (60 %).
 
   /**
    * @brief Handles incoming @c AuthToken messages from the coordinator.
@@ -93,10 +95,10 @@ private:
    */
   float compute_thrust(const std::string &agent_id) const;
 
-  uint64_t tokens_received_ = 0; ///< Total number of tokens received.
-  uint64_t tokens_approved_ = 0; ///< Number of approved tokens that generated a command.
-  uint64_t tokens_rejected_ = 0; ///< Number of rejected tokens that were discarded.
-
-  rclcpp::Subscription<guarded_swarms_coordinator::msg::AuthToken>::SharedPtr auth_sub_;
+  uint64_t tokens_received_ = 0;
+  uint64_t tokens_approved_ = 0;
+  uint64_t tokens_rejected_ = 0;
+  rclcpp::Subscription<guarded_swarms_coordinator::msg::AuthToken>::SharedPtr
+      auth_sub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
 };
