@@ -1,0 +1,13 @@
+# Google-based style
+BasedOnStyle: Google
+IndentWidth: 2
+ColumnLimit: 100
+AccessModifierOffset: -1
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: false
+SortIncludes: true
+SpaceBeforeCpp11BracedList: false

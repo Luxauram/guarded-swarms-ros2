@@ -1,0 +1,207 @@
+name: Guarded Swarms CI
+
+on:
+  push:
+    branches: [main, staging, develop]
+  pull_request:
+    branches: [main, staging, develop]
+
+jobs:
+  # ============================================================
+  # Job 1: Lint
+  # ============================================================
+  lint:
+    name: Lint (C++ + Python)
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install clang-format
+        run: sudo apt-get install -y clang-format
+
+      - name: C++ format check
+        run: |
+          find src -name "*.cpp" -o -name "*.hpp" | \
+          xargs clang-format --dry-run --Werror --style=file 2>&1 || \
+          { echo ""; echo "Run: find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i --style=file"; exit 1; }
+
+      - name: Install Python linters
+        run: pip install black flake8
+
+      - name: Python format check (black)
+        run: |
+          find src -name "*.py" | \
+          xargs black --check --line-length 100 2>&1 || \
+          { echo ""; echo "Run: find src -name '*.py' | xargs black --line-length 100"; exit 1; }
+
+      - name: Python lint (flake8)
+        run: |
+          find src -name "*.py" | \
+          xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 || \
+          { echo ""; echo "Fix flake8 errors above."; exit 1; }
+
+  # ============================================================
+  # Job 2: Build ROS2 packages
+  # ============================================================
+  build:
+    name: Build ROS2 Packages
+    runs-on: ubuntu-22.04
+    needs: lint
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker
+          push: false
+          load: true
+          tags: guarded_swarms:ci
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+
+      - name: Build ROS2 workspace
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            guarded_swarms:ci \
+            bash -c "
+              source /opt/ros/humble/setup.bash && \
+              cd /workspace && \
+              colcon build \
+                --packages-select \
+                  guarded_swarms_coordinator \
+                  guarded_swarms_safety \
+                  guarded_swarms_control \
+                --symlink-install \
+                --event-handlers console_direct+ \
+              2>&1
+            "
+
+  # ============================================================
+  # Job 3: Smoke test
+  # Starts safety_board + mock_sensor_publisher for 15s
+  # Verifies: no crash, SAFE appears, VETO appears on violation
+  # No PX4/Gazebo needed — uses mock sensors only
+  # ============================================================
+  smoke-test:
+    name: Smoke Test (Safety Pipeline)
+    runs-on: ubuntu-22.04
+    needs: build
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Build Docker image (cached)
+        uses: docker/build-push-action@v5
+        with:
+          context: ./docker
+          push: false
+          load: true
+          tags: guarded_swarms:ci
+          cache-from: type=local,src=/tmp/.buildx-cache
+
+      - name: Restore built workspace
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            guarded_swarms:ci \
+            bash -c "
+              source /opt/ros/humble/setup.bash && \
+              cd /workspace && \
+              colcon build \
+                --packages-select \
+                  guarded_swarms_coordinator \
+                  guarded_swarms_safety \
+                  guarded_swarms_control \
+                --symlink-install 2>&1
+            "
+
+      - name: Run safety pipeline smoke test
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/workspace \
+            guarded_swarms:ci \
+            bash -c "
+              source /opt/ros/humble/setup.bash && \
+              source /workspace/install/setup.bash && \
+
+              # Start safety board in background, capture output
+              ros2 run guarded_swarms_safety safety_board_node \
+                > /tmp/safety_board.log 2>&1 &
+              BOARD_PID=\$!
+
+              # Wait for node to initialize
+              sleep 3
+
+              # Start mock sensors in background
+              ros2 run guarded_swarms_safety mock_sensor_publisher \
+                > /tmp/mock_sensors.log 2>&1 &
+              SENSORS_PID=\$!
+
+              # Let it run through at least scenario 0 (NOMINAL) and scenario 1 (PROXIMITY)
+              sleep 22
+
+              # Kill both nodes
+              kill \$BOARD_PID \$SENSORS_PID 2>/dev/null || true
+              sleep 1
+
+              echo '=== Safety Board Output ==='
+              cat /tmp/safety_board.log
+
+              echo ''
+              echo '=== Mock Sensors Output ==='
+              cat /tmp/mock_sensors.log
+
+              # Verify SAFE appeared
+              if grep -q 'SAFE' /tmp/safety_board.log; then
+                echo 'CHECK SAFE: OK'
+              else
+                echo 'CHECK SAFE: FAILED - no SAFE state observed'
+                exit 1
+              fi
+
+              # Verify UNSAFE appeared (mock sensor triggered a violation)
+              if grep -q 'UNSAFE' /tmp/safety_board.log; then
+                echo 'CHECK UNSAFE: OK'
+              else
+                echo 'CHECK UNSAFE: FAILED - no violation detected'
+                exit 1
+              fi
+
+              # Verify VETO appeared (commands were vetoed during violation)
+              if grep -q 'VETO' /tmp/safety_board.log; then
+                echo 'CHECK VETO: OK'
+              else
+                echo 'CHECK VETO: FAILED - no veto observed'
+                exit 1
+              fi
+
+              echo ''
+              echo 'All smoke tests passed.'
+            "
