@@ -38,7 +38,6 @@
 #include <guarded_swarms_coordinator/msg/auth_token.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
-
 #include <string>
 #include <unordered_map>
 
@@ -54,23 +53,22 @@
  * normalised thrust command published on @c /actuator_cmd_raw. Tokens whose
  * approval flag is not set are dropped without generating any output.
  */
-class CommandBridgeNode : public rclcpp::Node
-{
-public:
+class CommandBridgeNode : public rclcpp::Node {
+ public:
   /**
    * @brief Constructs the node, declares ROS parameters, and initialises the
    *        subscription and publisher.
    */
   explicit CommandBridgeNode();
 
-private:
-  static constexpr const char *TOPIC_AUTH_TOKENS = "/auth_tokens";
-  static constexpr const char *TOPIC_CMD_RAW = "/actuator_cmd_raw";
+ private:
+  static constexpr const char* TOPIC_AUTH_TOKENS = "/auth_tokens";
+  static constexpr const char* TOPIC_CMD_RAW = "/actuator_cmd_raw";
 
   static constexpr int QUEUE_SIZE = 10;
 
   static constexpr float DEFAULT_THRUST =
-      0.6f; ///< Normalised thrust issued on token approval (60 %).
+      0.6f;  ///< Normalised thrust issued on token approval (60 %).
 
   /**
    * @brief Handles incoming @c AuthToken messages from the coordinator.
@@ -93,7 +91,7 @@ private:
    * @param agent_id Identifier of the agent whose token was approved.
    * @return Normalised thrust in the range [0.0, 1.0].
    */
-  float compute_thrust(const std::string &agent_id) const;
+  float compute_thrust(const std::string& agent_id) const;
 
   uint64_t tokens_received_ = 0;
   uint64_t tokens_approved_ = 0;
