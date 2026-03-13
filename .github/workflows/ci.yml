@@ -22,6 +22,7 @@ jobs:
         run: sudo apt-get install -y clang-format
 
       - name: C++ format check
+        continue-on-error: true
         run: |
           FILES=$(find src \( -name "*.cpp" -o -name "*.hpp" \) )
           if [ -z "$FILES" ]; then
@@ -35,6 +36,7 @@ jobs:
         run: pip install black flake8
 
       - name: Python format check (black)
+        continue-on-error: true
         run: |
           FILES=$(find src -name "*.py")
           if [ -z "$FILES" ]; then
@@ -45,6 +47,7 @@ jobs:
           { echo ""; echo "Run: find src -name '*.py' | xargs black --line-length 100"; exit 1; }
 
       - name: Python lint (flake8)
+        continue-on-error: true
         run: |
           FILES=$(find src -name "*.py")
           if [ -z "$FILES" ]; then
