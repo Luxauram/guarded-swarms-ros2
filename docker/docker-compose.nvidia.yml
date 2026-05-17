@@ -1,0 +1,39 @@
+# Copyright 2026 Luca D'Aurizio
+# Licensed under Apache-2.0
+#
+# Guarded Swarms - Docker Compose NVIDIA GPU Override
+#
+# Enables hardware-accelerated Gazebo rendering, required for lidar sensors
+# to publish data. Use this file together with docker-compose.yml.
+#
+# SUPPORTED PLATFORM: Ubuntu 22.04 with an NVIDIA GPU.
+#
+# Requirements:
+#   - Ubuntu 22.04 (native install or dual boot - NOT WSL2, NOT macOS)
+#   - NVIDIA GPU (GeForce, Quadro, or Tesla)
+#   - NVIDIA drivers installed on the host
+#   - NVIDIA Container Toolkit:
+#       https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+#
+# To verify your system is compatible:
+#   make check-gpu
+#
+# Usage:
+#   make docker-start-nvidia
+#
+# NOT supported on macOS (Apple dropped NVIDIA support in 2019).
+# NOT supported on Windows/WSL2 (GPU passthrough is unreliable for Gazebo).
+
+services:
+  guarded_swarms:
+    environment:
+      # Disable software rendering fallback - use the real GPU
+      - LIBGL_ALWAYS_SOFTWARE=0
+      - GALLIUM_DRIVER=
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, graphics, display]

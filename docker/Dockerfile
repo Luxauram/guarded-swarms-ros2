@@ -8,7 +8,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /workspace
 
 # ============================================================================
-# LAYER 1: Essential Tools
+# LAYER 1: Essential Tools + OpenGL Support
 # ============================================================================
 RUN apt-get update && apt-get install -y \
     python3-colcon-common-extensions \
@@ -20,6 +20,9 @@ RUN apt-get update && apt-get install -y \
     cmake \
     build-essential \
     mesa-utils \
+    libgl1-mesa-glx \
+    libegl1-mesa \
+    libgles2-mesa \
     && rm -rf /var/lib/apt/lists/*
 
 # ============================================================================
