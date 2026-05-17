@@ -285,7 +285,7 @@ demo-px4-rover:
 	@echo "=========================================="
 	@echo ""
 	@echo "Prerequisites (start in order):"
-	@echo "  Terminal 1: make px4-run-rover"
+	@echo "  Terminal 1: make px4-run-ugv"
 	@echo "  Terminal 2: make ros2-agent"
 	@echo "  Terminal 3: (this terminal) make demo-px4-rover"
 	@echo "  Terminal 4: make demo-safety-board-rover"

@@ -16,7 +16,7 @@
 # diagnostics.mk - System diagnostics and process cleanup
 # ==============================================================================
 
-.PHONY: diagnose kill-all setup-all setup-docker setup-workspace setup-px4
+.PHONY: diagnose kill-all setup-all setup-docker setup-workspace setup-px4 check-gpu
 
 # ------------------------------------------------------------------------------
 # Setup
@@ -30,7 +30,7 @@ setup-all: setup-docker setup-workspace setup-px4
 	@echo "System is ready. Quick start:"
 	@echo ""
 	@echo "  Terminal 1: UAV demo =>   make px4-run-uav   (then make demo-px4-uav)"
-	@echo "  Terminal 2: Rover demo => make setup-rover   (once) then make px4-run-rover"
+	@echo "  Terminal 2: Rover demo => make setup-ugv   (once) then make px4-run-ugv"
 	@echo "  Terminal 3: Mock demo =>  make demo-pipeline"
 	@echo ""
 	@echo "Manual arming (if automatic arming fails):"
@@ -120,7 +120,85 @@ setup-px4:
 	@echo ""
 	@echo "PX4 setup complete."
 	@echo ""
-	@echo "NOTE: Run 'make setup-rover' to also enable UGV simulation."
+	@echo "NOTE: Run 'make setup-ugv' to also enable UGV simulation."
+	@echo ""
+
+# ------------------------------------------------------------------------------
+# GPU Check
+# Supported only on Ubuntu Linux (host).
+# macOS and Windows/WSL2 are not supported platforms for this project.
+# ------------------------------------------------------------------------------
+check-gpu:
+	@echo "=========================================="
+	@echo "GPU Acceleration Check"
+	@echo "=========================================="
+	@echo ""
+	@_OS=$$(uname -s); \
+	if [ "$$_OS" = "Darwin" ]; then \
+		echo "  Platform detected: macOS"; \
+		echo ""; \
+		echo "  [NOT SUPPORTED]"; \
+		echo "  macOS is not a supported platform for this project."; \
+		echo "  Apple dropped NVIDIA GPU support in 2019."; \
+		echo "  Gazebo lidar sensors will not publish data on macOS."; \
+		echo ""; \
+		echo "  Please use Ubuntu 22.04 or 24.04 (native install or dual boot)."; \
+		echo "  See README.md for the full platform notice."; \
+	elif [ "$$_OS" = "Linux" ]; then \
+		echo "  Platform detected: Linux"; \
+		echo ""; \
+		if command -v nvidia-smi >/dev/null 2>&1; then \
+			echo "  [OK] NVIDIA GPU detected:"; \
+			nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader | sed 's/^/    /'; \
+			echo ""; \
+			if docker info 2>/dev/null | grep -q "nvidia"; then \
+				echo "  [OK] NVIDIA Container Toolkit installed."; \
+				echo ""; \
+				echo "  Full GPU-accelerated simulation is available:"; \
+				echo "    make docker-start-nvidia"; \
+				echo "    make px4-gui-uav   (UAV with lidar)"; \
+				echo "    make px4-gui-ugv   (UGV with lidar)"; \
+			else \
+				echo "  [WARNING] NVIDIA Container Toolkit not found."; \
+				echo ""; \
+				echo "  Install it with:"; \
+				echo "    distribution=\$$(. /etc/os-release; echo \$$ID\$$VERSION_ID)"; \
+				echo "    curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -"; \
+				echo "    curl -s -L https://nvidia.github.io/nvidia-docker/\$$distribution/nvidia-docker.list \\"; \
+				echo "      | sudo tee /etc/apt/sources.list.d/nvidia-docker.list"; \
+				echo "    sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit"; \
+				echo "    sudo systemctl restart docker"; \
+				echo ""; \
+				echo "  Until then, use the standard container (no lidar):"; \
+				echo "    make docker-start"; \
+			fi; \
+		else \
+			echo "  [NOT FOUND] No NVIDIA GPU detected."; \
+			echo ""; \
+			echo "  Use the standard container (software rendering):"; \
+			echo "    make docker-start"; \
+			echo ""; \
+			echo "  Note: lidar sensors in Gazebo will NOT publish data without GPU."; \
+			echo "  The safety board will use the fallback proximity value (prox=999.0m)."; \
+		fi; \
+	else \
+		echo "  Platform detected: Unknown / Windows"; \
+		echo ""; \
+		echo "  [NOT SUPPORTED]"; \
+		echo "  This project requires Ubuntu Linux (22.04 or 24.04) as the host OS."; \
+		echo "  Windows (including WSL2) is not a supported platform."; \
+		echo "  Gazebo rendering is unreliable under Docker on WSL2."; \
+		echo ""; \
+		echo "  Please install Ubuntu natively (dual boot recommended)."; \
+		echo "  See README.md for the full platform notice."; \
+	fi
+	@echo ""
+	@echo "=========================================="
+	@echo ""
+	@echo "Simulation levels (Ubuntu + Docker):"
+	@echo "  Level 1 (no GPU)  - make docker-start         IMU + battery + altitude"
+	@echo "  Level 2 (NVIDIA)  - make docker-start-nvidia  All sensors including lidar"
+	@echo "  Level 3 (real HW) - physical deployment        All sensors on real robots"
 	@echo ""
 
 # ------------------------------------------------------------------------------
@@ -171,12 +249,21 @@ diagnose:
 	@$(DOCKER_EXEC) bash -c '\
 		if [ -f $(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/50001_gz_rover_differential_lidar ]; \
 		then echo "  Installed OK"; \
-		else echo "  Not installed - run make setup-rover"; fi'
+		else echo "  Not installed - run make setup-ugv"; fi'
 	@echo ""
 	@echo "[6] Gazebo:"
 	@$(DOCKER_EXEC) bash -c "gz sim --version 2>&1 | head -1" || echo "Gazebo not installed"
 	@echo ""
-	@echo "[7] Running Processes:"
+	@echo "[7] GPU Acceleration:"
+	@$(DOCKER_EXEC) bash -c '\
+		if [ -n "$$NVIDIA_VISIBLE_DEVICES" ] || ls /dev/nvidia* >/dev/null 2>&1; then \
+			echo "  NVIDIA GPU passthrough active (Level 2 - full sensors)"; \
+		else \
+			echo "  Software rendering only - llvmpipe (Level 1 - no lidar)"; \
+			echo "  Run: make check-gpu  for GPU upgrade options"; \
+		fi'
+	@echo ""
+	@echo "[8] Running Processes:"
 	@$(DOCKER_EXEC) bash -c "pgrep -a px4 || echo '  No PX4 processes running'"
 	@$(DOCKER_EXEC) bash -c "pgrep -a gz || echo '  No Gazebo processes running'"
 	@$(DOCKER_EXEC) bash -c "pgrep -a MicroXRCE || echo '  No micro-ROS agent running'"
