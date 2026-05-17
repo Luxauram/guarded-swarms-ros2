@@ -4,10 +4,10 @@ A lightweight real-time dashboard for monitoring the Guarded Swarms coordination
 
 ## What it shows
 
-- **Event stream** — live geometry and authorization token events, color-coded by outcome (approved / rejected / revoked).
-- **Statistics** — total requests, approval rate, and per-agent breakdowns, updated automatically.
-- **Charts** — approval timeline and priority distribution histogram.
-- **Control panel** — start/stop the coordination demo directly from the browser, run whitelisted Makefile targets, reset statistics.
+- **Event stream** - live geometry and authorization token events, color-coded by outcome (approved / rejected / revoked).
+- **Statistics** - total requests, approval rate, and per-agent breakdowns, updated automatically.
+- **Charts** - approval timeline and priority distribution histogram.
+- **Control panel** - start/stop the coordination demo directly from the browser, run whitelisted Makefile targets, reset statistics.
 
 ## Stack
 
@@ -21,14 +21,14 @@ A lightweight real-time dashboard for monitoring the Guarded Swarms coordination
 ## Quick start
 
 ```bash
-# 1 — install Python dependencies
+# 1 - install Python dependencies
 cd /workspace/src/web_dashboard/backend
 pip3 install -r requirements.txt --break-system-packages
 
-# 2 — start the dashboard server
+# 2 - start the dashboard server
 python3 -m app
 
-# 3 — open the browser
+# 3 - open the browser
 http://localhost:8765
 ```
 
@@ -51,9 +51,9 @@ web_dashboard/
 │   │   └── token.py            # Pydantic schemas
 │   ├── routers/
 │   │   ├── websocket.py        # /ws endpoint and connection manager
-│   │   ├── system.py           # /api/system — stats, events, health
-│   │   ├── makefile.py         # /api/makefile — whitelisted build commands
-│   │   └── demo.py             # /api/demo — demo process lifecycle
+│   │   ├── system.py           # /api/system - stats, events, health
+│   │   ├── makefile.py         # /api/makefile - whitelisted build commands
+│   │   └── demo.py             # /api/demo - demo process lifecycle
 │   └── services/
 │       ├── ros2_bridge.py      # ROS 2 subscriber → async bridge
 │       └── token_processor.py  # Event aggregation and statistics
@@ -94,8 +94,8 @@ web_dashboard/
 
 ## Security note
 
-This is a development tool — there is no authentication, CORS is open, and Makefile commands run with container permissions. Do not expose it publicly without a reverse proxy, HTTPS, and proper access controls.
+This is a development tool - there is no authentication, CORS is open, and Makefile commands run with container permissions. Do not expose it publicly without a reverse proxy, HTTPS, and proper access controls.
 
 ## License
 
-Apache-2.0 — Copyright 2026 Luca D'Aurizio
+Apache-2.0 - Copyright 2026 Luca D'Aurizio

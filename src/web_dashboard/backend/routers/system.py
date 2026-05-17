@@ -24,11 +24,11 @@ recent token event history, processor diagnostics, service health, and
 administrative operations such as statistics reset.
 
 Endpoints:
-  GET  /api/system/stats   — Current coordination statistics.
-  GET  /api/system/events  — Recent token event history.
-  POST /api/system/reset   — Reset all statistics and event history.
-  GET  /api/system/health  — Service readiness and health check.
-  GET  /api/system/state   — Token processor diagnostic snapshot.
+  GET  /api/system/stats   - Current coordination statistics.
+  GET  /api/system/events  - Recent token event history.
+  POST /api/system/reset   - Reset all statistics and event history.
+  GET  /api/system/health  - Service readiness and health check.
+  GET  /api/system/state   - Token processor diagnostic snapshot.
 
 @author Luca D'Aurizio
 """

@@ -1,5 +1,5 @@
 # ==============================================================================
-# Guarded Swarms Web Dashboard — Python Dependencies
+# Guarded Swarms Web Dashboard - Python Dependencies
 #
 # Core dependencies for the FastAPI-based real-time dashboard backend.
 # Packages are pinned to exact versions to ensure reproducible builds

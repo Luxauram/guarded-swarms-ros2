@@ -26,9 +26,9 @@ process tree rather than tracking a single PID, since the launch wrapper
 spawns multiple child processes that must all be terminated cleanly.
 
 Endpoints:
-  POST /api/demo/start  — Kill any existing demo, reset statistics, launch new demo.
-  POST /api/demo/stop   — Terminate all demo-related processes.
-  GET  /api/demo/status — Query whether a demo is currently running.
+  POST /api/demo/start  - Kill any existing demo, reset statistics, launch new demo.
+  POST /api/demo/stop   - Terminate all demo-related processes.
+  GET  /api/demo/status - Query whether a demo is currently running.
 
 @author Luca D'Aurizio
 """
@@ -105,12 +105,12 @@ def kill_existing_demo():
 
     Uses a two-pass strategy to maximize reliability:
 
-    Pass 1 — locate all demo.launch.py PIDs via pgrep and send SIGTERM to
+    Pass 1 - locate all demo.launch.py PIDs via pgrep and send SIGTERM to
     their entire process group, followed by SIGKILL after a short grace
     period. Falls back to killing the individual PID if the process group
     cannot be obtained.
 
-    Pass 2 — runs pkill -9 against a list of known process name patterns
+    Pass 2 - runs pkill -9 against a list of known process name patterns
     (agent_node, coordinator_node, ros2 daemon, etc.) as a safety net for
     any child processes not covered by Pass 1.
 

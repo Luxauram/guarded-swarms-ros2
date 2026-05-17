@@ -30,8 +30,8 @@ Security model:
   - A 300-second hard timeout prevents runaway processes.
 
 Endpoints:
-  GET  /api/makefile/commands — List permitted Makefile targets.
-  POST /api/makefile/execute  — Execute a whitelisted target.
+  GET  /api/makefile/commands - List permitted Makefile targets.
+  POST /api/makefile/execute  - Execute a whitelisted target.
 
 @author Luca D'Aurizio
 """

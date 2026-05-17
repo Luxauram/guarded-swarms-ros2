@@ -17,7 +17,7 @@
 <!--
   @file index.html
 
-  Main Dashboard Entry Point — Guarded Swarms Coordination System.
+  Main Dashboard Entry Point - Guarded Swarms Coordination System.
 
   Provides the full-page layout for the real-time multi-agent coordination
   dashboard. Renders four primary sections:
@@ -31,9 +31,9 @@
     - Chart.js 4.4  (canvas-based charting, consumed by charts.js)
 
   Compiled module load order (order matters for global symbol availability):
-    1. websocket.js — establishes the WebSocket connection and registers message handlers.
-    2. charts.js    — initializes Chart.js instances and exposes update functions globally.
-    3. main.js      — wires token events, statistics updates, and UI interactions.
+    1. websocket.js - establishes the WebSocket connection and registers message handlers.
+    2. charts.js    - initializes Chart.js instances and exposes update functions globally.
+    3. main.js      - wires token events, statistics updates, and UI interactions.
 
   Inline script responsibilities:
     - Agent input visibility toggling based on the selected agent count.
@@ -111,7 +111,7 @@
     ===================================================================== -->
     <main class="max-w-7xl mx-auto px-6 py-8">
       <!-- ================================================================
-          Section 1 — Demo Control Panel
+          Section 1 - Demo Control Panel
           Allows the operator to configure and launch a coordination demo.
           Exposes controls for agent count, arbitration strategy, and
           per-agent priority values. Agent priority inputs are shown or
@@ -161,7 +161,7 @@
               Agent Priorities (0–10)
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <!-- Agent A — always visible -->
+              <!-- Agent A - always visible -->
               <div id="agent-a-container">
                 <label class="block text-xs text-gray-500 mb-1">Agent A</label>
                 <input
@@ -175,7 +175,7 @@
                 />
               </div>
 
-              <!-- Agent B — visible when num-agents >= 2 -->
+              <!-- Agent B - visible when num-agents >= 2 -->
               <div id="agent-b-container">
                 <label class="block text-xs text-gray-500 mb-1">Agent B</label>
                 <input
@@ -189,7 +189,7 @@
                 />
               </div>
 
-              <!-- Agent C — visible when num-agents >= 3 -->
+              <!-- Agent C - visible when num-agents >= 3 -->
               <div id="agent-c-container">
                 <label class="block text-xs text-gray-500 mb-1">Agent C</label>
                 <input
@@ -203,7 +203,7 @@
                 />
               </div>
 
-              <!-- Agent D — visible when num-agents >= 4 -->
+              <!-- Agent D - visible when num-agents >= 4 -->
               <div id="agent-d-container">
                 <label class="block text-xs text-gray-500 mb-1">Agent D</label>
                 <input
@@ -224,7 +224,7 @@
             class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200"
           >
             <!--
-              Start button — enabled at all times. Sending a start request while
+              Start button - enabled at all times. Sending a start request while
               a demo is already running causes the backend to terminate the
               existing process before launching the new one.
             -->
@@ -256,7 +256,7 @@
             </button>
 
             <!--
-              Stop button — disabled until a demo is confirmed to be running.
+              Stop button - disabled until a demo is confirmed to be running.
               Enabled by startDemo() on successful launch.
             -->
             <button
@@ -291,7 +291,7 @@
       </section>
 
       <!-- ================================================================
-          Section 2 — System Metrics
+          Section 2 - System Metrics
           Four read-only counters updated in real time by main.js whenever
           a stats_update WebSocket message is received.
           Element IDs are referenced by ELEMENT_IDS constants in main.ts.
@@ -431,7 +431,7 @@
       </section>
 
       <!-- ================================================================
-          Section 3 — Coordination Analytics
+          Section 3 - Coordination Analytics
           Two Chart.js canvases managed by charts.js:
             - #timeline-chart: approval/rejection counts over time (line).
             - #priority-chart: token count per priority bin (bar).
@@ -474,7 +474,7 @@
       </section>
 
       <!-- ================================================================
-          Section 4 — Live Activity
+          Section 4 - Live Activity
           Two real-time panels updated by main.js:
             - #event-log:   scrolling log of token events (geometry / auth).
             - #agent-stats: per-agent approval rate with progress bars.
@@ -523,7 +523,7 @@
       </section>
 
       <!-- ================================================================
-          Section 5 — System Controls
+          Section 5 - System Controls
           Administrative panel for resetting accumulated statistics.
           Triggers resetStats() from main.js, which prompts for confirmation
           before sending a POST to /api/system/reset and reloading the page.
@@ -568,7 +568,7 @@
 
     <!-- ====================================================================
         Compiled Module Scripts
-        Load order is intentional — each module may depend on globals
+        Load order is intentional - each module may depend on globals
         registered by the previous one.
     ===================================================================== -->
     <script src="/static/dist/websocket.js"></script>
