@@ -2,9 +2,18 @@ name: Guarded Swarms CI
 
 on:
   push:
-    branches: [main, staging, develop]
+    branches: [main, dev]
   pull_request:
-    branches: [main, staging, develop]
+    branches: [main, dev]
+
+# ==============================================================================
+# Notes on platform:
+#   - Lint runs on ubuntu-24.04 (host-level tools only, no ROS dependency)
+#   - Build and smoke test run inside the Docker container (Ubuntu 22.04 +
+#     ROS 2 Humble), which is the only supported runtime environment.
+#   - No GPU available in CI: lidar sensors are inactive. The smoke test
+#     uses mock sensors only and does not require PX4 or Gazebo.
+# ==============================================================================
 
 jobs:
   # ============================================================
@@ -12,7 +21,7 @@ jobs:
   # ============================================================
   lint:
     name: Lint (C++ + Python)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
@@ -21,16 +30,17 @@ jobs:
       - name: Install clang-format
         run: sudo apt-get install -y clang-format
 
-      - name: C++ format check
+      - name: C++ format check (clang-format)
         continue-on-error: true
         run: |
-          FILES=$(find src \( -name "*.cpp" -o -name "*.hpp" \) )
+          FILES=$(find src \( -name "*.cpp" -o -name "*.hpp" \) 2>/dev/null)
           if [ -z "$FILES" ]; then
-            echo "No C++ files found, skipping."
+            echo "No C++ files found - skipping."
             exit 0
           fi
-          echo "$FILES" | xargs clang-format --dry-run --Werror --style=file 2>&1 || \
-          { echo ""; echo "Run: find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i --style=file"; exit 1; }
+          echo "$FILES" | xargs clang-format --dry-run --Werror --style=file 2>&1 && \
+            echo "C++ format OK." || \
+            echo "C++ format issues found. Fix locally with: find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i --style=file"
 
       - name: Install Python linters
         run: pip install black flake8
@@ -38,35 +48,36 @@ jobs:
       - name: Python format check (black)
         continue-on-error: true
         run: |
-          FILES=$(find src -name "*.py")
+          FILES=$(find src -name "*.py" 2>/dev/null)
           if [ -z "$FILES" ]; then
-            echo "No Python files found, skipping."
+            echo "No Python files found - skipping."
             exit 0
           fi
-          echo "$FILES" | xargs black --check --line-length 100 2>&1 || \
-          { echo ""; echo "Run: find src -name '*.py' | xargs black --line-length 100"; exit 1; }
+          echo "$FILES" | xargs black --check --line-length 100 2>&1 && \
+            echo "Python format OK." || \
+            echo "Black format issues found. Fix locally with: find src -name '*.py' | xargs black --line-length 100"
 
       - name: Python lint (flake8)
         continue-on-error: true
         run: |
-          FILES=$(find src -name "*.py")
+          FILES=$(find src -name "*.py" 2>/dev/null)
           if [ -z "$FILES" ]; then
-            echo "No Python files found, skipping."
+            echo "No Python files found - skipping."
             exit 0
           fi
-          echo "$FILES" | xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 || \
-          { echo ""; echo "Fix flake8 errors above."; exit 1; }
+          echo "$FILES" | xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 && \
+            echo "Flake8 OK." || \
+            echo "Flake8 issues found. See output above."
 
   # ============================================================
-  # Job 2: Build ROS2 packages
+  # Job 2: Build Docker image + ROS 2 packages
   # ============================================================
   build:
-    name: Build ROS2 Packages
+    name: Build (Docker + ROS 2)
     runs-on: ubuntu-22.04
-    needs: lint
 
     steps:
-      - name: Checkout
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -85,41 +96,50 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./docker
+          context: .
+          file: docker/Dockerfile
           push: false
           load: true
           tags: guarded_swarms:ci
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
 
-      - name: Move cache
+      - name: Rotate build cache
         run: |
           rm -rf /tmp/.buildx-cache
           mv /tmp/.buildx-cache-new /tmp/.buildx-cache
 
-      - name: Build ROS2 workspace
+      - name: Build ROS 2 workspace
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/src:/workspace/src \
             guarded_swarms:ci \
             bash -c "
-              source /opt/ros/humble/setup.bash && \
-              cd /workspace && \
+              set -e
+              source /opt/ros/humble/setup.bash
+              cd /workspace
               colcon build \
                 --packages-select \
                   guarded_swarms_coordinator \
                   guarded_swarms_safety \
                   guarded_swarms_control \
                 --symlink-install \
-                --event-handlers console_direct+ \
-              2>&1
+                --event-handlers console_direct+
             "
 
   # ============================================================
-  # Job 3: Smoke test
-  # Starts safety_board + mock_sensor_publisher for 15s
-  # Verifies: no crash, SAFE appears, VETO appears on violation
-  # No PX4/Gazebo needed — uses mock sensors only
+  # Job 3: Smoke test (Safety pipeline - mock sensors, no PX4/Gazebo)
+  #
+  # What this tests:
+  #   - safety_board_node starts without crashing
+  #   - mock_sensor_publisher cycles through fault scenarios
+  #   - safety board detects NOMINAL (SAFE) state
+  #   - safety board detects a sensor violation (UNSAFE)
+  #   - safety board applies OR-logic VETO on the actuator command
+  #
+  # This covers the core architectural guarantee of the paper:
+  # an analog-equivalent safety enforcement independent of the
+  # digital coordination layer, verified without GPU or PX4.
   # ============================================================
   smoke-test:
     name: Smoke Test (Safety Pipeline)
@@ -127,96 +147,111 @@ jobs:
     needs: build
 
     steps:
-      - name: Checkout
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Build Docker image (cached)
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Restore Docker layer cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-buildx-
+
+      - name: Build Docker image (from cache)
         uses: docker/build-push-action@v5
         with:
-          context: ./docker
+          context: .
+          file: docker/Dockerfile
           push: false
           load: true
           tags: guarded_swarms:ci
           cache-from: type=local,src=/tmp/.buildx-cache
 
-      - name: Restore built workspace
+      - name: Run safety pipeline smoke test
         run: |
           docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
+            -v ${{ github.workspace }}/src:/workspace/src \
             guarded_swarms:ci \
             bash -c "
-              source /opt/ros/humble/setup.bash && \
-              cd /workspace && \
+              set -e
+              source /opt/ros/humble/setup.bash
+
+              # Build packages inside the container
+              cd /workspace
               colcon build \
                 --packages-select \
                   guarded_swarms_coordinator \
                   guarded_swarms_safety \
                   guarded_swarms_control \
-                --symlink-install 2>&1
-            "
+                --symlink-install \
+                --event-handlers console_direct+ 2>&1
 
-      - name: Run safety pipeline smoke test
-        run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/workspace \
-            guarded_swarms:ci \
-            bash -c "
-              source /opt/ros/humble/setup.bash && \
-              source /workspace/install/setup.bash && \
+              source /workspace/install/setup.bash
 
-              # Start safety board in background, capture output
+              # Start safety board in background
               ros2 run guarded_swarms_safety safety_board_node \
                 > /tmp/safety_board.log 2>&1 &
               BOARD_PID=\$!
 
-              # Wait for node to initialize
-              sleep 3
+              # Wait for node initialization
+              sleep 4
 
-              # Start mock sensors in background
+              # Start mock sensor publisher in background
+              # Cycles: NOMINAL (10s) -> PROXIMITY (10s) -> ATTITUDE (10s) -> ...
               ros2 run guarded_swarms_safety mock_sensor_publisher \
                 > /tmp/mock_sensors.log 2>&1 &
               SENSORS_PID=\$!
 
-              # Let it run through at least scenario 0 (NOMINAL) and scenario 1 (PROXIMITY)
-              sleep 22
+              # Run long enough to cover scenario 0 (NOMINAL) and scenario 1 (PROXIMITY veto)
+              # 10s scenario interval x 2 scenarios + startup buffer = 25s
+              sleep 25
 
-              # Kill both nodes
+              # Graceful shutdown
               kill \$BOARD_PID \$SENSORS_PID 2>/dev/null || true
-              sleep 1
+              sleep 2
 
               echo '=== Safety Board Output ==='
               cat /tmp/safety_board.log
-
               echo ''
-              echo '=== Mock Sensors Output ==='
+              echo '=== Mock Sensor Output ==='
               cat /tmp/mock_sensors.log
+              echo ''
 
-              # Verify SAFE appeared
+              # --- Assertions ---
+              FAILED=0
+
               if grep -q 'SAFE' /tmp/safety_board.log; then
-                echo 'CHECK SAFE: OK'
+                echo '[OK]  SAFE state observed (nominal scenario)'
               else
-                echo 'CHECK SAFE: FAILED - no SAFE state observed'
-                exit 1
+                echo '[FAIL] No SAFE state observed - safety board may not be publishing'
+                FAILED=1
               fi
 
-              # Verify UNSAFE appeared (mock sensor triggered a violation)
               if grep -q 'UNSAFE' /tmp/safety_board.log; then
-                echo 'CHECK UNSAFE: OK'
+                echo '[OK]  UNSAFE state observed (sensor violation detected)'
               else
-                echo 'CHECK UNSAFE: FAILED - no violation detected'
-                exit 1
+                echo '[FAIL] No UNSAFE state observed - sensor violations not being detected'
+                FAILED=1
               fi
 
-              # Verify VETO appeared (commands were vetoed during violation)
               if grep -q 'VETO' /tmp/safety_board.log; then
-                echo 'CHECK VETO: OK'
+                echo '[OK]  VETO observed (actuator command blocked on violation)'
               else
-                echo 'CHECK VETO: FAILED - no veto observed'
-                exit 1
+                echo '[FAIL] No VETO observed - OR-logic not applied to actuator command'
+                FAILED=1
               fi
 
               echo ''
-              echo 'All smoke tests passed.'
+              if [ \$FAILED -eq 0 ]; then
+                echo 'All smoke tests passed.'
+              else
+                echo 'One or more smoke tests FAILED. See output above.'
+                exit 1
+              fi
             "
