@@ -17,7 +17,7 @@
 /**
  * @file command_bridge_node.hpp
  * @brief Command bridge between the digital coordination layer and the
- *        analog safety enforcement layer — class declaration.
+ *        analog safety enforcement layer - class declaration.
  *
  * Translates approved @c AuthToken messages received from the coordinator
  * into normalised thrust commands forwarded to the SafetyBoard node.

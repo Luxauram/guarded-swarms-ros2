@@ -17,7 +17,7 @@
 /**
  * @file command_bridge_node.cpp
  * @brief Command bridge between the digital coordination layer and the
- *        analog safety enforcement layer — implementation.
+ *        analog safety enforcement layer - implementation.
  *
  * See command_bridge_node.hpp for the full architecture description.
  *
@@ -51,8 +51,8 @@ CommandBridgeNode::CommandBridgeNode() : Node("command_bridge_node") {
 void CommandBridgeNode::auth_token_callback(const AuthToken::SharedPtr msg) {
   tokens_received_++;
 
-  const std::string &agent_id = msg->base_token.agent_id;
-  const std::string &reason = msg->reason;
+  const std::string& agent_id = msg->base_token.agent_id;
+  const std::string& reason = msg->reason;
 
   if (!msg->approved) {
     tokens_rejected_++;
@@ -77,7 +77,7 @@ void CommandBridgeNode::auth_token_callback(const AuthToken::SharedPtr msg) {
 // Helpers
 // ============================================================================
 
-float CommandBridgeNode::compute_thrust(const std::string &agent_id) const {
+float CommandBridgeNode::compute_thrust(const std::string& agent_id) const {
   (void)agent_id;
   return DEFAULT_THRUST;
 }
@@ -94,7 +94,7 @@ float CommandBridgeNode::compute_thrust(const std::string &agent_id) const {
  * @param argv Argument vector forwarded to @c rclcpp::init.
  * @return 0 on clean exit.
  */
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<CommandBridgeNode>());
   rclcpp::shutdown();
