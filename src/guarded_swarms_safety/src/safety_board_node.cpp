@@ -16,7 +16,7 @@
 
 /**
  * @file safety_board_node.cpp
- * @brief Analog safety enforcement layer — implementation.
+ * @brief Analog safety enforcement layer - implementation.
  *
  * See safety_board_node.hpp for the full architecture description.
  *
@@ -94,7 +94,7 @@ SafetyBoardNode::SafetyBoardNode() : Node("safety_board_node") {
 // ============================================================================
 
 void SafetyBoardNode::imu_callback(const sensor_msgs::msg::Imu::SharedPtr msg) {
-  const auto &q = msg->orientation;
+  const auto& q = msg->orientation;
 
   double sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z);
   double cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y);
@@ -151,7 +151,7 @@ void SafetyBoardNode::cmd_raw_callback(
 }
 
 // ============================================================================
-// Safety Evaluation — OR Logic
+// Safety Evaluation - OR Logic
 // ============================================================================
 
 SafetyVerdict SafetyBoardNode::evaluate_safety() const {
@@ -236,7 +236,7 @@ SafetyVerdict SafetyBoardNode::evaluate_safety() const {
     return verdict;
   }
 
-  return verdict; // All checks passed
+  return verdict;  // All checks passed
 }
 
 // ============================================================================
@@ -295,7 +295,7 @@ double SafetyBoardNode::now_seconds() const { return this->now().seconds(); }
 // Main
 // ============================================================================
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<SafetyBoardNode>());
   rclcpp::shutdown();

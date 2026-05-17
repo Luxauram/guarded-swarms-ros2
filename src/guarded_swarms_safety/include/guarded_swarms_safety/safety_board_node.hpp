@@ -17,7 +17,7 @@
 /**
  * @file safety_board_node.hpp
  *
- * @brief Analog safety enforcement layer — class declaration.
+ * @brief Analog safety enforcement layer - class declaration.
  *
  * Implements the virtual safety board described in the Guarded Swarms paper.
  * Monitors real-time sensor data and enforces hard physical safety constraints
@@ -28,13 +28,12 @@
 
 #pragma once
 
+#include <chrono>
 #include <rclcpp/rclcpp.hpp>
 #include <sensor_msgs/msg/battery_state.hpp>
 #include <sensor_msgs/msg/imu.hpp>
 #include <sensor_msgs/msg/range.hpp>
 #include <std_msgs/msg/float32.hpp>
-
-#include <chrono>
 #include <string>
 
 // ============================================================================
@@ -49,20 +48,20 @@
  * veto commands before the first sensor message is received.
  */
 struct SensorSnapshot {
-  float proximity_m = 999.0f; ///< Closest obstacle distance (m).
-  float pitch_deg = 0.0f;     ///< Current pitch angle (degrees).
-  float roll_deg = 0.0f;      ///< Current roll angle (degrees).
+  float proximity_m = 999.0f;  ///< Closest obstacle distance (m).
+  float pitch_deg = 0.0f;      ///< Current pitch angle (degrees).
+  float roll_deg = 0.0f;       ///< Current roll angle (degrees).
   float battery_percent =
-      100.0f;              ///< Battery state of charge in the range [0, 100].
-  float altitude_m = 0.0f; ///< Altitude above ground (m).
+      100.0f;               ///< Battery state of charge in the range [0, 100].
+  float altitude_m = 0.0f;  ///< Altitude above ground (m).
 
-  double last_imu_ts = 0.0; ///< Timestamp of the last IMU message (seconds).
+  double last_imu_ts = 0.0;  ///< Timestamp of the last IMU message (seconds).
   double last_proximity_ts =
-      0.0; ///< Timestamp of the last proximity message (seconds).
+      0.0;  ///< Timestamp of the last proximity message (seconds).
   double last_battery_ts =
-      0.0; ///< Timestamp of the last battery message (seconds).
+      0.0;  ///< Timestamp of the last battery message (seconds).
   double last_altitude_ts =
-      0.0; ///< Timestamp of the last altitude message (seconds).
+      0.0;  ///< Timestamp of the last altitude message (seconds).
 };
 
 // ============================================================================
@@ -76,13 +75,13 @@ struct SensorSnapshot {
  * human-readable description of the first constraint violation detected.
  */
 struct SafetyVerdict {
-  bool is_safe = true; ///< Overall safety decision (false if any check fails).
-  bool proximity_ok = true; ///< Result of the proximity constraint check.
-  bool attitude_ok = true;  ///< Result of the attitude constraint check.
-  bool battery_ok = true;   ///< Result of the battery constraint check.
-  bool altitude_ok = true;  ///< Result of the altitude constraint check.
+  bool is_safe = true;  ///< Overall safety decision (false if any check fails).
+  bool proximity_ok = true;  ///< Result of the proximity constraint check.
+  bool attitude_ok = true;   ///< Result of the attitude constraint check.
+  bool battery_ok = true;    ///< Result of the battery constraint check.
+  bool altitude_ok = true;   ///< Result of the altitude constraint check.
   std::string
-      violation_reason; ///< Human-readable description of the first violation.
+      violation_reason;  ///< Human-readable description of the first violation.
 };
 
 // ============================================================================
@@ -98,21 +97,21 @@ struct SafetyVerdict {
  * with a zero-thrust output.
  */
 class SafetyBoardNode : public rclcpp::Node {
-public:
+ public:
   /**
    * @brief Constructs the node, declares ROS parameters, and initialises all
    *        subscriptions, publishers, and timers.
    */
   explicit SafetyBoardNode();
 
-private:
-  static constexpr const char *TOPIC_IMU = "/drone/imu";
-  static constexpr const char *TOPIC_PROXIMITY = "/drone/proximity";
-  static constexpr const char *TOPIC_BATTERY = "/drone/battery";
-  static constexpr const char *TOPIC_ALTITUDE = "/drone/altitude";
-  static constexpr const char *TOPIC_CMD_RAW = "/actuator_cmd_raw";
-  static constexpr const char *TOPIC_CMD_SAFE = "/actuator_cmd_safe";
-  static constexpr const char *TOPIC_SAFETY_STATUS = "/safety_status";
+ private:
+  static constexpr const char* TOPIC_IMU = "/drone/imu";
+  static constexpr const char* TOPIC_PROXIMITY = "/drone/proximity";
+  static constexpr const char* TOPIC_BATTERY = "/drone/battery";
+  static constexpr const char* TOPIC_ALTITUDE = "/drone/altitude";
+  static constexpr const char* TOPIC_CMD_RAW = "/actuator_cmd_raw";
+  static constexpr const char* TOPIC_CMD_SAFE = "/actuator_cmd_safe";
+  static constexpr const char* TOPIC_SAFETY_STATUS = "/safety_status";
 
   static constexpr int QUEUE_SIZE = 10;
 
