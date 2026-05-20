@@ -132,7 +132,7 @@ def generate_launch_description():
 
     coordinator_node = Node(
         package="guarded_swarms_coordinator",
-        executable="coordinator_node.py",
+        executable="coordinator_node",
         name="coordinator_node",
         output="screen",
         parameters=[
@@ -148,7 +148,7 @@ def generate_launch_description():
 
     agent_A = Node(
         package="guarded_swarms_coordinator",
-        executable="agent_node.py",
+        executable="agent_node",
         name="agent_A_node",
         output="screen",
         parameters=[
@@ -160,7 +160,7 @@ def generate_launch_description():
 
     agent_B = Node(
         package="guarded_swarms_coordinator",
-        executable="agent_node.py",
+        executable="agent_node",
         name="agent_B_node",
         output="screen",
         parameters=[
@@ -175,7 +175,7 @@ def generate_launch_description():
 
     agent_C = Node(
         package="guarded_swarms_coordinator",
-        executable="agent_node.py",
+        executable="agent_node",
         name="agent_C_node",
         output="screen",
         parameters=[
@@ -190,7 +190,7 @@ def generate_launch_description():
 
     agent_D = Node(
         package="guarded_swarms_coordinator",
-        executable="agent_node.py",
+        executable="agent_node",
         name="agent_D_node",
         output="screen",
         parameters=[

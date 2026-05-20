@@ -13,7 +13,7 @@ find_package(rclpy REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(sensor_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
-find_package(guarded_swarms_coordinator REQUIRED)
+find_package(guarded_swarms_msgs REQUIRED)
 
 # ============================================================================
 # Executable: safety_board_node

@@ -26,7 +26,7 @@
 
 #include "guarded_swarms_control/command_bridge_node.hpp"
 
-using AuthToken = guarded_swarms_coordinator::msg::AuthToken;
+using AuthToken = guarded_swarms_msgs::msg::AuthToken;
 
 // ============================================================================
 // Constructor

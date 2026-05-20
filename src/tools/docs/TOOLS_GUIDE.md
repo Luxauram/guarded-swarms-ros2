@@ -19,6 +19,8 @@ Real-time visualization dashboard for monitoring coordination system activity.
 **Usage:**
 
 ```bash
+cd ~/path/to/guarded-swarms-ros2
+source install/setup.bash
 ros2 run guarded_swarms_coordinator dashboard
 ```
 
@@ -26,7 +28,7 @@ ros2 run guarded_swarms_coordinator dashboard
 
 - Requires coordinator and agents to be running
 - Subscribes to `/geometry_tokens` and `/auth_tokens`
-- Runs in separate window with Tkinter GUI
+- Runs in a separate window with Tkinter GUI
 - Auto-detects arbitration mode from conflict patterns
 
 ---
@@ -122,9 +124,9 @@ make demo-coordinator
 
 **Expected:**
 
-- A (10) can preempt C (3) - diff = 7 > threshold
-- A (10) can preempt B (7) - diff = 3 >= threshold
-- B (7) cannot preempt C (3) - diff = 4, uses FCFS
+- A (10) can preempt C (3) — diff = 7 > threshold
+- A (10) can preempt B (7) — diff = 3 >= threshold
+- B (7) cannot preempt C (3) — diff = 4, uses FCFS
 
 ---
 
@@ -132,8 +134,9 @@ make demo-coordinator
 
 **Scenario:** Force maximum spatial conflicts
 
-**Method 1 - Modify agent zones temporarily:**
-Edit `agent_node.py` zones to overlap:
+**Method 1 — Modify agent zones temporarily:**
+
+Edit `src/guarded_swarms_coordinator/guarded_swarms_coordinator/agent_node.py`:
 
 ```python
 zones = {
@@ -144,10 +147,10 @@ zones = {
 }
 ```
 
-Then run:
+Then rebuild and run:
 
 ```bash
-make coordinator-rebuild  # Rebuild with changes
+make ros2-coordinator-reb
 make demo-coordinator
 # Agents: 4
 # Mode: 2 (priority)
@@ -156,17 +159,15 @@ make demo-coordinator
 
 **Expected:** Frequent rejections and revocations, A dominates
 
-**Method 2 - Run multiple demos simultaneously:**
+**Method 2 — Run multiple agents simultaneously:**
 
 ```bash
-# Terminal 1
+# Terminal 1 — launch coordinator + 4 agents
 make demo-coordinator
-# Agents: 4, Mode: priority
 
-# Terminal 2 (after coordinator is running)
-# Manually launch extra agents:
-make docker-shell
-source /workspace/install/setup.bash
+# Terminal 2 — add extra agents manually
+cd ~/path/to/guarded-swarms-ros2
+source install/setup.bash
 ros2 run guarded_swarms_coordinator agent_node --ros-args -p agent_id:=agent_E -p priority:=8 &
 ros2 run guarded_swarms_coordinator agent_node --ros-args -p agent_id:=agent_F -p priority:=6 &
 ros2 run guarded_swarms_coordinator agent_node --ros-args -p agent_id:=agent_G -p priority:=4 &

@@ -14,38 +14,37 @@
 
 # ==============================================================================
 # vars.mk - Shared constants for all Makefiles
+#
+# Native Ubuntu installation.
+# Requires: Ubuntu 22.04 or 24.04, ROS 2 Jazzy, PX4, Gazebo Harmonic.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Paths
+# Repo root (absolute path, resolved at make time)
 # ------------------------------------------------------------------------------
-DOCKER_DIR         := docker
-WORKSPACE_DIR      := /workspace
-SRC_DIR            := $(WORKSPACE_DIR)/src
-INSTALL_DIR        := $(WORKSPACE_DIR)/install
-BUILD_DIR          := $(WORKSPACE_DIR)/build
-PX4_DIR            := $(WORKSPACE_DIR)/PX4-Autopilot
+REPO_ROOT := $(shell pwd)
 
-WEB_BACKEND_DIR    := src/web_dashboard/backend
-WEB_FRONTEND_DIR   := src/web_dashboard/frontend
-TOOLS_LAUNCH_DIR   := src/tools/launch
-TOOLS_VIZ_DIR      := src/tools/visualization
+# ------------------------------------------------------------------------------
+# Paths - all relative to the repo root or home directory
+# ------------------------------------------------------------------------------
+WORKSPACE_DIR    := $(REPO_ROOT)
+SRC_DIR          := $(REPO_ROOT)/src
+INSTALL_DIR      := $(REPO_ROOT)/install
+BUILD_DIR        := $(REPO_ROOT)/build
+PX4_DIR          := $(HOME)/PX4-Autopilot
+WEB_BACKEND_DIR  := $(REPO_ROOT)/src/web_dashboard/backend
+WEB_FRONTEND_DIR := $(REPO_ROOT)/src/web_dashboard/frontend
+TOOLS_LAUNCH_DIR := src/tools/launch
+TOOLS_VIZ_DIR    := src/tools/visualization
 
 # Guarded Swarms custom assets (not part of PX4 repo)
-GS_MODELS_DIR      := $(WORKSPACE_DIR)/src/guarded_swarms_safety/models
-GS_AIRFRAMES_DIR   := $(WORKSPACE_DIR)/src/guarded_swarms_safety/px4_airframes
-
-# ------------------------------------------------------------------------------
-# Docker
-# ------------------------------------------------------------------------------
-CONTAINER_NAME  := guarded_swarms
-DOCKER_EXEC     := docker exec $(CONTAINER_NAME)
-DOCKER_EXEC_IT  := docker exec -it $(CONTAINER_NAME)
+GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_safety/models
+GS_AIRFRAMES_DIR := $(SRC_DIR)/guarded_swarms_safety/px4_airframes
 
 # ------------------------------------------------------------------------------
 # ROS 2
 # ------------------------------------------------------------------------------
-ROS2_SOURCE      := source /opt/ros/humble/setup.bash
+ROS2_SOURCE      := source /opt/ros/jazzy/setup.bash
 WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
 FULL_SOURCE      := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
 
@@ -54,19 +53,14 @@ CONTROL_PKG      := guarded_swarms_control
 SAFETY_PKG       := guarded_swarms_safety
 
 # ------------------------------------------------------------------------------
-# Process management
+# Process management (all on single lines - no backslash continuations)
 # ------------------------------------------------------------------------------
-KILL_PX4       := pkill -9 px4 2>/dev/null || true
-KILL_GAZEBO    := pgrep -f '^gz sim' | xargs -r kill -9 2>/dev/null || true; \
-                  pkill -9 gzserver 2>/dev/null || true; \
-                  pkill -9 gzclient 2>/dev/null || true
+KILL_PX4       := pkill -9 -x px4 2>/dev/null || true
+KILL_GAZEBO    := pkill -9 -f "gz sim" 2>/dev/null || true; pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true
 KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
-KILL_ROS2      := pkill -9 -f 'ros2' 2>/dev/null || true; \
-                  pkill -9 python3 2>/dev/null || true
-KILL_WEB       := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; \
-                  pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; \
-                  fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true
-CLEANUP_TMP    := rm -rf /tmp/.gazebo* /tmp/.X* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
+KILL_ROS2      := pkill -9 -f 'ros2' 2>/dev/null || true; pkill -9 python3 2>/dev/null || true
+KILL_WEB       := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true
+CLEANUP_TMP    := rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # Build

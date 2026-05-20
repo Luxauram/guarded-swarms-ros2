@@ -13,44 +13,36 @@
 # limitations under the License.
 
 # ==============================================================================
-# px4.mk - PX4 SITL and Gazebo management
-# ==============================================================================
+# px4.mk - PX4 SITL and Gazebo management (native Ubuntu)
 #
-# Vehicle targets:
-#   px4-run-uav  UAV  - x500 quadcopter with frontal lidar
-#   px4-run-ugv  UGV  - differential rover with frontal lidar (Guarded Swarms)
-#   px4-gui-uav  UAV  - x500 with Gazebo GUI (requires X server)
-#   px4-gui-ugv  UGV  - differential rover with Gazebo GUI (requires X server)
-#
-# Setup:
-#   setup-ugv    Install custom airframe + model into PX4 (run once)
-#
+# PX4-Autopilot is installed at ~/PX4-Autopilot (outside the repo).
+# Gazebo Harmonic runs natively on the host.
 # ==============================================================================
 
 .PHONY: px4-run-uav px4-run-ugv px4-gui-uav px4-gui-ugv \
-        px4-kill px4-console px4-config px4-reset-params \
+        px4-kill px4-config px4-reset-params \
         setup-ugv gazebo-test gazebo-worlds
 
 # ------------------------------------------------------------------------------
-# Shared PX4 guard
+# Guard: verify PX4 is installed
 # ------------------------------------------------------------------------------
 define CHECK_PX4
-	@if ! $(DOCKER_EXEC) bash -c "test -d $(PX4_DIR)"; then \
-		echo "Error: PX4-Autopilot not found."; \
+	@if [ ! -d "$(PX4_DIR)" ]; then \
+		echo "Error: PX4-Autopilot not found at $(PX4_DIR)."; \
 		echo "Run 'make setup-px4' first."; \
 		exit 1; \
 	fi
 endef
 
 # ------------------------------------------------------------------------------
-# UAV - x500 with lidar (main vehicle for Guarded Swarms Phase 3)
+# UAV - x500 with frontal lidar (headless)
 # ------------------------------------------------------------------------------
 px4-run-uav:
 	@echo "=========================================="
 	@echo "Launching PX4 SITL - UAV (x500 + lidar)"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
+	@pkill -9 -x px4 2>/dev/null || true
 	@sleep 1
 	@echo "Arming commands at pxh> prompt:"
 	@echo "  param set COM_ARM_WO_GPS 1"
@@ -62,95 +54,65 @@ px4-run-uav:
 	@echo "  param save"
 	@echo "  commander takeoff"
 	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500_lidar_front"
+	@cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500_lidar_front
 
 # ------------------------------------------------------------------------------
-# UGV - differential rover with lidar (Guarded Swarms custom model)
-# Requires: make setup-ugv (run once after setup-px4)
+# UGV - differential rover with frontal lidar (headless)
+# Requires: make setup-ugv (run once)
 # ------------------------------------------------------------------------------
 px4-run-ugv:
 	@echo "=========================================="
 	@echo "Launching PX4 SITL - UGV (rover + lidar)"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@if ! $(DOCKER_EXEC) bash -c "test -f $(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/50001_gz_rover_differential_lidar"; then \
+	@if [ ! -f "$(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/50001_gz_rover_differential_lidar" ]; then \
 		echo ""; \
 		echo "ERROR: Guarded Swarms rover airframe not installed."; \
 		echo "Run 'make setup-ugv' first (only needed once)."; \
 		echo ""; \
 		exit 1; \
 	fi
-	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
+	@pkill -9 -x px4 2>/dev/null || true
 	@sleep 1
 	@echo "Rover starts on ground - no arming commands needed."
 	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR)/build/px4_sitl_default && \
-    PX4_SYS_AUTOSTART=50001 PX4_GZ_WORLD=rover PX4_SIM_MODEL=rover_differential_lidar \
-    PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds \
-    GZ_SIM_RESOURCE_PATH=$(PX4_DIR)/Tools/simulation/gz/models \
-    HEADLESS=1 ./bin/px4 -s etc/init.d-posix/rcS"
+	@cd $(PX4_DIR)/build/px4_sitl_default && PX4_SYS_AUTOSTART=50001 PX4_GZ_WORLD=rover PX4_SIM_MODEL=rover_differential_lidar PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds GZ_SIM_RESOURCE_PATH=$(PX4_DIR)/Tools/simulation/gz/models HEADLESS=1 ./bin/px4 -s etc/init.d-posix/rcS
 
 # ------------------------------------------------------------------------------
-# Gazebo GUI UAV/UGV (requires X server on host)
+# UAV with Gazebo GUI (native)
 # ------------------------------------------------------------------------------
 px4-gui-uav:
 	@echo "=========================================="
-	@echo "Launching PX4 SITL with Gazebo GUI"
+	@echo "Launching PX4 SITL + Gazebo GUI - UAV"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@echo "Stopping any existing PX4 and Gazebo instances..."
-	@$(DOCKER_EXEC) bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
-	@sleep 3
-	@echo "Prerequisites:"
-	@echo "  - X server must be running"
-	@echo "  - Windows: VcXsrv with 'Disable access control' enabled"
-	@echo "  - Linux:   xhost +local:docker"
-	@echo ""
+	@pkill -9 -x px4 2>/dev/null || true
+	@pkill -9 gzserver 2>/dev/null || true
+	@pkill -9 gzclient 2>/dev/null || true
+	@sleep 2
 	@echo "Starting Gazebo with 3D visualization..."
-	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && make px4_sitl gz_x500_lidar_front"
+	@echo ""
+	@cd $(PX4_DIR) && make px4_sitl gz_x500_lidar_front
 
+# ------------------------------------------------------------------------------
+# UGV with Gazebo GUI (native)
+# ------------------------------------------------------------------------------
 px4-gui-ugv:
 	@echo "=========================================="
-	@echo "Launching PX4 SITL Rover with Gazebo GUI"
+	@echo "Launching PX4 SITL + Gazebo GUI - UGV"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@echo "Stopping any existing PX4 and Gazebo instances..."
-	@$(DOCKER_EXEC) bash -c "pkill -9 px4 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 -f 'gz sim' 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 gzserver 2>/dev/null || true" 2>/dev/null || true
-	@$(DOCKER_EXEC) bash -c "pkill -9 gzclient 2>/dev/null || true" 2>/dev/null || true
-	@sleep 3
-	@echo "Prerequisites:"
-	@echo "  - X server must be running"
-	@echo "  - Windows: VcXsrv with 'Disable access control' enabled"
-	@echo "  - Linux:   xhost +local:docker"
-	@echo ""
+	@pkill -9 -x px4 2>/dev/null || true
+	@pkill -9 gzserver 2>/dev/null || true
+	@pkill -9 gzclient 2>/dev/null || true
+	@sleep 2
 	@echo "Starting Gazebo with 3D visualization..."
-	@$(DOCKER_EXEC_IT) bash -c "\
-		find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true && \
-		cd $(PX4_DIR)/build/px4_sitl_default && \
-		PX4_SYS_AUTOSTART=50001 PX4_GZ_WORLD=rover PX4_SIM_MODEL=rover_differential_lidar \
-		PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds \
-		GZ_SIM_RESOURCE_PATH=$(PX4_DIR)/Tools/simulation/gz/models \
-		./bin/px4 -s etc/init.d-posix/rcS"
+	@echo ""
+	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	@cd $(PX4_DIR)/build/px4_sitl_default && PX4_SYS_AUTOSTART=50001 PX4_GZ_WORLD=rover PX4_SIM_MODEL=rover_differential_lidar PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds GZ_SIM_RESOURCE_PATH=$(PX4_DIR)/Tools/simulation/gz/models ./bin/px4 -s etc/init.d-posix/rcS
 
 # ------------------------------------------------------------------------------
 # Setup: install Guarded Swarms rover assets into PX4 (run once)
-#
-# What this does (documented for reproducibility):
-#   1. Copies our custom airframe file (50001_gz_rover_differential_lidar)
-#      into PX4's airframes directory so 'make px4_sitl gz_rover_differential_lidar'
-#      is a valid build target. PX4 auto-discovers airframes by filename convention.
-#   2. Copies our rover_differential_lidar Gazebo model (which extends the stock
-#      rover_differential via <include merge='true'>) into PX4's models directory
-#      so Gazebo can find it by name at spawn time.
-#   3. Rebuilds PX4 SITL so the new airframe is registered in the binary.
-#
-# This follows the same pattern PX4 uses internally for all gz_* variants.
-# We do NOT modify any existing PX4 files.
 # ------------------------------------------------------------------------------
 setup-ugv:
 	@echo "=========================================="
@@ -158,43 +120,33 @@ setup-ugv:
 	@echo "=========================================="
 	@echo ""
 	$(CHECK_PX4)
-	@echo "[1/3] Installing custom airframe (50001_gz_rover_differential_lidar)..."
-	@$(DOCKER_EXEC) bash -c "cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar \
-		$(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/ && \
-		cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar \
-		$(PX4_DIR)/build/px4_sitl_default/rootfs/etc/init.d-posix/airframes/ 2>/dev/null || true"
+	@echo "[1/3] Installing custom airframe..."
+	@cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar $(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/
+	@cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar $(PX4_DIR)/build/px4_sitl_default/rootfs/etc/init.d-posix/airframes/ 2>/dev/null || true
 	@echo "      Done."
 	@echo ""
 	@echo "[2/3] Installing rover_differential_lidar Gazebo model..."
-	@$(DOCKER_EXEC) bash -c "cp -r $(GS_MODELS_DIR)/rover_differential_lidar \
-		$(PX4_DIR)/Tools/simulation/gz/models/"
+	@cp -r $(GS_MODELS_DIR)/rover_differential_lidar $(PX4_DIR)/Tools/simulation/gz/models/
 	@echo "      Done."
 	@echo ""
 	@echo "[3/3] Rebuilding PX4 SITL to register new airframe..."
-	@$(DOCKER_EXEC) bash -c "cd $(PX4_DIR) && make px4_sitl_default 2>&1 | tail -3"
+	@cd $(PX4_DIR) && make px4_sitl_default 2>&1 | tail -3
 	@echo ""
-	@echo "=========================================="
-	@echo "Rover setup complete."
-	@echo "Run 'make px4-run-ugv' to launch."
-	@echo "=========================================="
+	@echo "Rover setup complete. Run 'make px4-run-ugv' to launch."
 	@echo ""
 
 # ------------------------------------------------------------------------------
-# Misc PX4 targets
+# Misc
 # ------------------------------------------------------------------------------
 px4-kill:
 	@echo "Killing all PX4 and Gazebo processes..."
-	@$(DOCKER_EXEC) bash -c "$(KILL_PX4)"
-	@$(DOCKER_EXEC) bash -c "$(KILL_GAZEBO)"
-	@$(DOCKER_EXEC) bash -c "$(KILL_MICRO_ROS)"
-	@$(DOCKER_EXEC) bash -c "find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true"
-	@$(DOCKER_EXEC) bash -c "find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true"
+	@pkill -9 -x px4 2>/dev/null || true
+	@pkill -9 gzserver 2>/dev/null || true
+	@pkill -9 gzclient 2>/dev/null || true
+	@pkill -9 MicroXRCEAgent 2>/dev/null || true
+	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
 	@echo "All processes stopped."
-
-px4-console:
-	@echo "Opening PX4 interactive console (UAV)..."
-	$(CHECK_PX4)
-	@$(DOCKER_EXEC_IT) bash -c "cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500_lidar_front"
 
 px4-config:
 	@echo "=========================================="
@@ -224,27 +176,12 @@ px4-reset-params:
 	@echo "param save"
 	@echo ""
 
-# ------------------------------------------------------------------------------
-# Gazebo utilities
-# ------------------------------------------------------------------------------
 gazebo-test:
-	@echo "=========================================="
-	@echo "Testing Gazebo Installation"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites:"
-	@echo "  - X server must be running"
-	@echo ""
 	@echo "Launching Gazebo with empty world..."
-	@echo "Close the Gazebo window to continue."
-	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "gz sim worlds/empty.sdf"
+	@gz sim worlds/empty.sdf
 
 gazebo-worlds:
 	@echo "Available Gazebo worlds:"
 	@echo ""
-	@$(DOCKER_EXEC) bash -c "ls -1 $(PX4_DIR)/Tools/simulation/gz/worlds/ 2>/dev/null || echo 'PX4-Autopilot not found. Run make setup-px4 first.'"
+	@ls -1 $(PX4_DIR)/Tools/simulation/gz/worlds/ 2>/dev/null || echo "PX4-Autopilot not found. Run make setup-px4 first."
 	@echo ""
-	@echo "To launch a specific world:"
-	@echo "  make docker-shell"
-	@echo "  gz sim /workspace/PX4-Autopilot/Tools/simulation/gz/worlds/<world_name>.sdf"

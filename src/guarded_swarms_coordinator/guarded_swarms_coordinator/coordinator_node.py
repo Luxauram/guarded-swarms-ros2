@@ -41,8 +41,8 @@ Typical usage:
 
 import rclpy
 from rclpy.node import Node
-from guarded_swarms_coordinator.msg import GeometryToken as GeometryTokenMsg
-from guarded_swarms_coordinator.msg import AuthToken as AuthTokenMsg
+from guarded_swarms_msgs.msg import GeometryToken as GeometryTokenMsg
+from guarded_swarms_msgs.msg import AuthToken as AuthTokenMsg
 from guarded_swarms_coordinator.token_system import (
     GeometryToken,
     create_auth_token,

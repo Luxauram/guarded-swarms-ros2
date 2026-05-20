@@ -44,7 +44,7 @@ Thread safety:
 
 import rclpy
 from rclpy.node import Node
-from guarded_swarms_coordinator.msg import GeometryToken, AuthToken
+from guarded_swarms_msgs.msg import GeometryToken, AuthToken
 from typing import Callable, Optional
 import asyncio
 import threading

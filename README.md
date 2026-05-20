@@ -1,10 +1,10 @@
 # Guarded Swarms ROS 2
 
-[![ROS 2](https://img.shields.io/badge/ROS_2-Humble-blue.svg)](https://docs.ros.org/en/humble/)
+[![ROS 2](https://img.shields.io/badge/ROS_2-Jazzy-blue.svg)](https://docs.ros.org/en/jazzy/)
 [![Gazebo](https://img.shields.io/badge/Gazebo-Harmonic-orange.svg)](https://gazebosim.org/)
 [![PX4](https://img.shields.io/badge/PX4-SITL-green.svg)](https://px4.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Ubuntu%2022.04-E95420.svg)](https://ubuntu.com/)
+[![Platform](https://img.shields.io/badge/Platform-Ubuntu%2024.04-E95420.svg)](https://ubuntu.com/)
 
 ROS 2 simulation framework implementing the Guarded Swarms hybrid digital-analog coordination architecture for autonomous multi-robot systems (UAV + UGV). Developed as a thesis project at the University of Molise, in collaboration with ongoing swarm robotics research.
 
@@ -12,27 +12,17 @@ Based on: _Borghoff, Bottoni, Pareschi (2025/2026) - "Guarded Swarms: Hybrid Dig
 
 ---
 
-> ** Platform Notice**
+> **Platform Notice**
 >
-> **This project requires an Ubuntu Linux host (22.04 or 24.04 LTS).**
+> **This project runs natively on Ubuntu 24.04 LTS. DOCKER IS NOT USED.**
 >
-> The Docker container runs **Ubuntu 22.04 + ROS 2 Humble** internally, regardless
-> of the host Ubuntu version. This means you can use Ubuntu 24.04 as your host OS
-> and everything will work correctly inside the container.
+> ROS 2 Jazzy, PX4, and Gazebo Harmonic are installed directly on the host system.
+> This ensures full GPU access for Gazebo rendering and lidar sensors without
+> the overhead and limitations of containerized environments.
 >
-> Gazebo Harmonic requires direct OpenGL/GPU access that Docker cannot reliably
-> provide on Windows (WSL2) or macOS. Attempting to run the full simulation stack
-> on those platforms will result in degraded or non-functional Gazebo rendering,
-> missing lidar data, and unreliable sensor pipelines.
->
-> - **Windows:** Gazebo renders at unusable framerates even with WSL2 + VcXsrv.
->   GPU passthrough via NVIDIA Container Toolkit on WSL2 is fragile and untested.
-> - **macOS:** Apple dropped NVIDIA GPU support in 2019. Gazebo lidar sensors
->   will not publish data. The full simulation pipeline cannot run on macOS.
->
-> **Recommended setup:** Ubuntu 22.04 or 24.04 LTS (native install or dual boot)
->
-> - Docker Engine. This is the only configuration that has been developed and tested.
+> - **Windows and macOS are not supported.**
+> - An NVIDIA GPU is recommended for Gazebo lidar sensor rendering.
+> - Gazebo must be launched with NVIDIA GPU flags (see Quick Start below).
 
 ---
 
@@ -42,8 +32,7 @@ The Guarded Swarms architecture coordinates autonomous agents through two comple
 
 - **Digital coordination layer** - a token-based arbitration system inspired by TB-CSPN, where agents request access to shared zones by issuing signed geometry and authorization tokens. A coordinator node resolves concurrent requests within a configurable 300 ms time window.
 - **Analog safety enforcement layer** - a virtual safety board that monitors real-time sensor data (proximity, attitude, battery, altitude) and applies OR-logic veto on actuator commands that violate any safety threshold, independently of the digital layer.
-
-The two layers are deliberately decoupled: the safety board has no knowledge of tokens, and the coordinator has no knowledge of sensor readings. This mirrors the architectural separation described in the paper.
+  The two layers are deliberately decoupled: the safety board has no knowledge of tokens, and the coordinator has no knowledge of sensor readings. This mirrors the architectural separation described in the paper.
 
 ---
 
@@ -51,28 +40,32 @@ The two layers are deliberately decoupled: the safety board has no knowledge of 
 
 ```
 guarded-swarms-ros2/
-├── docker/                         # Containerized development environment
-│   ├── Dockerfile                  # ROS 2 Humble + Gazebo Harmonic + PX4 deps
-│   ├── docker-compose.yml          # Standard container (Ubuntu only)
-│   └── docker-compose.nvidia.yml   # NVIDIA GPU override (Ubuntu + NVIDIA GPU)
-│
 ├── src/
-│   ├── guarded_swarms_coordinator/ # Digital coordination layer (token system)
-│   │   ├── msg/                    # Custom ROS 2 message definitions
-│   │   │   ├── Token.msg
-│   │   │   ├── GeometryToken.msg
-│   │   │   └── AuthToken.msg
+│   ├── guarded_swarms_msgs/        # ROS 2 message definitions (shared)
+│   │   └── msg/
+│   │       ├── Token.msg
+│   │       ├── GeometryToken.msg
+│   │       └── AuthToken.msg
+│   │
+│   ├── guarded_swarms_coordinator/ # Digital coordination layer (Python)
 │   │   └── guarded_swarms_coordinator/
 │   │       ├── token_system.py     # Core token logic and arbitration
 │   │       ├── agent_node.py       # Monitoring agent (publishes tokens)
 │   │       └── coordinator_node.py # Arbitration coordinator
 │   │
-│   ├── guarded_swarms_safety/      # Analog safety enforcement layer
-│   │   ├── safety_board_node.py    # OR-logic veto on actuator commands
-│   │   ├── px4_safety_bridge.py    # PX4 uORB → safety board adapter
-│   │   └── mock_sensor_publisher.py# Simulated sensor scenarios (no PX4)
+│   ├── guarded_swarms_safety/      # Analog safety enforcement layer (C++)
+│   │   ├── src/
+│   │   │   ├── safety_board_node.cpp      # OR-logic veto on actuator commands
+│   │   │   ├── px4_safety_bridge_node.cpp # PX4 uORB → safety board adapter
+│   │   │   └── mock_sensor_publisher.cpp  # Simulated sensor scenarios (no PX4)
+│   │   ├── models/                        # Gazebo UGV model with lidar
+│   │   └── px4_airframes/                 # Custom PX4 airframe for UGV
 │   │
-│   ├── guarded_swarms_control/     # Offboard UAV control node (C++)
+│   ├── guarded_swarms_control/     # Offboard UAV control + command bridge (C++)
+│   │   └── src/
+│   │       ├── offboard_control_node.cpp  # UAV hover control
+│   │       ├── command_bridge_node.cpp    # AuthToken → actuator command
+│   │       └── px4_safety_bridge_node.cpp # PX4 sensor bridge
 │   │
 │   ├── tools/
 │   │   ├── launch/
@@ -87,7 +80,15 @@ guarded-swarms-ros2/
 │   ├── px4_msgs/                   # PX4 message definitions (submodule)
 │   └── px4_ros_com/                # PX4–ROS 2 communication bridge (submodule)
 │
-├── Makefile                        # Build, test, and deployment automation
+├── make/                           # Modular Makefile targets
+│   ├── vars.mk                     # Shared variables and paths
+│   ├── ros2.mk                     # ROS 2 workspace management
+│   ├── px4.mk                      # PX4 SITL and Gazebo management
+│   ├── demo.mk                     # Demo and pipeline launch targets
+│   ├── web.mk                      # Web dashboard targets
+│   └── diagnostics.mk              # System diagnostics and setup
+│
+├── Makefile                        # Root Makefile (wires sub-makefiles)
 └── README.md
 ```
 
@@ -95,81 +96,93 @@ guarded-swarms-ros2/
 
 ## Prerequisites
 
-### System Requirements
-
-| Component  | Requirement                                         |
-| ---------- | --------------------------------------------------- |
-| **OS**     | **Ubuntu 22.04 or 24.04 LTS (host, required)**      |
-| **Docker** | Docker Engine 20.10+ (**not** Docker Desktop)       |
-| RAM        | 8 GB minimum, 16 GB recommended                     |
-| Storage    | 15 GB free for Docker images and PX4 build          |
-| GPU        | NVIDIA GPU recommended (required for lidar sensors) |
-
-> **The container always runs Ubuntu 22.04 + ROS 2 Humble internally.**
-> Your host can be Ubuntu 22.04 or 24.04 - both work identically.
-> Windows and macOS are not supported. See the platform notice at the top.
-
-### Installing Docker Engine on Ubuntu
-
-```bash
-# Remove any old Docker versions
-sudo apt-get remove docker docker-engine docker.io containerd runc
-
-# Install Docker Engine (not Docker Desktop)
-curl -fsSL https://get.docker.com | sh
-
-# Add your user to the docker group (avoids needing sudo)
-sudo usermod -aG docker $USER
-newgrp docker
-```
-
-### X11 Display (for Gazebo GUI)
-
-```bash
-# Allow Docker containers to connect to your X server
-xhost +local:docker
-```
-
-Add this to your `~/.bashrc` to make it permanent:
-
-```bash
-echo "xhost +local:docker > /dev/null 2>&1" >> ~/.bashrc
-```
+| Component  | Requirement                                 |
+| ---------- | ------------------------------------------- |
+| **OS**     | **Ubuntu 24.04 LTS (required)**             |
+| **ROS 2**  | Jazzy Jalisco                               |
+| **Gazebo** | Harmonic (gz-harmonic)                      |
+| **PX4**    | Autopilot SITL (cloned to ~/PX4-Autopilot)  |
+| RAM        | 8 GB minimum, 16 GB recommended             |
+| Storage    | 20 GB free                                  |
+| GPU        | NVIDIA GPU recommended (required for lidar) |
 
 ---
 
-## GPU Acceleration
+## Installation
 
-Gazebo lidar sensors require OpenGL hardware rendering to publish scan data.
-Without a GPU, the safety board operates but uses a fallback proximity value
-(`prox=999.0 m`, meaning no obstacle detected).
+Run the following steps once on a fresh Ubuntu 24.04 system.
 
-| Level          | Command                    | Sensors                     | Notes                           |
-| -------------- | -------------------------- | --------------------------- | ------------------------------- |
-| 1 - Software   | `make docker-start`        | IMU, battery, altitude      | No GPU required; lidar inactive |
-| 2 - NVIDIA GPU | `make docker-start-nvidia` | All sensors including lidar | Requires NVIDIA GPU + toolkit   |
-| 3 - Real HW    | physical deployment        | All sensors on real robots  | -                               |
-
-### Enabling NVIDIA GPU (Level 2)
-
-**Requirements:**
-
-- NVIDIA GPU (GeForce, Quadro, or Tesla)
-- NVIDIA drivers installed on the Ubuntu host
-- [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html)
+### 1. ROS 2 Jazzy
 
 ```bash
-# Install NVIDIA Container Toolkit
-distribution=$(. /etc/os-release; echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | sudo apt-key add -
-curl -s -L https://nvidia.github.io/nvidia-docker/$distribution/nvidia-docker.list \
-  | sudo tee /etc/apt/sources.list.d/nvidia-docker.list
-sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
-sudo systemctl restart docker
+sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+  -o /usr/share/keyrings/ros-archive-keyring.gpg
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+  http://packages.ros.org/ros2/ubuntu noble main" \
+  | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+sudo apt update && sudo apt install -y \
+  ros-jazzy-desktop \
+  python3-colcon-common-extensions \
+  python3-rosdep
+echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+```
 
-# Verify
-make check-gpu
-make docker-start-nvidia
+### 2. Gazebo Harmonic
+
+```bash
+sudo curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
+  | sudo tee /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg > /dev/null
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
+  http://packages.osrfoundation.org/gazebo/ubuntu-stable noble main" \
+  | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
+sudo apt update && sudo apt install -y gz-harmonic
+```
+
+### 3. Micro-XRCE-DDS Agent (PX4 bridge)
+
+```bash
+sudo apt install -y git cmake build-essential
+cd /tmp && git clone --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
+cd Micro-XRCE-DDS-Agent && mkdir build && cd build
+cmake .. && make -j$(nproc) && sudo make install && sudo ldconfig /usr/local/lib/
+```
+
+### 4. PX4 dependencies and build
+
+```bash
+sudo apt install -y bc libeigen3-dev libopencv-dev pkg-config protobuf-compiler \
+  gstreamer1.0-plugins-bad gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
+  gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstreamer-plugins-base1.0-dev
+cd ~ && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1
+cd ~/PX4-Autopilot && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools
+make px4_sitl gz_x500  # initial build (takes ~10 minutes)
+```
+
+### 5. Python dependencies
+
+```bash
+pip3 install --break-system-packages \
+  fastapi==0.104.1 "uvicorn[standard]==0.24.0" \
+  websockets==12.0 pydantic==2.5.0 python-multipart==0.0.6
+curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
+```
+
+### 6. Build the ROS 2 workspace
+
+```bash
+cd ~/path/to/guarded-swarms-ros2
+git submodule update --init --recursive
+source /opt/ros/jazzy/setup.bash
+colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install
+source install/setup.bash
+colcon build --packages-select \
+  guarded_swarms_coordinator \
+  guarded_swarms_safety \
+  guarded_swarms_control \
+  --symlink-install
+echo "source ~/path/to/guarded-swarms-ros2/install/setup.bash" >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ---
@@ -177,52 +190,84 @@ make docker-start-nvidia
 ## Quick Start
 
 ```bash
-# 0. Clone the repository (with submodules)
-git clone --recurse-submodules https://github.com/YOUR_USER/guarded-swarms-ros2.git
-cd guarded-swarms-ros2
+# Token coordination demo (no PX4, no Gazebo)
+make demo-coordinator   # Terminal 1
+make demo-web           # Terminal 2 → http://localhost:8765
 
-# 1. Copy and configure environment
-cp docker/.env.example docker/.env
-# Edit docker/.env if needed (default values work on Ubuntu)
+# Safety board demo with mock sensors (no PX4, no Gazebo)
+make demo-safety-board    # Terminal 1
+make demo-safety-sensors  # Terminal 2
 
-# 2. Start the container
-make docker-start          # standard (no GPU)
-# or
-make docker-start-nvidia   # with NVIDIA GPU
+# Full pipeline with mock sensors (all layers, no PX4)
+make demo-coordinator     # Terminal 1
+make demo-bridge          # Terminal 2
+make demo-safety-board    # Terminal 3
+make demo-safety-sensors  # Terminal 4
+ros2 topic echo /actuator_cmd_safe  # Monitor output
+```
 
-# 3. First-time setup (inside container or via make)
-make setup-all
+---
 
-# 4. Run a demo
-make demo-pipeline
+## Gazebo Simulation (UAV)
+
+Gazebo requires the NVIDIA GPU to be explicitly activated:
+
+```bash
+# Terminal 1 - PX4 + Gazebo GUI
+__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia \
+  MESA_GL_VERSION_OVERRIDE=4.5 make px4-gui-uav
+
+# At pxh> prompt, run:
+#   param set COM_ARM_WO_GPS 1
+#   param set SYS_HAS_MAG 0
+#   param set COM_RC_IN_MODE 1
+#   param set NAV_RCL_ACT 0
+#   param set NAV_DLL_ACT 0
+#   param set COM_RCL_EXCEPT 4
+#   param save
+#   commander takeoff
+
+# Terminal 2
+make ros2-agent
+
+# Terminal 3
+make ros2-node
+
+# Terminal 4
+make demo-px4-bridge
+
+# Terminal 5
+make demo-safety-board-uav
+
+# Terminal 6
+make demo-bridge
+
+# Terminal 7
+make demo-coordinator
+
+# Monitor
+ros2 topic echo /actuator_cmd_safe
 ```
 
 ---
 
 ## Available Demos
 
-### A) Token Coordination (no PX4, no safety layer)
+### A) Token Coordination (no PX4)
 
-Demonstrates the digital coordination layer in isolation. Four agents continuously
-request spatial zones; the coordinator validates, arbitrates, and issues signed
-AuthTokens. Rejected agents are blocked until the zone is free.
+Four agents continuously request spatial zones. The coordinator validates,
+arbitrates, and issues signed AuthTokens. Rejected agents are blocked until
+the zone is free.
 
 ```bash
-# Terminal 1
-make demo-coordinator
-
-# Terminal 2 - browser dashboard
-make demo-web           # → http://localhost:8765
-
-# Terminal 2 (alternative) - desktop GUI (requires X server)
-make demo-tkinter
+make demo-coordinator   # Terminal 1
+make demo-web           # Terminal 2 → http://localhost:8765
 ```
 
 ### B) Safety Board with Mock Sensors (no PX4)
 
-Demonstrates the analog safety enforcement layer in isolation. A mock sensor
-publisher cycles through 6 pre-defined fault scenarios every 10 seconds.
-The safety board applies OR-logic veto independently of any coordinator state.
+The safety board cycles through 6 pre-defined fault scenarios every 10 seconds
+and applies OR-logic veto on actuator commands.
 
 | Scenario | Description                             | Result |
 | -------- | --------------------------------------- | ------ |
@@ -231,52 +276,36 @@ The safety board applies OR-logic veto independently of any coordinator state.
 | 2        | ATTITUDE - pitch 45° (> 30°)            | VETO   |
 | 3        | BATTERY LOW - 10% (< 15%)               | VETO   |
 | 4        | ALTITUDE HIGH - 60 m (> 50 m)           | VETO   |
-| 5        | NOMINAL RECOVERY - back to safe values  | PASS   |
+| 5        | NOMINAL RECOVERY                        | PASS   |
 
 ```bash
-# Terminal 1
-make demo-safety-board
-
-# Terminal 2
-make demo-safety-sensors
-
-# Monitor output
+make demo-safety-board    # Terminal 1
+make demo-safety-sensors  # Terminal 2
 ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
-ros2 topic echo /safety_status       # 1.0 = safe, 0.0 = unsafe
 ```
 
-### C) Full Pipeline with Mock Sensors (all layers, no PX4)
+### C) Full Pipeline with Mock Sensors
 
-All software layers run together with simulated sensors. Agents generate tokens →
-coordinator approves → command bridge converts approved tokens to actuator
-commands → safety board independently vetoes if any sensor is in violation.
+All layers active simultaneously with simulated sensors.
 
 ```bash
-make demo-coordinator     # Terminal 1 - agent → coordinator → AuthToken
-make demo-bridge          # Terminal 2 - AuthToken → /actuator_cmd_raw
-make demo-safety-board    # Terminal 3 - /actuator_cmd_raw → /actuator_cmd_safe
-make demo-safety-sensors  # Terminal 4 - inject sensor fault scenarios
+make demo-coordinator     # Terminal 1
+make demo-bridge          # Terminal 2
+make demo-safety-board    # Terminal 3
+make demo-safety-sensors  # Terminal 4
 ```
 
-### D) UAV Full Pipeline with Gazebo - R1 from paper (requires GPU)
-
-Sensor data comes from a real PX4 SITL simulation of an x500 quadcopter.
-Lidar reads actual distances from the Gazebo world.
-This is the R1 (UAV) scenario from the paper.
+### D) UAV Pipeline with Gazebo (R1 from paper)
 
 ```bash
 make demo-px4-uav   # prints full step-by-step instructions
 ```
 
-### E) UGV Full Pipeline with Gazebo - R2 from paper (requires GPU)
-
-Same architecture as D) but on a differential rover. Altitude check is disabled
-(rover stays on the ground); proximity is active. This is the R2 scenario from
-the paper where the rover is blocked by a proximity violation.
+### E) UGV Pipeline with Gazebo (R2 from paper)
 
 ```bash
-make setup-ugv      # run once to install UGV assets
-make demo-px4-ugv   # prints full step-by-step instructions
+make setup-ugv      # run once
+make demo-px4-rover # prints full step-by-step instructions
 ```
 
 ---
@@ -285,44 +314,45 @@ make demo-px4-ugv   # prints full step-by-step instructions
 
 ### Phase 0 - Environment Setup
 
-- [x] ROS 2 Humble + Gazebo Harmonic in Docker
-- [x] PX4 SITL integration via micro-ROS bridge
+- [x] ROS 2 Jazzy + Gazebo Harmonic native installation
+- [x] PX4 SITL integration via Micro-XRCE-DDS bridge
 - [x] Basic UAV offboard control (takeoff, hover, position hold)
 - [x] Makefile-based development workflow
 
 ### Phase 1 - Digital Coordination Layer
 
-- [x] Custom ROS 2 message types (`Token`, `GeometryToken`, `AuthToken`)
+- [x] Separate `guarded_swarms_msgs` package for ROS 2 message definitions
 - [x] `agent_node`: publishes geometry and authorization tokens
-- [x] `coordinator_node`: arbitrates concurrent requests with configurable time window and signature validation
-- [x] Token buffering and expiry logic (300 ms concurrency window)
+- [x] `coordinator_node`: arbitrates concurrent requests within 300 ms window
+- [x] Token buffering, expiry, and signature validation
 - [x] Real-time web dashboard for token stream monitoring
 - [x] Multi-agent concurrency validation with live demo
 
 ### Phase 2 - Analog Safety Enforcement Layer
 
-- [x] `safety_board` node with configurable sensor thresholds
-- [x] OR-logic veto on PWM commands upon any threshold violation
-- [x] Mock sensor publisher with 6 pre-defined fault scenarios
-- [x] Safety interventions validated: proximity → thrust cutoff, attitude → command block
-- [ ] Full integration with Gazebo UAV/UGV sensor plugins (lidar, IMU)
+- [x] `safety_board_node` (C++) with configurable sensor thresholds
+- [x] OR-logic veto on actuator commands upon any threshold violation
+- [x] `mock_sensor_publisher` (C++) with 6 pre-defined fault scenarios
+- [x] Safety interventions validated: proximity → veto, attitude → veto
+- [x] PX4 safety bridge: IMU, battery, altitude from real Gazebo simulation
+- [ ] Lidar proximity from Gazebo (pending GPU rendering fix)
 
 ### Phase 3 - Integration and Full Pipeline
 
-- [ ] Route actuator commands through safety board before Gazebo dispatch
-- [ ] Wire token-based activation to PWM command generation end-to-end
-- [ ] Real-time monitoring: token status, safety check results, pre/post-safety commands
+- [x] Full software pipeline validated with mock sensors
+- [x] UAV pipeline with real PX4 sensors (IMU, battery, altitude)
+- [ ] Lidar integration end-to-end
 - [ ] ROS 2 bag recording and scenario replay
 
 ### Phase 4 - Evaluation
 
-- [ ] Resilience testing: dropped tokens, forged tokens, partial sensor failure
-- [ ] Extend to 3+ heterogeneous robots (UAV + UGV)
-- [ ] Demonstration video: nominal operation, safety veto, token expiry
+- [ ] Resilience testing: dropped tokens, forged tokens, sensor failure
+- [ ] UGV pipeline (R2 scenario from paper)
+- [ ] Demonstration video
 
 ### Phase 5 - Documentation and Submission
 
-- [ ] Complete API documentation for all nodes and topics
+- [ ] Complete API documentation
 - [ ] Finalize GitHub repository
 - [ ] Submit thesis report (PDF)
 
@@ -331,14 +361,9 @@ make demo-px4-ugv   # prints full step-by-step instructions
 ## Development Commands
 
 ```bash
-make help               # full command reference
-make show-guide         # complete usage guide with all demo workflows
-
-make docker-shell       # open interactive shell inside the container
-make ros2-rebuild-ws    # clean and rebuild the ROS 2 workspace
-make diagnose           # full system diagnostic
-make check-gpu          # verify GPU acceleration level
-make kill-all           # terminate all processes and stop container
+make help                  # full command reference
+make ros2-rebuild-ws       # clean and rebuild the ROS 2 workspace
+make px4-kill              # terminate all PX4 and Gazebo processes
 ```
 
 ---
@@ -348,6 +373,12 @@ make kill-all           # terminate all processes and stop container
 A browser-based monitoring panel is included under `src/web_dashboard/`.
 It bridges ROS 2 token topics to the browser via WebSocket, providing live
 token stream visualization, per-agent statistics, and demo lifecycle control.
+
+Build the frontend once before first use:
+
+```bash
+make web-ts-build
+```
 
 Access at `http://localhost:8765` after running `make demo-web`.
 

@@ -39,9 +39,9 @@ import time
 import uuid
 from typing import Optional, List
 
-from guarded_swarms_coordinator.msg import Token as TokenMsg
-from guarded_swarms_coordinator.msg import GeometryToken as GeometryTokenMsg
-from guarded_swarms_coordinator.msg import AuthToken as AuthTokenMsg
+from guarded_swarms_msgs.msg import Token as TokenMsg
+from guarded_swarms_msgs.msg import GeometryToken as GeometryTokenMsg
+from guarded_swarms_msgs.msg import AuthToken as AuthTokenMsg
 
 
 class Token:

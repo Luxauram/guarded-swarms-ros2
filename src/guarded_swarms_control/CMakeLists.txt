@@ -14,7 +14,7 @@ find_package(px4_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
-find_package(guarded_swarms_coordinator REQUIRED)
+find_package(guarded_swarms_msgs REQUIRED)
 
 # ============================================================================
 # Executable: offboard_control_node
@@ -47,7 +47,7 @@ target_include_directories(command_bridge_node PUBLIC
 )
 
 ament_target_dependencies(command_bridge_node
-  rclcpp std_msgs guarded_swarms_coordinator
+  rclcpp std_msgs guarded_swarms_msgs
 )
 
 target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)

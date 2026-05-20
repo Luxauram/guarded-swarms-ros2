@@ -35,7 +35,7 @@
 
 #pragma once
 
-#include <guarded_swarms_coordinator/msg/auth_token.hpp>
+#include <guarded_swarms_msgs/msg/auth_token.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
 #include <string>
@@ -80,7 +80,7 @@ class CommandBridgeNode : public rclcpp::Node {
    * @param msg Shared pointer to the received @c AuthToken message.
    */
   void auth_token_callback(
-      const guarded_swarms_coordinator::msg::AuthToken::SharedPtr msg);
+      const guarded_swarms_msgs::msg::AuthToken::SharedPtr msg);
 
   /**
    * @brief Computes the normalised thrust value for a given agent.
@@ -96,7 +96,7 @@ class CommandBridgeNode : public rclcpp::Node {
   uint64_t tokens_received_ = 0;
   uint64_t tokens_approved_ = 0;
   uint64_t tokens_rejected_ = 0;
-  rclcpp::Subscription<guarded_swarms_coordinator::msg::AuthToken>::SharedPtr
+  rclcpp::Subscription<guarded_swarms_msgs::msg::AuthToken>::SharedPtr
       auth_sub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
 };

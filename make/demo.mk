@@ -13,14 +13,15 @@
 # limitations under the License.
 
 # ==============================================================================
-# demo.mk - Demo and pipeline launch targets
+# demo.mk - Demo and pipeline launch targets (native Ubuntu)
 # ==============================================================================
 
 .PHONY: demo-coordinator demo-coordinator-batch demo-tkinter demo-web \
         demo-safety demo-safety-board demo-safety-sensors \
         demo-bridge demo-pipeline \
         demo-px4-bridge demo-px4-bridge-rover \
-        demo-px4-uav demo-px4-rover
+        demo-px4-uav demo-px4-rover \
+        demo-safety-board-uav demo-safety-board-rover
 
 # ------------------------------------------------------------------------------
 # Token coordination
@@ -30,10 +31,9 @@ demo-coordinator:
 	@echo "Launching Token Coordination Demo"
 	@echo "=========================================="
 	@echo ""
-	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
+	@if [ ! -d "$(INSTALL_DIR)/$(COORDINATOR_PKG)" ]; then \
 		echo "Package not built. Building $(COORDINATOR_PKG)..."; \
-		$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/$(COORDINATOR_PKG) install/$(COORDINATOR_PKG) 2>/dev/null || true"; \
-		$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
+		bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
 		echo ""; \
 	fi
 	@echo "Step 1/3: Number of Agents"; \
@@ -94,7 +94,7 @@ demo-coordinator:
 	echo "Starting demo..."; \
 	echo "Press Ctrl+C to stop."; \
 	echo ""; \
-	$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 launch $(WORKSPACE_DIR)/$(TOOLS_LAUNCH_DIR)/demo.launch.py \
+	bash -c "$(WORKSPACE_SOURCE) && ros2 launch $(WORKSPACE_DIR)/$(TOOLS_LAUNCH_DIR)/demo.launch.py \
 		arbitration_mode:=$$arb_mode \
 		priority_A:=$$prio_a \
 		priority_B:=$$prio_b \
@@ -103,12 +103,11 @@ demo-coordinator:
 		num_agents:=$$num_agents"
 
 demo-coordinator-batch:
-	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
-		$(DOCKER_EXEC) bash -c "cd $(WORKSPACE_DIR) && rm -rf build/$(COORDINATOR_PKG) install/$(COORDINATOR_PKG) 2>/dev/null || true"; \
-		$(DOCKER_EXEC) bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
+	@if [ ! -d "$(INSTALL_DIR)/$(COORDINATOR_PKG)" ]; then \
+		bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
 	fi
 	@echo "Launching demo in background..."
-	@$(DOCKER_EXEC) bash -c " \
+	@bash -c " \
 		$(WORKSPACE_SOURCE) && \
 		nohup ros2 launch $(WORKSPACE_DIR)/$(TOOLS_LAUNCH_DIR)/demo.launch.py \
 			arbitration_mode:=$(ARB_MODE) \
@@ -129,17 +128,9 @@ demo-tkinter:
 	@echo "Launching Tkinter Dashboard"
 	@echo "=========================================="
 	@echo ""
-	@echo "Prerequisites:"
-	@echo "X server must be running"
-	@echo "demo-coordinator running in Terminal 1"
+	@echo "Prerequisites: demo-coordinator running in Terminal 1"
 	@echo ""
-	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
-		echo "Error: $(COORDINATOR_PKG) not built."; \
-		echo "Run 'make demo-coordinator' first."; \
-		exit 1; \
-	fi
-	@echo "Opening Tkinter GUI window..."
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && python3 $(WORKSPACE_DIR)/$(TOOLS_VIZ_DIR)/dashboard.py"
+	@bash -c "$(WORKSPACE_SOURCE) && python3 $(WORKSPACE_DIR)/$(TOOLS_VIZ_DIR)/dashboard.py"
 
 demo-web:
 	@echo "=========================================="
@@ -147,27 +138,22 @@ demo-web:
 	@echo "=========================================="
 	@echo ""
 	@echo "Prerequisites:"
-	@echo "demo-coordinator running in Terminal 1"
-	@echo "TypeScript compiled (run once): make web-ts-build"
+	@echo "  demo-coordinator running in Terminal 1"
+	@echo "  TypeScript compiled (run once): make web-ts-build"
 	@echo ""
-	@if ! $(DOCKER_EXEC) bash -c "test -d $(INSTALL_DIR)/$(COORDINATOR_PKG)" 2>/dev/null; then \
-		echo "Error: $(COORDINATOR_PKG) not built."; \
-		echo "Run 'make demo-coordinator' first."; \
-		exit 1; \
-	fi
 	@echo "Dashboard will be available at:"
-	@echo "http://localhost:$(DASHBOARD_PORT)"
+	@echo "  http://localhost:$(DASHBOARD_PORT)"
 	@echo ""
 	@echo "Press Ctrl+C to stop."
 	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "$(FULL_SOURCE) && cd $(WORKSPACE_DIR)/$(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT)"
+	@bash -c "$(FULL_SOURCE) && cd $(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT)"
 
 # ------------------------------------------------------------------------------
-# Safety board (Phase 2 - mock sensors)
+# Safety board (mock sensors)
 # ------------------------------------------------------------------------------
 demo-safety:
 	@echo "=========================================="
-	@echo "Safety Board Demo - Scenario Overview (Phase 2)"
+	@echo "Safety Board Demo - Scenario Overview"
 	@echo "=========================================="
 	@echo ""
 	@echo "Terminal 1: make demo-safety-board    # enforcement node"
@@ -187,23 +173,23 @@ demo-safety:
 	@echo ""
 
 demo-safety-board:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) safety_board_node"
+	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) safety_board_node"
 
 demo-safety-sensors:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) mock_sensor_publisher"
+	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) mock_sensor_publisher"
 
 # ------------------------------------------------------------------------------
 # Command bridge
 # ------------------------------------------------------------------------------
 demo-bridge:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && ros2 run $(CONTROL_PKG) command_bridge_node"
+	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(CONTROL_PKG) command_bridge_node"
 
 # ------------------------------------------------------------------------------
-# Full pipeline (Phase 3 - mock sensors, no PX4)
+# Full pipeline (mock sensors, no PX4)
 # ------------------------------------------------------------------------------
 demo-pipeline:
 	@echo "=========================================="
-	@echo "Full Pipeline Demo (Phase 3)"
+	@echo "Full Pipeline Demo"
 	@echo "=========================================="
 	@echo ""
 	@echo "Open 4 terminals in order:"
@@ -213,47 +199,42 @@ demo-pipeline:
 	@echo "  Terminal 3: make demo-safety-board     # /actuator_cmd_raw -> /actuator_cmd_safe"
 	@echo "  Terminal 4: make demo-safety-sensors   # mock sensor scenarios"
 	@echo ""
-	@echo "Monitor the pipeline:"
+	@echo "Monitor:"
 	@echo "  ros2 topic echo /actuator_cmd_raw      # 0.6 when token approved"
 	@echo "  ros2 topic echo /actuator_cmd_safe     # 0.6=cleared  0.0=vetoed"
 	@echo "  ros2 topic echo /safety_status         # 1.0=safe      0.0=unsafe"
 	@echo ""
 
 # ------------------------------------------------------------------------------
-# PX4 bridge (Phase 3 - real Gazebo sensors)
+# PX4 bridge (real Gazebo sensors)
 # ------------------------------------------------------------------------------
-
-# UAV bridge - forwards x500_lidar_front lidar to /drone/proximity
 demo-px4-bridge:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
+	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
 		--ros-args -p lidar_topic:=/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan"
 
-# UGV bridge - forwards rover_differential_lidar lidar to /drone/proximity
-# Also disables altitude check (rover operates at ground level)
 demo-px4-bridge-rover:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
+	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
 		--ros-args \
 		-p lidar_topic:=/world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
 
-# Safety board configured for UAV (altitude check active)
 demo-safety-board-uav:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
+	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(SAFETY_PKG) safety_board_node \
 		--ros-args -p sensor_staleness_s:=5.0"
 
-# Safety board configured for UGV (altitude check disabled, rover is on ground)
 demo-safety-board-rover:
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
+	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(SAFETY_PKG) safety_board_node \
 		--ros-args \
 		-p min_altitude_m:=-1.0 \
 		-p max_altitude_m:=999.0 \
 		-p sensor_staleness_s:=5.0"
 
-# Convenience: full UAV pipeline with real PX4 sensors
-# Prereqs: px4-run-uav running, ros_gz_bridge started separately
+# ------------------------------------------------------------------------------
+# Full UAV pipeline instructions
+# ------------------------------------------------------------------------------
 demo-px4-uav:
 	@echo "=========================================="
 	@echo "UAV Full Pipeline with PX4 Sensors"
@@ -261,24 +242,22 @@ demo-px4-uav:
 	@echo ""
 	@echo "Prerequisites (start in order):"
 	@echo "  Terminal 1: make px4-run-uav"
+	@echo "              -> wait for pxh>, then run px4-config commands"
+	@echo "              -> commander takeoff"
 	@echo "  Terminal 2: make ros2-agent"
 	@echo "  Terminal 3: make ros2-node"
-	@echo "  Terminal 4: (this terminal) make demo-px4-uav"
-	@echo "  Terminal 5: make demo-bridge"
-	@echo "  Terminal 6: make demo-coordinator"
+	@echo "  Terminal 4: ros2 run ros_gz_bridge parameter_bridge \\"
+	@echo "                /world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan\\"
+	@echo "                @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
+	@echo "  Terminal 5: make demo-px4-bridge"
+	@echo "  Terminal 6: make demo-safety-board-uav"
+	@echo "  Terminal 7: make demo-bridge"
+	@echo "  Terminal 8: make demo-coordinator"
 	@echo ""
-	@echo "Also run in a separate terminal:"
-	@echo "  ros2 run ros_gz_bridge parameter_bridge \\"
-	@echo "    /world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan\\"
-	@echo "    @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
-	@echo ""
-	@echo "Starting px4_safety_bridge + safety_board for UAV..."
-	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
-		--ros-args -p lidar_topic:=/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan"
 
-# Convenience: full UGV pipeline with real PX4 sensors
+# ------------------------------------------------------------------------------
+# Full UGV pipeline instructions
+# ------------------------------------------------------------------------------
 demo-px4-rover:
 	@echo "=========================================="
 	@echo "UGV Full Pipeline with PX4 Sensors"
@@ -287,17 +266,11 @@ demo-px4-rover:
 	@echo "Prerequisites (start in order):"
 	@echo "  Terminal 1: make px4-run-ugv"
 	@echo "  Terminal 2: make ros2-agent"
-	@echo "  Terminal 3: (this terminal) make demo-px4-rover"
-	@echo "  Terminal 4: make demo-safety-board-rover"
-	@echo "  Terminal 5: make demo-bridge"
-	@echo "  Terminal 6: make demo-coordinator"
+	@echo "  Terminal 3: ros2 run ros_gz_bridge parameter_bridge \\"
+	@echo "                /world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan\\"
+	@echo "                @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
+	@echo "  Terminal 4: make demo-px4-bridge-rover"
+	@echo "  Terminal 5: make demo-safety-board-rover"
+	@echo "  Terminal 6: make demo-bridge"
+	@echo "  Terminal 7: make demo-coordinator"
 	@echo ""
-	@echo "Also run in a separate terminal:"
-	@echo "  ros2 run ros_gz_bridge parameter_bridge \\"
-	@echo "    /world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan\\"
-	@echo "    @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
-	@echo ""
-	@$(DOCKER_EXEC_IT) bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
-		--ros-args \
-		-p lidar_topic:=/world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"

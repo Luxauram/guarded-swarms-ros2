@@ -1,7 +1,7 @@
 # Authorization token - approval/rejection from coordinator
 
 # Base token fields
-guarded_swarms_coordinator/Token base_token
+guarded_swarms_msgs/Token base_token
 
 # Reference to the geometry token being authorized
 string geometry_token_id

@@ -47,8 +47,8 @@ import tkinter as tk
 from tkinter import ttk
 import rclpy
 from rclpy.node import Node
-from guarded_swarms_coordinator.msg import GeometryToken as GeometryTokenMsg
-from guarded_swarms_coordinator.msg import AuthToken as AuthTokenMsg
+from guarded_swarms_msgs.msg import GeometryToken as GeometryTokenMsg
+from guarded_swarms_msgs.msg import AuthToken as AuthTokenMsg
 from collections import deque
 import threading
 

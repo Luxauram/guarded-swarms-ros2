@@ -7,12 +7,9 @@ on:
     branches: [main, dev]
 
 # ==============================================================================
-# Notes on platform:
-#   - Lint runs on ubuntu-24.04 (host-level tools only, no ROS dependency)
-#   - Build and smoke test run inside the Docker container (Ubuntu 22.04 +
-#     ROS 2 Humble), which is the only supported runtime environment.
-#   - No GPU available in CI: lidar sensors are inactive. The smoke test
-#     uses mock sensors only and does not require PX4 or Gazebo.
+# Platform: Ubuntu 24.04 native.
+# ROS 2 Jazzy is installed directly on the CI runner.
+# No GPU available in CI: lidar inactive, smoke test uses mock sensors only.
 # ==============================================================================
 
 jobs:
@@ -70,11 +67,11 @@ jobs:
             echo "Flake8 issues found. See output above."
 
   # ============================================================
-  # Job 2: Build Docker image + ROS 2 packages
+  # Job 2: Build ROS 2 packages
   # ============================================================
   build:
-    name: Build (Docker + ROS 2)
-    runs-on: ubuntu-22.04
+    name: Build (ROS 2 Jazzy native)
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout (with submodules)
@@ -82,68 +79,46 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: false
-          load: true
-          tags: guarded_swarms:ci
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
-
-      - name: Rotate build cache
+      - name: Install ROS 2 Jazzy
         run: |
-          rm -rf /tmp/.buildx-cache
-          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
+          sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+            -o /usr/share/keyrings/ros-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+            http://packages.ros.org/ros2/ubuntu noble main" \
+            | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y ros-jazzy-desktop python3-colcon-common-extensions
 
       - name: Build ROS 2 workspace
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/src:/workspace/src \
-            guarded_swarms:ci \
-            bash -c "
-              set -e
-              source /opt/ros/humble/setup.bash
-              cd /workspace
-              colcon build \
-                --packages-select \
-                  guarded_swarms_coordinator \
-                  guarded_swarms_safety \
-                  guarded_swarms_control \
-                --symlink-install \
-                --event-handlers console_direct+
-            "
+          set -e
+          source /opt/ros/jazzy/setup.bash
+          colcon build \
+            --packages-select guarded_swarms_msgs px4_msgs \
+            --symlink-install \
+            --event-handlers console_direct+
+          source install/setup.bash
+          colcon build \
+            --packages-select \
+              guarded_swarms_coordinator \
+              guarded_swarms_safety \
+              guarded_swarms_control \
+            --symlink-install \
+            --event-handlers console_direct+
 
   # ============================================================
   # Job 3: Smoke test (Safety pipeline - mock sensors, no PX4/Gazebo)
   #
-  # What this tests:
+  # Verifies:
   #   - safety_board_node starts without crashing
   #   - mock_sensor_publisher cycles through fault scenarios
-  #   - safety board detects NOMINAL (SAFE) state
-  #   - safety board detects a sensor violation (UNSAFE)
-  #   - safety board applies OR-logic VETO on the actuator command
-  #
-  # This covers the core architectural guarantee of the paper:
-  # an analog-equivalent safety enforcement independent of the
-  # digital coordination layer, verified without GPU or PX4.
+  #   - SAFE state observed (nominal scenario)
+  #   - UNSAFE state observed (sensor violation)
+  #   - VETO observed (OR-logic blocks actuator command)
   # ============================================================
   smoke-test:
     name: Smoke Test (Safety Pipeline)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     needs: build
 
     steps:
@@ -152,106 +127,86 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Install ROS 2 Jazzy
+        run: |
+          sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+            -o /usr/share/keyrings/ros-archive-keyring.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+            http://packages.ros.org/ros2/ubuntu noble main" \
+            | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y ros-jazzy-desktop python3-colcon-common-extensions
 
-      - name: Restore Docker layer cache
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ hashFiles('docker/Dockerfile') }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Build Docker image (from cache)
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: docker/Dockerfile
-          push: false
-          load: true
-          tags: guarded_swarms:ci
-          cache-from: type=local,src=/tmp/.buildx-cache
+      - name: Build workspace
+        run: |
+          set -e
+          source /opt/ros/jazzy/setup.bash
+          colcon build \
+            --packages-select guarded_swarms_msgs px4_msgs \
+            --symlink-install
+          source install/setup.bash
+          colcon build \
+            --packages-select \
+              guarded_swarms_coordinator \
+              guarded_swarms_safety \
+              guarded_swarms_control \
+            --symlink-install
 
       - name: Run safety pipeline smoke test
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}/src:/workspace/src \
-            guarded_swarms:ci \
-            bash -c "
-              set -e
-              source /opt/ros/humble/setup.bash
+          set -e
+          source /opt/ros/jazzy/setup.bash
+          source install/setup.bash
 
-              # Build packages inside the container
-              cd /workspace
-              colcon build \
-                --packages-select \
-                  guarded_swarms_coordinator \
-                  guarded_swarms_safety \
-                  guarded_swarms_control \
-                --symlink-install \
-                --event-handlers console_direct+ 2>&1
+          ros2 run guarded_swarms_safety safety_board_node \
+            > /tmp/safety_board.log 2>&1 &
+          BOARD_PID=$!
 
-              source /workspace/install/setup.bash
+          sleep 4
 
-              # Start safety board in background
-              ros2 run guarded_swarms_safety safety_board_node \
-                > /tmp/safety_board.log 2>&1 &
-              BOARD_PID=\$!
+          ros2 run guarded_swarms_safety mock_sensor_publisher \
+            > /tmp/mock_sensors.log 2>&1 &
+          SENSORS_PID=$!
 
-              # Wait for node initialization
-              sleep 4
+          sleep 25
 
-              # Start mock sensor publisher in background
-              # Cycles: NOMINAL (10s) -> PROXIMITY (10s) -> ATTITUDE (10s) -> ...
-              ros2 run guarded_swarms_safety mock_sensor_publisher \
-                > /tmp/mock_sensors.log 2>&1 &
-              SENSORS_PID=\$!
+          kill $BOARD_PID $SENSORS_PID 2>/dev/null || true
+          sleep 2
 
-              # Run long enough to cover scenario 0 (NOMINAL) and scenario 1 (PROXIMITY veto)
-              # 10s scenario interval x 2 scenarios + startup buffer = 25s
-              sleep 25
+          echo "=== Safety Board Output ==="
+          cat /tmp/safety_board.log
+          echo ""
+          echo "=== Mock Sensor Output ==="
+          cat /tmp/mock_sensors.log
+          echo ""
 
-              # Graceful shutdown
-              kill \$BOARD_PID \$SENSORS_PID 2>/dev/null || true
-              sleep 2
+          FAILED=0
 
-              echo '=== Safety Board Output ==='
-              cat /tmp/safety_board.log
-              echo ''
-              echo '=== Mock Sensor Output ==='
-              cat /tmp/mock_sensors.log
-              echo ''
+          if grep -q 'SAFE' /tmp/safety_board.log; then
+            echo "[OK]  SAFE state observed"
+          else
+            echo "[FAIL] No SAFE state observed"
+            FAILED=1
+          fi
 
-              # --- Assertions ---
-              FAILED=0
+          if grep -q 'UNSAFE' /tmp/safety_board.log; then
+            echo "[OK]  UNSAFE state observed"
+          else
+            echo "[FAIL] No UNSAFE state observed"
+            FAILED=1
+          fi
 
-              if grep -q 'SAFE' /tmp/safety_board.log; then
-                echo '[OK]  SAFE state observed (nominal scenario)'
-              else
-                echo '[FAIL] No SAFE state observed - safety board may not be publishing'
-                FAILED=1
-              fi
+          if grep -q 'VETO' /tmp/safety_board.log; then
+            echo "[OK]  VETO observed"
+          else
+            echo "[FAIL] No VETO observed"
+            FAILED=1
+          fi
 
-              if grep -q 'UNSAFE' /tmp/safety_board.log; then
-                echo '[OK]  UNSAFE state observed (sensor violation detected)'
-              else
-                echo '[FAIL] No UNSAFE state observed - sensor violations not being detected'
-                FAILED=1
-              fi
-
-              if grep -q 'VETO' /tmp/safety_board.log; then
-                echo '[OK]  VETO observed (actuator command blocked on violation)'
-              else
-                echo '[FAIL] No VETO observed - OR-logic not applied to actuator command'
-                FAILED=1
-              fi
-
-              echo ''
-              if [ \$FAILED -eq 0 ]; then
-                echo 'All smoke tests passed.'
-              else
-                echo 'One or more smoke tests FAILED. See output above.'
-                exit 1
-              fi
-            "
+          echo ""
+          if [ $FAILED -eq 0 ]; then
+            echo "All smoke tests passed."
+          else
+            echo "One or more smoke tests FAILED."
+            exit 1
+          fi

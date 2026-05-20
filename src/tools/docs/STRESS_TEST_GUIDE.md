@@ -100,30 +100,28 @@ STANDARD_BBOX_DEPTH = 3.0
 **Terminal 1:** Launch coordinator only
 
 ```bash
-make docker-shell
-source /workspace/install/setup.bash
-
-# Launch coordinator manually
+cd ~/path/to/guarded-swarms-ros2
+source install/setup.bash
 ros2 run guarded_swarms_coordinator coordinator_node \
     --ros-args -p coordinator_id:=coordinator_R1 -p arbitration_mode:=priority
 ```
 
-**Terminal 2:** Launch MANY agents in same zone
+**Terminal 2:** Launch many agents in the same zone
 
 ```bash
-make docker-shell
-source /workspace/install/setup.bash
+cd ~/path/to/guarded-swarms-ros2
+source install/setup.bash
 
-# Launch 10 agents - all will compete!
+# Launch 10 agents — all will compete for the same zone
 for i in {1..10}; do
     ros2 run guarded_swarms_coordinator agent_node \
         --ros-args -p agent_id:=stress_agent_$i -p priority:=$((RANDOM % 10)) &
 done
 ```
 
-**Note:** These agents will use default zone (0,0), so they'll all conflict!
+**Note:** These agents will use default zone (0,0), so they will all conflict.
 
-**Expected:** Chaos! High rejection rate, constant preemptions.
+**Expected:** High rejection rate, constant preemptions.
 
 ---
 
@@ -196,6 +194,6 @@ make demo-coordinator
 Look for:
 
 ```
-✗ REJECTED: agent_B ... conflict_with_agent_A_priority_10
-⚠ REVOKED: agent_C ... preempted_by_agent_A_priority_10
+REJECTED: agent_B ... conflict_with_agent_A_priority_10
+REVOKED: agent_C ... preempted_by_agent_A_priority_10
 ```
