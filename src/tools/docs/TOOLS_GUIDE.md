@@ -124,9 +124,9 @@ make demo-coordinator
 
 **Expected:**
 
-- A (10) can preempt C (3) — diff = 7 > threshold
-- A (10) can preempt B (7) — diff = 3 >= threshold
-- B (7) cannot preempt C (3) — diff = 4, uses FCFS
+- A (10) can preempt C (3) - diff = 7 > threshold
+- A (10) can preempt B (7) - diff = 3 >= threshold
+- B (7) cannot preempt C (3) - diff = 4, uses FCFS
 
 ---
 
@@ -134,7 +134,7 @@ make demo-coordinator
 
 **Scenario:** Force maximum spatial conflicts
 
-**Method 1 — Modify agent zones temporarily:**
+**Method 1 - Modify agent zones temporarily:**
 
 Edit `src/guarded_swarms_coordinator/guarded_swarms_coordinator/agent_node.py`:
 
@@ -159,13 +159,13 @@ make demo-coordinator
 
 **Expected:** Frequent rejections and revocations, A dominates
 
-**Method 2 — Run multiple agents simultaneously:**
+**Method 2 - Run multiple agents simultaneously:**
 
 ```bash
-# Terminal 1 — launch coordinator + 4 agents
+# Terminal 1 - launch coordinator + 4 agents
 make demo-coordinator
 
-# Terminal 2 — add extra agents manually
+# Terminal 2 - add extra agents manually
 cd ~/path/to/guarded-swarms-ros2
 source install/setup.bash
 ros2 run guarded_swarms_coordinator agent_node --ros-args -p agent_id:=agent_E -p priority:=8 &

@@ -112,7 +112,7 @@ ros2 run guarded_swarms_coordinator coordinator_node \
 cd ~/path/to/guarded-swarms-ros2
 source install/setup.bash
 
-# Launch 10 agents — all will compete for the same zone
+# Launch 10 agents - all will compete for the same zone
 for i in {1..10}; do
     ros2 run guarded_swarms_coordinator agent_node \
         --ros-args -p agent_id:=stress_agent_$i -p priority:=$((RANDOM % 10)) &
