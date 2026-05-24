@@ -92,7 +92,7 @@ px4-gui-uav:
 	@sleep 2
 	@echo "Starting Gazebo with 3D visualization..."
 	@echo ""
-	@cd $(PX4_DIR) && make px4_sitl gz_x500_lidar_front
+	@cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 make px4_sitl gz_x500_lidar_front
 
 # ------------------------------------------------------------------------------
 # UGV with Gazebo GUI (native)
