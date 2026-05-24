@@ -79,6 +79,7 @@ else
     sudo apt-get update
     sudo apt-get install -y \
         ros-humble-desktop \
+        ros-humble-ros-gzharmonic-bridge \
         python3-colcon-common-extensions \
         python3-rosdep
 
@@ -145,7 +146,8 @@ sudo apt-get install -y \
     gstreamer1.0-plugins-good \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-libav \
-    libgstreamer-plugins-base1.0-dev
+    libgstreamer-plugins-base1.0-dev \
+
 
 PX4_DIR="$HOME/PX4-Autopilot"
 
@@ -188,6 +190,24 @@ pip3 install \
     python-multipart==0.0.6
 
 ok "Python dependencies installed."
+
+# ------------------------------------------------------------------------------
+# Optional: NVIDIA utilities (skipped on non-NVIDIA systems)
+# ------------------------------------------------------------------------------
+log "Checking for NVIDIA GPU..."
+
+if lspci 2>/dev/null | grep -qi nvidia; then
+    log "NVIDIA GPU detected. Installing nvidia-utils..."
+    # Try to install the utilities package; non-fatal if it fails
+    # (e.g. driver version mismatch or VM without GPU passthrough)
+    sudo apt-get install -y nvidia-utils-570 2>/dev/null || \
+    sudo apt-get install -y nvidia-utils-535 2>/dev/null || \
+    warn "nvidia-utils not installed — nvidia-smi will not be available. This is non-fatal."
+else
+    warn "No NVIDIA GPU detected (VM or unsupported hardware). Skipping nvidia-utils."
+    warn "Gazebo lidar rendering requires a physical NVIDIA GPU."
+fi
+
 
 # ------------------------------------------------------------------------------
 # Step 6: Bun (TypeScript compiler)
