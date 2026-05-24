@@ -2,15 +2,15 @@
 # ==============================================================================
 # Guarded Swarms - Installation Script
 #
-# Installs all dependencies and builds the workspace on Ubuntu 24.04 LTS.
-# Run this script once on a fresh Ubuntu 24.04 system.
+# Installs all dependencies and builds the workspace on Ubuntu 22.04 LTS.
+# Run this script once on a fresh Ubuntu 22.04 system.
 #
 # Usage:
 #   chmod +x install.sh
 #   ./install.sh
 #
 # What this script does:
-#   1. Installs ROS 2 Jazzy
+#   1. Installs ROS 2 Humble
 #   2. Installs Gazebo Harmonic
 #   3. Installs Micro-XRCE-DDS Agent (PX4 bridge)
 #   4. Installs PX4 dependencies and builds PX4 SITL
@@ -41,7 +41,7 @@ warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
 fail() { echo -e "${RED}[error]${NC} $1"; exit 1; }
 
 # ------------------------------------------------------------------------------
-# Check Ubuntu 24.04
+# Check Ubuntu 22.04
 # ------------------------------------------------------------------------------
 log "Checking system..."
 
@@ -52,19 +52,19 @@ if [ "$OS" != "Ubuntu" ]; then
     fail "This script requires Ubuntu. Detected: $OS"
 fi
 
-if [ "$VER" != "24.04" ] && [ "$VER" != "22.04" ]; then
-    warn "This script is tested on Ubuntu 24.04. Detected: $VER. Proceeding anyway..."
+if [ "$VER" != "22.04" ]; then
+    warn "This script is tested on Ubuntu 22.04. Detected: $VER. Proceeding anyway..."
 fi
 
 ok "System: Ubuntu $VER"
 
 # ------------------------------------------------------------------------------
-# Step 1: ROS 2 Jazzy
+# Step 1: ROS 2 Humble
 # ------------------------------------------------------------------------------
-log "Step 1/7: Installing ROS 2 Jazzy..."
+log "Step 1/7: Installing ROS 2 Humble..."
 
-if [ -f /opt/ros/jazzy/setup.bash ]; then
-    ok "ROS 2 Jazzy already installed. Skipping."
+if [ -f /opt/ros/humble/setup.bash ]; then
+    ok "ROS 2 Humble already installed. Skipping."
 else
     sudo apt-get update
     sudo apt-get install -y software-properties-common curl
@@ -73,16 +73,16 @@ else
         -o /usr/share/keyrings/ros-archive-keyring.gpg
 
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-        http://packages.ros.org/ros2/ubuntu noble main" \
+        http://packages.ros.org/ros2/ubuntu jammy main" \
         | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 
     sudo apt-get update
     sudo apt-get install -y \
-        ros-jazzy-desktop \
+        ros-humble-desktop \
         python3-colcon-common-extensions \
         python3-rosdep
 
-    ok "ROS 2 Jazzy installed."
+    ok "ROS 2 Humble installed."
 fi
 
 # ------------------------------------------------------------------------------
@@ -97,7 +97,7 @@ else
         | sudo tee /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg > /dev/null
 
     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
-        http://packages.osrfoundation.org/gazebo/ubuntu-stable noble main" \
+        http://packages.osrfoundation.org/gazebo/ubuntu-stable jammy main" \
         | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 
     sudo apt-get update
@@ -166,7 +166,7 @@ else
     bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools
 
     log "Building PX4 SITL (this will take 10-20 minutes)..."
-    HEADLESS=1 make px4_sitl gz_x500_lidar_front
+    make px4_sitl_default
 
     ok "PX4 SITL built."
 fi
@@ -180,7 +180,7 @@ log "Step 5/7: Installing Python dependencies..."
 
 sudo apt-get install -y python3-pip
 
-pip3 install --break-system-packages \
+pip3 install \
     fastapi==0.104.1 \
     "uvicorn[standard]==0.24.0" \
     websockets==12.0 \
@@ -212,7 +212,7 @@ cd "$REPO_DIR"
 
 git submodule update --init --recursive
 
-source /opt/ros/jazzy/setup.bash
+source /opt/ros/humble/setup.bash
 
 log "Building messages and px4_msgs first..."
 colcon build \
@@ -248,10 +248,10 @@ add_to_bashrc() {
     fi
 }
 
-add_to_bashrc "source /opt/ros/jazzy/setup.bash"
+add_to_bashrc "source /opt/ros/humble/setup.bash"
 add_to_bashrc "source $REPO_DIR/install/setup.bash"
 add_to_bashrc 'export BUN_INSTALL="$HOME/.bun"'
-add_to_bashrc 'export PATH="$BUN_INSTALL/bin:$PATH"'
+add_to_bashrc 'export PATH="$BUN_INSTALL/bin:$HOME/.local/bin:$PATH"'
 
 ok "~/.bashrc configured."
 

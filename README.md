@@ -1,10 +1,10 @@
 # Guarded Swarms ROS 2
 
-[![ROS 2](https://img.shields.io/badge/ROS_2-Jazzy-blue.svg)](https://docs.ros.org/en/jazzy/)
+[![ROS 2](https://img.shields.io/badge/ROS_2-Humble-blue.svg)](https://docs.ros.org/en/humble/)
 [![Gazebo](https://img.shields.io/badge/Gazebo-Harmonic-orange.svg)](https://gazebosim.org/)
 [![PX4](https://img.shields.io/badge/PX4-SITL-green.svg)](https://px4.io/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-Ubuntu%2024.04-E95420.svg)](https://ubuntu.com/)
+[![Platform](https://img.shields.io/badge/Platform-Ubuntu%2022.04-E95420.svg)](https://ubuntu.com/)
 
 ROS 2 simulation framework implementing the Guarded Swarms hybrid digital-analog coordination architecture for autonomous multi-robot systems (UAV + UGV). Developed as a thesis project at the University of Molise, in collaboration with ongoing swarm robotics research.
 
@@ -14,9 +14,9 @@ Based on: _Borghoff, Bottoni, Pareschi (2025/2026) - "Guarded Swarms: Hybrid Dig
 
 > **Platform Notice**
 >
-> **This project runs natively on Ubuntu 24.04 LTS. DOCKER IS NOT USED.**
+> **This project runs natively on Ubuntu 22.04 LTS. DOCKER IS NOT USED.**
 >
-> ROS 2 Jazzy, PX4, and Gazebo Harmonic are installed directly on the host system.
+> ROS 2 Humble, PX4, and Gazebo Harmonic are installed directly on the host system.
 > This ensures full GPU access for Gazebo rendering and lidar sensors without
 > the overhead and limitations of containerized environments.
 >
@@ -32,7 +32,8 @@ The Guarded Swarms architecture coordinates autonomous agents through two comple
 
 - **Digital coordination layer** - a token-based arbitration system inspired by TB-CSPN, where agents request access to shared zones by issuing signed geometry and authorization tokens. A coordinator node resolves concurrent requests within a configurable 300 ms time window.
 - **Analog safety enforcement layer** - a virtual safety board that monitors real-time sensor data (proximity, attitude, battery, altitude) and applies OR-logic veto on actuator commands that violate any safety threshold, independently of the digital layer.
-  The two layers are deliberately decoupled: the safety board has no knowledge of tokens, and the coordinator has no knowledge of sensor readings. This mirrors the architectural separation described in the paper.
+
+The two layers are deliberately decoupled: the safety board has no knowledge of tokens, and the coordinator has no knowledge of sensor readings. This mirrors the architectural separation described in the paper.
 
 ---
 
@@ -40,36 +41,53 @@ The Guarded Swarms architecture coordinates autonomous agents through two comple
 
 ```
 guarded-swarms-ros2/
+├── install.sh                      # Automated installation script (Ubuntu 22.04)
+├── Makefile                        # Root Makefile (no Docker)
+├── make/
+│   ├── vars.mk                     # Shared variables (paths, ROS 2 source, etc.)
+│   ├── ros2.mk                     # ROS 2 workspace management
+│   ├── px4.mk                      # PX4 SITL + Gazebo management
+│   ├── demo.mk                     # Demo launch targets
+│   ├── web.mk                      # Web dashboard
+│   └── diagnostics.mk              # Setup + diagnostics
 ├── src/
-│   ├── guarded_swarms_msgs/        # ROS 2 message definitions (shared)
+│   ├── guarded_swarms_msgs/        # ROS 2 message definitions (ament_cmake)
 │   │   └── msg/
 │   │       ├── Token.msg
 │   │       ├── GeometryToken.msg
 │   │       └── AuthToken.msg
 │   │
-│   ├── guarded_swarms_coordinator/ # Digital coordination layer (Python)
+│   ├── guarded_swarms_coordinator/ # Digital coordination layer (ament_python)
+│   │   ├── setup.py
+│   │   ├── setup.cfg
 │   │   └── guarded_swarms_coordinator/
 │   │       ├── token_system.py     # Core token logic and arbitration
 │   │       ├── agent_node.py       # Monitoring agent (publishes tokens)
 │   │       └── coordinator_node.py # Arbitration coordinator
 │   │
-│   ├── guarded_swarms_safety/      # Analog safety enforcement layer (C++)
+│   ├── guarded_swarms_safety/      # Analog safety enforcement layer (ament_cmake, C++)
 │   │   ├── src/
-│   │   │   ├── safety_board_node.cpp      # OR-logic veto on actuator commands
-│   │   │   ├── px4_safety_bridge_node.cpp # PX4 uORB → safety board adapter
-│   │   │   └── mock_sensor_publisher.cpp  # Simulated sensor scenarios (no PX4)
-│   │   ├── models/                        # Gazebo UGV model with lidar
-│   │   └── px4_airframes/                 # Custom PX4 airframe for UGV
+│   │   │   ├── safety_board_node.cpp       # OR-logic veto on actuator commands
+│   │   │   ├── px4_safety_bridge_node.cpp  # PX4 uORB → safety board adapter
+│   │   │   └── mock_sensor_publisher.cpp   # 6 fault scenarios (no PX4)
+│   │   ├── models/                         # Gazebo UGV model with lidar
+│   │   └── px4_airframes/                  # Custom PX4 airframe for UGV
 │   │
-│   ├── guarded_swarms_control/     # Offboard UAV control + command bridge (C++)
+│   ├── guarded_swarms_control/     # Offboard UAV control + command bridge (ament_cmake, C++)
 │   │   └── src/
-│   │       ├── offboard_control_node.cpp  # UAV hover control
-│   │       ├── command_bridge_node.cpp    # AuthToken → actuator command
-│   │       └── px4_safety_bridge_node.cpp # PX4 sensor bridge
+│   │       ├── offboard_control_node.cpp   # UAV hover control
+│   │       ├── command_bridge_node.cpp     # AuthToken → actuator command
+│   │       └── px4_safety_bridge_node.cpp  # PX4 sensor bridge
+│   │
+│   ├── guarded_swarms_bringup/     # Launch files package (ament_cmake)
+│   │   └── launch/
+│   │       ├── mock_pipeline.launch.py     # Full pipeline, no PX4
+│   │       ├── uav_pipeline.launch.py      # Full UAV pipeline
+│   │       └── ugv_pipeline.launch.py      # Full UGV pipeline
 │   │
 │   ├── tools/
 │   │   ├── launch/
-│   │   │   └── demo.launch.py      # Full system launch file
+│   │   │   └── demo.launch.py      # Coordinator-only launch
 │   │   └── visualization/
 │   │       └── dashboard.py        # Lightweight terminal dashboard
 │   │
@@ -80,15 +98,6 @@ guarded-swarms-ros2/
 │   ├── px4_msgs/                   # PX4 message definitions (submodule)
 │   └── px4_ros_com/                # PX4–ROS 2 communication bridge (submodule)
 │
-├── make/                           # Modular Makefile targets
-│   ├── vars.mk                     # Shared variables and paths
-│   ├── ros2.mk                     # ROS 2 workspace management
-│   ├── px4.mk                      # PX4 SITL and Gazebo management
-│   ├── demo.mk                     # Demo and pipeline launch targets
-│   ├── web.mk                      # Web dashboard targets
-│   └── diagnostics.mk              # System diagnostics and setup
-│
-├── Makefile                        # Root Makefile (wires sub-makefiles)
 └── README.md
 ```
 
@@ -98,8 +107,8 @@ guarded-swarms-ros2/
 
 | Component  | Requirement                                 |
 | ---------- | ------------------------------------------- |
-| **OS**     | **Ubuntu 24.04 LTS (required)**             |
-| **ROS 2**  | Jazzy Jalisco                               |
+| **OS**     | **Ubuntu 22.04 LTS (required)**             |
+| **ROS 2**  | Humble Hawksbill                            |
 | **Gazebo** | Harmonic (gz-harmonic)                      |
 | **PX4**    | Autopilot SITL (cloned to ~/PX4-Autopilot)  |
 | RAM        | 8 GB minimum, 16 GB recommended             |
@@ -110,36 +119,46 @@ guarded-swarms-ros2/
 
 ## Installation
 
-Run the following steps once on a fresh Ubuntu 24.04 system.
+The easiest way is to use the automated script:
 
-### 1. ROS 2 Jazzy
+```bash
+git clone --recurse-submodules git@github.com:YOUR_USERNAME/guarded-swarms-ros2.git
+cd guarded-swarms-ros2
+chmod +x install.sh && ./install.sh
+```
+
+Estimated time: 20–40 minutes depending on internet speed.
+
+### Manual installation (step by step)
+
+#### 1. ROS 2 Humble
 
 ```bash
 sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
   -o /usr/share/keyrings/ros-archive-keyring.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-  http://packages.ros.org/ros2/ubuntu noble main" \
+  http://packages.ros.org/ros2/ubuntu jammy main" \
   | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 sudo apt update && sudo apt install -y \
-  ros-jazzy-desktop \
+  ros-humble-desktop \
   python3-colcon-common-extensions \
   python3-rosdep
-echo "source /opt/ros/jazzy/setup.bash" >> ~/.bashrc
+echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 
-### 2. Gazebo Harmonic
+#### 2. Gazebo Harmonic
 
 ```bash
 sudo curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
   | sudo tee /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg > /dev/null
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
-  http://packages.osrfoundation.org/gazebo/ubuntu-stable noble main" \
+  http://packages.osrfoundation.org/gazebo/ubuntu-stable jammy main" \
   | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
 sudo apt update && sudo apt install -y gz-harmonic
 ```
 
-### 3. Micro-XRCE-DDS Agent (PX4 bridge)
+#### 3. Micro-XRCE-DDS Agent (PX4 bridge)
 
 ```bash
 sudo apt install -y git cmake build-essential
@@ -148,7 +167,7 @@ cd Micro-XRCE-DDS-Agent && mkdir build && cd build
 cmake .. && make -j$(nproc) && sudo make install && sudo ldconfig /usr/local/lib/
 ```
 
-### 4. PX4 dependencies and build
+#### 4. PX4 dependencies and build
 
 ```bash
 sudo apt install -y bc libeigen3-dev libopencv-dev pkg-config protobuf-compiler \
@@ -156,32 +175,33 @@ sudo apt install -y bc libeigen3-dev libopencv-dev pkg-config protobuf-compiler 
   gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstreamer-plugins-base1.0-dev
 cd ~ && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1
 cd ~/PX4-Autopilot && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools
-make px4_sitl gz_x500  # initial build (takes ~10 minutes)
+HEADLESS=1 make px4_sitl gz_x500_lidar_front  # initial build (~10-20 minutes)
 ```
 
-### 5. Python dependencies
+#### 5. Python dependencies
 
 ```bash
-pip3 install --break-system-packages \
+pip3 install \
   fastapi==0.104.1 "uvicorn[standard]==0.24.0" \
   websockets==12.0 pydantic==2.5.0 python-multipart==0.0.6
 curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
 ```
 
-### 6. Build the ROS 2 workspace
+#### 6. Build the ROS 2 workspace
 
 ```bash
-cd ~/path/to/guarded-swarms-ros2
+cd ~/guarded-swarms-ros2
 git submodule update --init --recursive
-source /opt/ros/jazzy/setup.bash
+source /opt/ros/humble/setup.bash
 colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install
 source install/setup.bash
 colcon build --packages-select \
   guarded_swarms_coordinator \
   guarded_swarms_safety \
   guarded_swarms_control \
+  guarded_swarms_bringup \
   --symlink-install
-echo "source ~/path/to/guarded-swarms-ros2/install/setup.bash" >> ~/.bashrc
+echo "source ~/guarded-swarms-ros2/install/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 
@@ -199,11 +219,10 @@ make demo-safety-board    # Terminal 1
 make demo-safety-sensors  # Terminal 2
 
 # Full pipeline with mock sensors (all layers, no PX4)
-make demo-coordinator     # Terminal 1
-make demo-bridge          # Terminal 2
-make demo-safety-board    # Terminal 3
-make demo-safety-sensors  # Terminal 4
-ros2 topic echo /actuator_cmd_safe  # Monitor output
+ros2 launch guarded_swarms_bringup mock_pipeline.launch.py
+
+# Monitor output
+ros2 topic echo /actuator_cmd_safe
 ```
 
 ---
@@ -233,20 +252,31 @@ make ros2-agent
 # Terminal 3
 make ros2-node
 
-# Terminal 4
-make demo-px4-bridge
+# Terminal 4 - Lidar bridge (Gazebo → ROS 2)
+ros2 run ros_gz_bridge parameter_bridge \
+  /world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan \
+  @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan
 
 # Terminal 5
-make demo-safety-board-uav
+make demo-px4-bridge
 
 # Terminal 6
-make demo-bridge
+make demo-safety-board-uav
 
 # Terminal 7
+make demo-bridge
+
+# Terminal 8
 make demo-coordinator
 
 # Monitor
 ros2 topic echo /actuator_cmd_safe
+```
+
+Or use the bringup launch file:
+
+```bash
+ros2 launch guarded_swarms_bringup uav_pipeline.launch.py
 ```
 
 ---
@@ -286,7 +316,13 @@ ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
 
 ### C) Full Pipeline with Mock Sensors
 
-All layers active simultaneously with simulated sensors.
+All layers active simultaneously with simulated sensors — no PX4 or Gazebo needed.
+
+```bash
+ros2 launch guarded_swarms_bringup mock_pipeline.launch.py
+```
+
+Or manually:
 
 ```bash
 make demo-coordinator     # Terminal 1
@@ -301,11 +337,35 @@ make demo-safety-sensors  # Terminal 4
 make demo-px4-uav   # prints full step-by-step instructions
 ```
 
+Or:
+
+```bash
+ros2 launch guarded_swarms_bringup uav_pipeline.launch.py
+```
+
 ### E) UGV Pipeline with Gazebo (R2 from paper)
 
 ```bash
-make setup-ugv      # run once
-make demo-px4-rover # prints full step-by-step instructions
+make setup-ugv          # run once to install rover assets
+make demo-px4-rover     # prints full step-by-step instructions
+```
+
+Or:
+
+```bash
+ros2 launch guarded_swarms_bringup ugv_pipeline.launch.py
+```
+
+---
+
+## Monitor Topics
+
+```bash
+ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
+ros2 topic echo /actuator_cmd_raw    # 0.6 when token approved
+ros2 topic echo /safety_status       # 1.0 = safe, 0.0 = unsafe
+ros2 topic echo /drone/proximity     # lidar distance (m)
+ros2 topic echo /drone/altitude      # altitude (m)
 ```
 
 ---
@@ -314,7 +374,7 @@ make demo-px4-rover # prints full step-by-step instructions
 
 ### Phase 0 - Environment Setup
 
-- [x] ROS 2 Jazzy + Gazebo Harmonic native installation
+- [x] ROS 2 Humble + Gazebo Harmonic native installation (Ubuntu 22.04)
 - [x] PX4 SITL integration via Micro-XRCE-DDS bridge
 - [x] Basic UAV offboard control (takeoff, hover, position hold)
 - [x] Makefile-based development workflow
@@ -335,12 +395,13 @@ make demo-px4-rover # prints full step-by-step instructions
 - [x] `mock_sensor_publisher` (C++) with 6 pre-defined fault scenarios
 - [x] Safety interventions validated: proximity → veto, attitude → veto
 - [x] PX4 safety bridge: IMU, battery, altitude from real Gazebo simulation
-- [ ] Lidar proximity from Gazebo (pending GPU rendering fix)
+- [ ] Lidar proximity from Gazebo (end-to-end, pending full integration)
 
 ### Phase 3 - Integration and Full Pipeline
 
 - [x] Full software pipeline validated with mock sensors
 - [x] UAV pipeline with real PX4 sensors (IMU, battery, altitude)
+- [x] `guarded_swarms_bringup` package with 3 launch files
 - [ ] Lidar integration end-to-end
 - [ ] ROS 2 bag recording and scenario replay
 
@@ -362,8 +423,11 @@ make demo-px4-rover # prints full step-by-step instructions
 
 ```bash
 make help                  # full command reference
+make show-guide            # complete usage guide and workflows
+make diagnose              # full system diagnostic
 make ros2-rebuild-ws       # clean and rebuild the ROS 2 workspace
 make px4-kill              # terminate all PX4 and Gazebo processes
+make kill-all              # terminate all processes
 ```
 
 ---

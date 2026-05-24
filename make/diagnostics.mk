@@ -116,7 +116,11 @@ diagnose:
 	@echo "=========================================="
 	@echo ""
 	@echo "[1] ROS 2:"
-	@bash -c "source /opt/ros/jazzy/setup.bash && ros2 --version 2>/dev/null || echo 'ROS 2 not found'"
+	@if [ -f /opt/ros/humble/setup.bash ]; then \
+		echo "  Humble installed at /opt/ros/humble"; \
+	else \
+		echo "  ROS 2 not found - run install.sh"; \
+	fi
 	@echo ""
 	@echo "[2] ROS 2 Workspace:"
 	@if [ -d "$(INSTALL_DIR)" ]; then \
@@ -151,7 +155,12 @@ diagnose:
 	@which MicroXRCEAgent >/dev/null 2>&1 && echo "  Installed" || echo "  Not found"
 	@echo ""
 	@echo "[7] GPU:"
-	@nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | sed 's/^/  /' || echo "  No NVIDIA GPU"
+	@if command -v nvidia-smi >/dev/null 2>&1; then \
+		nvidia-smi --query-gpu=name,driver_version --format=csv,noheader 2>/dev/null | sed 's/^/  /'; \
+	else \
+		echo "  nvidia-smi not installed (install nvidia-utils if needed)"; \
+	fi
+	@lspci 2>/dev/null | grep -i -E 'vga|3d|display' | sed 's/^/  /' || true
 	@echo ""
 	@echo "[8] Running Processes:"
 	@pgrep -a px4 2>/dev/null || echo "  No PX4 processes running"

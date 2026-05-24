@@ -16,7 +16,7 @@
 # Guarded Swarms - Root Makefile
 #
 # Native Ubuntu installation.
-# Requires: Ubuntu 24.04, ROS 2 Jazzy, PX4, Gazebo Harmonic.
+# Requires: Ubuntu 22.04, ROS 2 Humble, PX4, Gazebo Harmonic.
 #
 # This file only wires together the sub-makefiles in make/.
 # ==============================================================================
@@ -137,8 +137,8 @@ show-guide:
 	@echo "  1. REQUIREMENTS"
 	@echo "======================================="
 	@echo ""
-	@echo "  - Ubuntu 24.04 LTS (native install)"
-	@echo "  - ROS 2 Jazzy"
+	@echo "  - Ubuntu 22.04 LTS (native install)"
+	@echo "  - ROS 2 Humble"
 	@echo "  - Gazebo Harmonic"
 	@echo "  - PX4-Autopilot (cloned to ~/PX4-Autopilot)"
 	@echo "  - NVIDIA GPU (recommended for Gazebo lidar)"

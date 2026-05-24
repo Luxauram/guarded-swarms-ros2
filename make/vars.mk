@@ -16,7 +16,7 @@
 # vars.mk - Shared constants for all Makefiles
 #
 # Native Ubuntu installation.
-# Requires: Ubuntu 22.04 or 24.04, ROS 2 Jazzy, PX4, Gazebo Harmonic.
+# Requires: Ubuntu 22.04, ROS 2 Humble, PX4, Gazebo Harmonic.
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
@@ -44,7 +44,7 @@ GS_AIRFRAMES_DIR := $(SRC_DIR)/guarded_swarms_safety/px4_airframes
 # ------------------------------------------------------------------------------
 # ROS 2
 # ------------------------------------------------------------------------------
-ROS2_SOURCE      := source /opt/ros/jazzy/setup.bash
+ROS2_SOURCE      := source /opt/ros/humble/setup.bash
 WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
 FULL_SOURCE      := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
 
