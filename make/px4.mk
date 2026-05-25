@@ -89,7 +89,9 @@ px4-gui-uav:
 	@pkill -9 -x px4 2>/dev/null || true
 	@pkill -9 gzserver 2>/dev/null || true
 	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 2
+	@pkill -9 -f "gz_sim_server\|gzserver\|gz-sim" 2>/dev/null || true
+	@sleep 3
+	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "Starting Gazebo with 3D visualization..."
 	@echo ""
 	@cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 make px4_sitl gz_x500_lidar_front
@@ -105,7 +107,9 @@ px4-gui-ugv:
 	@pkill -9 -x px4 2>/dev/null || true
 	@pkill -9 gzserver 2>/dev/null || true
 	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 2
+	@pkill -9 -f "gz_sim_server\|gzserver\|gz-sim" 2>/dev/null || true
+	@sleep 3
+	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "Starting Gazebo with 3D visualization..."
 	@echo ""
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
@@ -143,9 +147,11 @@ px4-kill:
 	@pkill -9 -x px4 2>/dev/null || true
 	@pkill -9 gzserver 2>/dev/null || true
 	@pkill -9 gzclient 2>/dev/null || true
+	@pkill -9 -f "gz_sim_server\|gzserver\|gz-sim" 2>/dev/null || true
 	@pkill -9 MicroXRCEAgent 2>/dev/null || true
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
+	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "All processes stopped."
 
 px4-config:
