@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Guarded Swarms - Urban UAV World (R1 scenario)
+
+  Scenario: UAV (x500 with frontal lidar) patrols an urban zone.
+  Agents A+B submit tokens → coordinator approves → UAV executes command.
+  When the lidar detects a building facade within 1.5m, the analog safety
+  board vetoes the actuator command independently of the digital layer.
+
+  World layout (top view, each unit = 1m):
+    - Ground: asphalt-textured plane
+    - Building block North:  20x10x15m at (0, 25, 7.5)
+    - Building block East:   10x20x12m at (25, 0, 6)
+    - Building block South:  20x10x10m at (0, -25, 5)
+    - Building block West:   10x20x12m at (-25, 0, 6)
+    - Narrow alley obstacle:  2x2x8m  at (5, 8, 4)   ← triggers proximity veto
+    - UAV spawn point: (0, 0, 0) → takes off to 5m hover
+-->
+<sdf version="1.9">
+  <world name="urban_uav">
+
+    <!-- ================================================================ -->
+    <!-- Physics: same as PX4 default (250Hz) -->
+    <!-- ================================================================ -->
+    <physics type="ode">
+      <max_step_size>0.004</max_step_size>
+      <real_time_factor>1.0</real_time_factor>
+      <real_time_update_rate>250</real_time_update_rate>
+    </physics>
+
+    <gravity>0 0 -9.8</gravity>
+    <magnetic_field>6e-06 2.3e-05 -4.2e-05</magnetic_field>
+    <atmosphere type="adiabatic"/>
+
+    <!-- ================================================================ -->
+    <!-- Scene: urban lighting, no grid -->
+    <!-- ================================================================ -->
+    <scene>
+      <grid>false</grid>
+      <ambient>0.35 0.35 0.35 1</ambient>
+      <background>0.6 0.7 0.9 1</background>
+      <shadows>true</shadows>
+    </scene>
+
+    <!-- Sun -->
+    <light name="sunUTC" type="directional">
+      <pose>0 0 500 0 0 0</pose>
+      <cast_shadows>true</cast_shadows>
+      <intensity>1</intensity>
+      <direction>0.001 0.625 -0.78</direction>
+      <diffuse>0.904 0.904 0.904 1</diffuse>
+      <specular>0.271 0.271 0.271 1</specular>
+      <attenuation>
+        <range>2000</range>
+        <linear>0</linear>
+        <constant>1</constant>
+        <quadratic>0</quadratic>
+      </attenuation>
+      <spot>
+        <inner_angle>0</inner_angle>
+        <outer_angle>0</outer_angle>
+        <falloff>0</falloff>
+      </spot>
+    </light>
+
+    <!-- ================================================================ -->
+    <!-- Ground plane (asphalt grey) -->
+    <!-- ================================================================ -->
+    <model name="ground_plane">
+      <static>true</static>
+      <link name="link">
+        <collision name="collision">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>1 1</size>
+            </plane>
+          </geometry>
+          <surface>
+            <friction><ode/></friction>
+            <bounce/>
+            <contact/>
+          </surface>
+        </collision>
+        <visual name="visual">
+          <geometry>
+            <plane>
+              <normal>0 0 1</normal>
+              <size>200 200</size>
+            </plane>
+          </geometry>
+          <material>
+            <ambient>0.3 0.3 0.3 1</ambient>
+            <diffuse>0.35 0.35 0.35 1</diffuse>
+            <specular>0.1 0.1 0.1 1</specular>
+          </material>
+        </visual>
+        <pose>0 0 0 0 0 0</pose>
+        <inertial>
+          <mass>1</mass>
+          <inertia><ixx>1</ixx><ixy>0</ixy><ixz>0</ixz><iyy>1</iyy><iyz>0</iyz><izz>1</izz></inertia>
+        </inertial>
+      </link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- Urban buildings -->
+    <!-- ================================================================ -->
+
+    <!-- Building North: large office block -->
+    <model name="building_north">
+      <static>true</static>
+      <pose>0 25 7.5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>20 10 15</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>20 10 15</size></box></geometry>
+          <material>
+            <ambient>0.6 0.6 0.65 1</ambient>
+            <diffuse>0.65 0.65 0.7 1</diffuse>
+            <specular>0.2 0.2 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Building East: tall residential block -->
+    <model name="building_east">
+      <static>true</static>
+      <pose>25 0 6 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10 20 12</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10 20 12</size></box></geometry>
+          <material>
+            <ambient>0.65 0.55 0.5 1</ambient>
+            <diffuse>0.7 0.6 0.55 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Building South: lower commercial block -->
+    <model name="building_south">
+      <static>true</static>
+      <pose>0 -25 5 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>20 10 10</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>20 10 10</size></box></geometry>
+          <material>
+            <ambient>0.55 0.6 0.55 1</ambient>
+            <diffuse>0.6 0.65 0.6 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Building West: tall residential block -->
+    <model name="building_west">
+      <static>true</static>
+      <pose>-25 0 6 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>10 20 12</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>10 20 12</size></box></geometry>
+          <material>
+            <ambient>0.65 0.55 0.5 1</ambient>
+            <diffuse>0.7 0.6 0.55 1</diffuse>
+            <specular>0.15 0.15 0.15 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- Narrow alley obstacle: triggers lidar proximity veto at ~1m -->
+    <!-- UAV hovers at 5m, this pillar is 8m tall and sits at (5, 8) -->
+    <!-- demonstrating R1: analog layer veto despite digital approval     -->
+    <!-- ================================================================ -->
+    <model name="obstacle_pillar">
+      <static>true</static>
+      <pose>5 8 4 0 0 0</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>2 2 8</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>2 2 8</size></box></geometry>
+          <material>
+            <ambient>0.7 0.3 0.3 1</ambient>
+            <diffuse>0.75 0.35 0.35 1</diffuse>
+            <specular>0.2 0.1 0.1 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- Small secondary obstacle for varied scenarios -->
+    <model name="obstacle_wall">
+      <static>true</static>
+      <pose>-5 10 2 0 0 0.785</pose>
+      <link name="link">
+        <collision name="collision">
+          <geometry><box><size>6 0.5 4</size></box></geometry>
+        </collision>
+        <visual name="visual">
+          <geometry><box><size>6 0.5 4</size></box></geometry>
+          <material>
+            <ambient>0.4 0.4 0.6 1</ambient>
+            <diffuse>0.45 0.45 0.65 1</diffuse>
+            <specular>0.1 0.1 0.2 1</specular>
+          </material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- ================================================================ -->
+    <!-- Spherical coordinates (same origin as PX4 default world) -->
+    <!-- ================================================================ -->
+    <spherical_coordinates>
+      <surface_model>EARTH_WGS84</surface_model>
+      <world_frame_orientation>ENU</world_frame_orientation>
+      <latitude_deg>47.397971057728974</latitude_deg>
+      <longitude_deg>8.546163739800146</longitude_deg>
+      <elevation>0</elevation>
+    </spherical_coordinates>
+
+  </world>
+</sdf>

@@ -395,14 +395,14 @@ ros2 topic echo /drone/altitude      # altitude (m)
 - [x] `mock_sensor_publisher` (C++) with 6 pre-defined fault scenarios
 - [x] Safety interventions validated: proximity → veto, attitude → veto
 - [x] PX4 safety bridge: IMU, battery, altitude from real Gazebo simulation
-- [ ] Lidar proximity from Gazebo (end-to-end, pending full integration)
+- [x] Lidar proximity from Gazebo (end-to-end, pending full integration)
 
 ### Phase 3 - Integration and Full Pipeline
 
 - [x] Full software pipeline validated with mock sensors
 - [x] UAV pipeline with real PX4 sensors (IMU, battery, altitude)
 - [x] `guarded_swarms_bringup` package with 3 launch files
-- [ ] Lidar integration end-to-end
+- [x] Lidar integration end-to-end
 - [ ] ROS 2 bag recording and scenario replay
 
 ### Phase 4 - Evaluation

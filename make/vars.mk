@@ -41,22 +41,29 @@ TOOLS_VIZ_DIR    := src/tools/visualization
 GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_safety/models
 GS_AIRFRAMES_DIR := $(SRC_DIR)/guarded_swarms_safety/px4_airframes
 
+# Guarded Swarms Gazebo worlds (guarded_swarms_gz package)
+GS_WORLDS_DIR    := $(SRC_DIR)/guarded_swarms_gz/worlds
+GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models
+
+# GZ_SIM_RESOURCE_PATH: tells Gazebo where to find our worlds and models
+# without copying anything into the PX4 installation.
+GZ_RESOURCE_PATH := $(GS_WORLDS_DIR):$(GS_GZ_MODELS_DIR):$(PX4_DIR)/Tools/simulation/gz/models
+
 # ------------------------------------------------------------------------------
 # ROS 2
 # ------------------------------------------------------------------------------
 ROS2_SOURCE      := source /opt/ros/humble/setup.bash
 WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
 FULL_SOURCE      := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
-
 COORDINATOR_PKG  := guarded_swarms_coordinator
 CONTROL_PKG      := guarded_swarms_control
 SAFETY_PKG       := guarded_swarms_safety
 
 # ------------------------------------------------------------------------------
-# Process management (all on single lines - no backslash continuations)
+# Process management
 # ------------------------------------------------------------------------------
 KILL_PX4       := pkill -9 -x px4 2>/dev/null || true
-KILL_GAZEBO    := pkill -9 -f "gz sim" 2>/dev/null || true; pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true
+KILL_GAZEBO    := pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true; pkill -9 -f "gz_sim_server|gz-sim" 2>/dev/null || true
 KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
 KILL_ROS2      := pkill -9 -f 'ros2' 2>/dev/null || true; pkill -9 python3 2>/dev/null || true
 KILL_WEB       := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true
