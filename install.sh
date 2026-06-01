@@ -19,7 +19,6 @@
 #   7. Builds the ROS 2 workspace
 #   8. Configures ~/.bashrc
 #
-# Estimated time: 20-40 minutes depending on internet speed.
 # ==============================================================================
 
 set -e
@@ -147,7 +146,7 @@ sudo apt-get install -y \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-libav \
     libgstreamer-plugins-base1.0-dev \
-
+    xterm
 
 PX4_DIR="$HOME/PX4-Autopilot"
 

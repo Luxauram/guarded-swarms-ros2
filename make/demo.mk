@@ -21,7 +21,9 @@
         demo-bridge demo-pipeline \
         demo-px4-bridge demo-px4-bridge-rover \
         demo-px4-uav demo-px4-rover \
-        demo-safety-board-uav demo-safety-board-rover
+        demo-safety-board-uav demo-safety-board-rover \
+        demo-px4-ugv-urban demo-px4-uav-urban \
+        demo-ugv-urban-pipeline demo-uav-urban-pipeline
 
 # ------------------------------------------------------------------------------
 # Token coordination
@@ -217,7 +219,7 @@ demo-px4-bridge-rover:
 	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
 		--ros-args \
-		-p lidar_topic:=/world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
+		-p lidar_topic:=/world/urban_ugv/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
 
 demo-safety-board-uav:
 	@bash -c "$(WORKSPACE_SOURCE) && \
@@ -274,3 +276,42 @@ demo-px4-rover:
 	@echo "  Terminal 6: make demo-bridge"
 	@echo "  Terminal 7: make demo-coordinator"
 	@echo ""
+# ------------------------------------------------------------------------------
+# UGV Urban pipeline - single command launch
+# ------------------------------------------------------------------------------
+demo-px4-ugv-urban:
+	@echo "=========================================="
+	@echo "UGV Urban Pipeline (R2) - Full Launch"
+	@echo "=========================================="
+	@echo ""
+	@echo "Opening support terminals..."
+	@xterm -title "PX4 UGV Urban" -geometry 120x30 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make px4-gui-ugv-urban; bash" &
+	@sleep 12
+	@xterm -title "micro-ROS Agent" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-agent; bash" &
+	@sleep 6
+	@echo "Launching ROS2 pipeline (this window)..."
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup ugv_urban_pipeline.launch.py"
+
+demo-ugv-urban-pipeline:
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup ugv_urban_pipeline.launch.py"
+
+# ------------------------------------------------------------------------------
+# UAV Urban pipeline - single command launch
+# ------------------------------------------------------------------------------
+demo-px4-uav-urban:
+	@echo "=========================================="
+	@echo "UAV Urban Pipeline (R1) - Full Launch"
+	@echo "=========================================="
+	@echo ""
+	@echo "Opening support terminals..."
+	@xterm -title "PX4 UAV Urban" -geometry 120x30 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make px4-gui-uav-urban; bash" &
+	@sleep 12
+	@xterm -title "micro-ROS Agent" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-agent; bash" &
+	@sleep 4
+	@xterm -title "Offboard Control" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-node; bash" &
+	@sleep 6
+	@echo "Launching ROS2 pipeline (this window)..."
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_pipeline.launch.py"
+
+demo-uav-urban-pipeline:
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_pipeline.launch.py"
