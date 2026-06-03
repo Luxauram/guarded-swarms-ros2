@@ -1,3 +1,7 @@
+# ================================
+# guarded-swarms-ros2 - .gitignore
+# ================================
+
 # ROS 2 Build Artifacts
 build/
 install/
@@ -89,6 +93,8 @@ PX4-Autopilot/Tools/
 # ROS bags
 *.bag
 *.db3
+*.mcap
+bags/*/
 
 # Environment
 .env

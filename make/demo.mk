@@ -23,7 +23,9 @@
         demo-px4-uav demo-px4-rover \
         demo-safety-board-uav demo-safety-board-rover \
         demo-px4-ugv-urban demo-px4-uav-urban \
-        demo-ugv-urban-pipeline demo-uav-urban-pipeline
+        demo-ugv-urban-pipeline demo-uav-urban-pipeline \
+        demo-record-uav demo-record-ugv demo-record-mock \
+        demo-replay demo-bag-info
 
 # ------------------------------------------------------------------------------
 # Token coordination
@@ -103,7 +105,7 @@ demo-coordinator:
 		priority_C:=$$prio_c \
 		priority_D:=$$prio_d \
 		num_agents:=$$num_agents"
-
+ 
 demo-coordinator-batch:
 	@if [ ! -d "$(INSTALL_DIR)/$(COORDINATOR_PKG)" ]; then \
 		bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PKG) $(COORDINATOR_PKG)"; \
@@ -133,7 +135,7 @@ demo-tkinter:
 	@echo "Prerequisites: demo-coordinator running in Terminal 1"
 	@echo ""
 	@bash -c "$(WORKSPACE_SOURCE) && python3 $(WORKSPACE_DIR)/$(TOOLS_VIZ_DIR)/dashboard.py"
-
+ 
 demo-web:
 	@echo "=========================================="
 	@echo "Launching Web Dashboard"
@@ -173,19 +175,19 @@ demo-safety:
 	@echo "  ros2 topic echo /actuator_cmd_safe   # 0.6=cleared 0.0=vetoed"
 	@echo "  ros2 topic echo /safety_status       # 1.0=safe    0.0=unsafe"
 	@echo ""
-
+ 
 demo-safety-board:
 	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) safety_board_node"
-
+ 
 demo-safety-sensors:
 	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) mock_sensor_publisher"
-
+ 
 # ------------------------------------------------------------------------------
 # Command bridge
 # ------------------------------------------------------------------------------
 demo-bridge:
 	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(CONTROL_PKG) command_bridge_node"
-
+ 
 # ------------------------------------------------------------------------------
 # Full pipeline (mock sensors, no PX4)
 # ------------------------------------------------------------------------------
@@ -214,18 +216,18 @@ demo-px4-bridge:
 	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
 		--ros-args -p lidar_topic:=/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan"
-
+ 
 demo-px4-bridge-rover:
 	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
 		--ros-args \
-		-p lidar_topic:=/world/urban_ugv/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
-
+		-p lidar_topic:=/world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
+ 
 demo-safety-board-uav:
 	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(SAFETY_PKG) safety_board_node \
 		--ros-args -p sensor_staleness_s:=5.0"
-
+ 
 demo-safety-board-rover:
 	@bash -c "$(WORKSPACE_SOURCE) && \
 		ros2 run $(SAFETY_PKG) safety_board_node \
@@ -276,6 +278,7 @@ demo-px4-rover:
 	@echo "  Terminal 6: make demo-bridge"
 	@echo "  Terminal 7: make demo-coordinator"
 	@echo ""
+
 # ------------------------------------------------------------------------------
 # UGV Urban pipeline - single command launch
 # ------------------------------------------------------------------------------
@@ -315,3 +318,54 @@ demo-px4-uav-urban:
 
 demo-uav-urban-pipeline:
 	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_urban_pipeline.launch.py"
+
+# ------------------------------------------------------------------------------
+# ROS 2 bag recording
+# ------------------------------------------------------------------------------
+demo-record-uav:
+	@echo "=========================================="
+	@echo "Recording UAV Urban Demo (R1)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites: make demo-px4-uav-urban already running."
+	@echo "Press Ctrl+C to stop recording."
+	@echo ""
+	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh uav"
+ 
+demo-record-ugv:
+	@echo "=========================================="
+	@echo "Recording UGV Urban Demo (R2)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites: make demo-px4-ugv-urban already running."
+	@echo "Press Ctrl+C to stop recording."
+	@echo ""
+	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh ugv"
+ 
+demo-record-mock:
+	@echo "=========================================="
+	@echo "Recording Mock Pipeline Demo"
+	@echo "=========================================="
+	@echo ""
+	@echo "Prerequisites: mock pipeline already running."
+	@echo "Press Ctrl+C to stop recording."
+	@echo ""
+	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh mock"
+ 
+demo-replay:
+	@echo "=========================================="
+	@echo "Replay a recorded bag"
+	@echo "=========================================="
+	@echo ""
+	@echo "Available bags:"
+	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found - run make demo-record-uav or demo-record-ugv first."
+	@echo ""
+	@read -p "Bag name to replay (from list above): " bag_name; \
+	bash -c "$(WORKSPACE_SOURCE) && ros2 bag play $(WORKSPACE_DIR)/bags/$$bag_name"
+ 
+demo-bag-info:
+	@echo "Available bags:"
+	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found."
+	@echo ""
+	@read -p "Bag name to inspect: " bag_name; \
+	bash -c "$(WORKSPACE_SOURCE) && ros2 bag info $(WORKSPACE_DIR)/bags/$$bag_name"

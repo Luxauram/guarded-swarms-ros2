@@ -383,7 +383,7 @@ ros2 topic echo /drone/altitude      # altitude (m)
 - [x] `guarded_swarms_bringup` package with 5 launch files
 - [x] Urban world files (R1 + R2 scenarios) in `guarded_swarms_gz`
 - [x] Single-command demo launch for both UAV and UGV urban scenarios
-- [ ] ROS 2 bag recording and scenario replay
+- [x] ROS 2 bag recording and scenario replay
 
 ### Phase 4 - Evaluation
 
