@@ -22,7 +22,7 @@ Based on: _Borghoff, Bottoni, Pareschi (2025/2026) - "Guarded Swarms: Hybrid Dig
 >
 > - **Windows and macOS are not supported.**
 > - An NVIDIA GPU is recommended for Gazebo lidar sensor rendering.
-> - Gazebo must be launched with NVIDIA GPU flags (see Quick Start below).
+> - GPU flags are embedded in all `px4-gui-*` Makefile targets automatically.
 
 ---
 
@@ -42,7 +42,9 @@ The two layers are deliberately decoupled: the safety board has no knowledge of 
 ```
 guarded-swarms-ros2/
 ├── install.sh                      # Automated installation script (Ubuntu 22.04)
-├── Makefile                        # Root Makefile (no Docker)
+├── Makefile                        # Root Makefile
+├── scripts/
+│   └── kill_all.sh                 # Process cleanup script (called by make kill-all)
 ├── make/
 │   ├── vars.mk                     # Shared variables (paths, ROS 2 source, etc.)
 │   ├── ros2.mk                     # ROS 2 workspace management
@@ -77,13 +79,21 @@ guarded-swarms-ros2/
 │   │   └── src/
 │   │       ├── offboard_control_node.cpp   # UAV hover control
 │   │       ├── command_bridge_node.cpp     # AuthToken → actuator command
-│   │       └── px4_safety_bridge_node.cpp  # PX4 sensor bridge
+│   │       └── px4_safety_bridge_node.cpp  # PX4 sensor bridge (lidar topic configurable)
 │   │
 │   ├── guarded_swarms_bringup/     # Launch files package (ament_cmake)
 │   │   └── launch/
-│   │       ├── mock_pipeline.launch.py     # Full pipeline, no PX4
-│   │       ├── uav_pipeline.launch.py      # Full UAV pipeline
-│   │       └── ugv_pipeline.launch.py      # Full UGV pipeline
+│   │       ├── mock_pipeline.launch.py         # Full pipeline, no PX4
+│   │       ├── uav_pipeline.launch.py          # UAV pipeline (default world)
+│   │       ├── uav_urban_pipeline.launch.py    # UAV urban pipeline (R1 scenario)
+│   │       ├── ugv_pipeline.launch.py          # UGV pipeline (default world)
+│   │       └── ugv_urban_pipeline.launch.py    # UGV urban pipeline (R2 scenario)
+│   │
+│   ├── guarded_swarms_gz/          # Gazebo simulation assets
+│   │   ├── worlds/
+│   │   │   ├── urban_uav.sdf       # UAV urban scenario (R1): buildings + obstacle pillar
+│   │   │   └── urban_ugv.sdf       # UGV urban scenario (R2): street corridor + vehicle
+│   │   └── models/                 # Custom Gazebo models
 │   │
 │   ├── tools/
 │   │   ├── launch/
@@ -96,7 +106,7 @@ guarded-swarms-ros2/
 │   │   └── frontend/               # TypeScript + Tailwind + Chart.js
 │   │
 │   ├── px4_msgs/                   # PX4 message definitions (submodule)
-│   └── px4_ros_com/                # PX4–ROS 2 communication bridge (submodule)
+│   └── px4_ros_com/                # PX4-ROS 2 communication bridge (submodule)
 │
 └── README.md
 ```
@@ -127,7 +137,7 @@ cd guarded-swarms-ros2
 chmod +x install.sh && ./install.sh
 ```
 
-Estimated time: 20–40 minutes depending on internet speed.
+Estimated time: 20-40 minutes depending on internet speed.
 
 ### Manual installation (step by step)
 
@@ -141,6 +151,7 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-a
   | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
 sudo apt update && sudo apt install -y \
   ros-humble-desktop \
+  ros-humble-ros-gzharmonic-bridge \
   python3-colcon-common-extensions \
   python3-rosdep
 echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
@@ -172,10 +183,11 @@ cmake .. && make -j$(nproc) && sudo make install && sudo ldconfig /usr/local/lib
 ```bash
 sudo apt install -y bc libeigen3-dev libopencv-dev pkg-config protobuf-compiler \
   gstreamer1.0-plugins-bad gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstreamer-plugins-base1.0-dev
+  gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
+  xterm expect
 cd ~ && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1
 cd ~/PX4-Autopilot && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools
-HEADLESS=1 make px4_sitl gz_x500_lidar_front  # initial build (~10-20 minutes)
+make px4_sitl_default  # initial build (~10-20 minutes)
 ```
 
 #### 5. Python dependencies
@@ -205,6 +217,13 @@ echo "source ~/guarded-swarms-ros2/install/setup.bash" >> ~/.bashrc
 source ~/.bashrc
 ```
 
+#### 7. Install Guarded Swarms assets (run once)
+
+```bash
+make setup-ugv      # install rover airframe and model into PX4
+make setup-worlds   # install urban world files into PX4
+```
+
 ---
 
 ## Quick Start
@@ -212,7 +231,7 @@ source ~/.bashrc
 ```bash
 # Token coordination demo (no PX4, no Gazebo)
 make demo-coordinator   # Terminal 1
-make demo-web           # Terminal 2 → http://localhost:8765
+make demo-web           # Terminal 2 -> http://localhost:8765
 
 # Safety board demo with mock sensors (no PX4, no Gazebo)
 make demo-safety-board    # Terminal 1
@@ -227,56 +246,45 @@ ros2 topic echo /actuator_cmd_safe
 
 ---
 
-## Gazebo Simulation (UAV)
+## Gazebo Simulation
 
-Gazebo requires the NVIDIA GPU to be explicitly activated:
+### UAV Urban Scenario (R1 from paper) - single command
 
 ```bash
-# Terminal 1 - PX4 + Gazebo GUI
-__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia \
-  MESA_GL_VERSION_OVERRIDE=4.5 make px4-gui-uav
-
-# At pxh> prompt, run:
-#   param set COM_ARM_WO_GPS 1
-#   param set SYS_HAS_MAG 0
-#   param set COM_RC_IN_MODE 1
-#   param set NAV_RCL_ACT 0
-#   param set NAV_DLL_ACT 0
-#   param set COM_RCL_EXCEPT 4
-#   param save
-#   commander takeoff
-
-# Terminal 2
-make ros2-agent
-
-# Terminal 3
-make ros2-node
-
-# Terminal 4 - Lidar bridge (Gazebo → ROS 2)
-ros2 run ros_gz_bridge parameter_bridge \
-  /world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan \
-  @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan
-
-# Terminal 5
-make demo-px4-bridge
-
-# Terminal 6
-make demo-safety-board-uav
-
-# Terminal 7
-make demo-bridge
-
-# Terminal 8
-make demo-coordinator
-
-# Monitor
-ros2 topic echo /actuator_cmd_safe
+make demo-px4-uav-urban
 ```
 
-Or use the bringup launch file:
+Opens Gazebo with the urban world, auto-arms the drone, launches the full
+ROS2 pipeline. The analog safety board vetoes actuator commands when the
+lidar detects an obstacle within 1.5m.
 
 ```bash
-ros2 launch guarded_swarms_bringup uav_pipeline.launch.py
+ros2 topic echo /actuator_cmd_safe   # 0.0 = vetoed
+ros2 topic echo /drone/proximity     # lidar distance
+```
+
+### UGV Urban Scenario (R2 from paper) - single command
+
+```bash
+make setup-ugv              # run once
+make demo-px4-ugv-urban
+```
+
+Opens Gazebo with the urban street world, launches the full ROS2 pipeline.
+Move the abandoned vehicle obstacle near the rover in Gazebo to trigger veto.
+
+### Manual launch (advanced)
+
+```bash
+# UAV default world
+make px4-gui-uav      # Terminal 1
+make ros2-agent       # Terminal 2
+ros2 launch guarded_swarms_bringup uav_pipeline.launch.py  # Terminal 3
+
+# UGV default world
+make px4-gui-ugv      # Terminal 1
+make ros2-agent       # Terminal 2
+ros2 launch guarded_swarms_bringup ugv_pipeline.launch.py  # Terminal 3
 ```
 
 ---
@@ -285,25 +293,18 @@ ros2 launch guarded_swarms_bringup uav_pipeline.launch.py
 
 ### A) Token Coordination (no PX4)
 
-Four agents continuously request spatial zones. The coordinator validates,
-arbitrates, and issues signed AuthTokens. Rejected agents are blocked until
-the zone is free.
-
 ```bash
 make demo-coordinator   # Terminal 1
-make demo-web           # Terminal 2 → http://localhost:8765
+make demo-web           # Terminal 2 -> http://localhost:8765
 ```
 
 ### B) Safety Board with Mock Sensors (no PX4)
-
-The safety board cycles through 6 pre-defined fault scenarios every 10 seconds
-and applies OR-logic veto on actuator commands.
 
 | Scenario | Description                             | Result |
 | -------- | --------------------------------------- | ------ |
 | 0        | NOMINAL - all sensors within bounds     | PASS   |
 | 1        | PROXIMITY - obstacle at 0.8 m (< 1.5 m) | VETO   |
-| 2        | ATTITUDE - pitch 45° (> 30°)            | VETO   |
+| 2        | ATTITUDE - pitch 45 deg (> 30 deg)      | VETO   |
 | 3        | BATTERY LOW - 10% (< 15%)               | VETO   |
 | 4        | ALTITUDE HIGH - 60 m (> 50 m)           | VETO   |
 | 5        | NOMINAL RECOVERY                        | PASS   |
@@ -316,44 +317,21 @@ ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
 
 ### C) Full Pipeline with Mock Sensors
 
-All layers active simultaneously with simulated sensors — no PX4 or Gazebo needed.
-
 ```bash
 ros2 launch guarded_swarms_bringup mock_pipeline.launch.py
 ```
 
-Or manually:
+### D) UAV Urban Scenario (R1 from paper)
 
 ```bash
-make demo-coordinator     # Terminal 1
-make demo-bridge          # Terminal 2
-make demo-safety-board    # Terminal 3
-make demo-safety-sensors  # Terminal 4
+make demo-px4-uav-urban
 ```
 
-### D) UAV Pipeline with Gazebo (R1 from paper)
+### E) UGV Urban Scenario (R2 from paper)
 
 ```bash
-make demo-px4-uav   # prints full step-by-step instructions
-```
-
-Or:
-
-```bash
-ros2 launch guarded_swarms_bringup uav_pipeline.launch.py
-```
-
-### E) UGV Pipeline with Gazebo (R2 from paper)
-
-```bash
-make setup-ugv          # run once to install rover assets
-make demo-px4-rover     # prints full step-by-step instructions
-```
-
-Or:
-
-```bash
-ros2 launch guarded_swarms_bringup ugv_pipeline.launch.py
+make setup-ugv
+make demo-px4-ugv-urban
 ```
 
 ---
@@ -393,22 +371,23 @@ ros2 topic echo /drone/altitude      # altitude (m)
 - [x] `safety_board_node` (C++) with configurable sensor thresholds
 - [x] OR-logic veto on actuator commands upon any threshold violation
 - [x] `mock_sensor_publisher` (C++) with 6 pre-defined fault scenarios
-- [x] Safety interventions validated: proximity → veto, attitude → veto
+- [x] Safety interventions validated: proximity veto, attitude veto
 - [x] PX4 safety bridge: IMU, battery, altitude from real Gazebo simulation
-- [x] Lidar proximity from Gazebo (end-to-end, pending full integration)
+- [x] Lidar proximity from Gazebo (end-to-end validated)
 
 ### Phase 3 - Integration and Full Pipeline
 
 - [x] Full software pipeline validated with mock sensors
-- [x] UAV pipeline with real PX4 sensors (IMU, battery, altitude)
-- [x] `guarded_swarms_bringup` package with 3 launch files
-- [x] Lidar integration end-to-end
+- [x] UAV pipeline with real PX4 sensors and lidar (R1 scenario)
+- [x] UGV pipeline with real PX4 sensors and proximity veto (R2 scenario)
+- [x] `guarded_swarms_bringup` package with 5 launch files
+- [x] Urban world files (R1 + R2 scenarios) in `guarded_swarms_gz`
+- [x] Single-command demo launch for both UAV and UGV urban scenarios
 - [ ] ROS 2 bag recording and scenario replay
 
 ### Phase 4 - Evaluation
 
 - [ ] Resilience testing: dropped tokens, forged tokens, sensor failure
-- [ ] UGV pipeline (R2 scenario from paper)
 - [ ] Demonstration video
 
 ### Phase 5 - Documentation and Submission
@@ -426,7 +405,7 @@ make help                  # full command reference
 make show-guide            # complete usage guide and workflows
 make diagnose              # full system diagnostic
 make ros2-rebuild-ws       # clean and rebuild the ROS 2 workspace
-make px4-kill              # terminate all PX4 and Gazebo processes
+make px4-kill              # terminate PX4 and Gazebo processes
 make kill-all              # terminate all processes
 ```
 

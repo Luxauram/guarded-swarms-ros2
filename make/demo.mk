@@ -305,13 +305,13 @@ demo-px4-uav-urban:
 	@echo ""
 	@echo "Opening support terminals..."
 	@xterm -title "PX4 UAV Urban" -geometry 120x30 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make px4-gui-uav-urban; bash" &
-	@sleep 12
+	@sleep 35
 	@xterm -title "micro-ROS Agent" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-agent; bash" &
-	@sleep 4
+	@sleep 10
 	@xterm -title "Offboard Control" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-node; bash" &
-	@sleep 6
+	@sleep 10
 	@echo "Launching ROS2 pipeline (this window)..."
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_pipeline.launch.py"
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_urban_pipeline.launch.py"
 
 demo-uav-urban-pipeline:
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_pipeline.launch.py"
+	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_urban_pipeline.launch.py"

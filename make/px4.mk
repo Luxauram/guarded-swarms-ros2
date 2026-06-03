@@ -53,8 +53,20 @@ define CHECK_UGV
 endef
 
 # ------------------------------------------------------------------------------
-# Shared clean-up macro (called before every Gazebo launch)
+# Shared Gazebo kill block (used in all gui targets)
+# Kills all Gazebo Harmonic processes cleanly before launching a new world.
 # ------------------------------------------------------------------------------
+define GZ_KILL
+	@pkill -9 -x px4 2>/dev/null || true
+	@pkill -9 -x gz 2>/dev/null || true
+	@pkill -9 -f "px4-gz_bridge" 2>/dev/null || true
+	@pkill -9 -f "gz_sim_server" 2>/dev/null || true
+	@pkill -9 gzserver 2>/dev/null || true
+	@pkill -9 gzclient 2>/dev/null || true
+	@sleep 3
+	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
+	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+endef
 
 
 # ------------------------------------------------------------------------------
@@ -103,12 +115,7 @@ px4-gui-uav:
 	@echo "Launching PX4 SITL + Gazebo GUI - UAV"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 3
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	$(GZ_KILL)
 	@echo "Starting Gazebo..."
 	@echo ""
 	@cd $(PX4_DIR) && \
@@ -127,26 +134,33 @@ px4-gui-uav-urban:
 	@echo "Launching PX4 SITL + Gazebo GUI - UAV Urban (R1)"
 	@echo "=========================================="
 	$(CHECK_PX4)
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 3
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	$(GZ_KILL)
 	@echo "World: urban_uav (buildings + obstacle pillar)"
-	@echo "Arming commands at pxh> prompt:"
-	@echo "  param set COM_ARM_WO_GPS 1 && param set SYS_HAS_MAG 0"
-	@echo "  param set COM_RC_IN_MODE 1 && param set NAV_RCL_ACT 0"
-	@echo "  param set NAV_DLL_ACT 0   && param set COM_RCL_EXCEPT 4"
-	@echo "  param save && commander takeoff"
 	@echo ""
-	@cd $(PX4_DIR) && \
-		__NV_PRIME_RENDER_OFFLOAD=1 \
-		__GLX_VENDOR_LIBRARY_NAME=nvidia \
-		MESA_GL_VERSION_OVERRIDE=4.5 \
-		PX4_GZ_WORLD=urban_uav \
-		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		make px4_sitl gz_x500_lidar_front
+	@# SIMULATION ONLY: auto-arms after PX4 starts via expect script.
+	@# Comment out the next 'expect' block when using real hardware.
+	@expect -c ' \
+		set timeout 60; \
+		spawn bash -c "cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 PX4_GZ_WORLD=urban_uav GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front"; \
+		expect "pxh>"; \
+		send "param set COM_ARM_WO_GPS 1\r"; \
+		expect "pxh>"; \
+		send "param set SYS_HAS_MAG 0\r"; \
+		expect "pxh>"; \
+		send "param set COM_RC_IN_MODE 1\r"; \
+		expect "pxh>"; \
+		send "param set NAV_RCL_ACT 0\r"; \
+		expect "pxh>"; \
+		send "param set NAV_DLL_ACT 0\r"; \
+		expect "pxh>"; \
+		send "param set COM_RCL_EXCEPT 4\r"; \
+		expect "pxh>"; \
+		send "param save\r"; \
+		expect "pxh>"; \
+		send "commander takeoff\r"; \
+		interact \
+	'
+
 
 # ------------------------------------------------------------------------------
 # UGV with Gazebo GUI - default rover world
@@ -157,12 +171,7 @@ px4-gui-ugv:
 	@echo "=========================================="
 	$(CHECK_PX4)
 	$(CHECK_UGV)
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 3
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	$(GZ_KILL)
 	@echo "Starting Gazebo..."
 	@echo ""
 	@cd $(PX4_DIR)/build/px4_sitl_default && \
@@ -176,6 +185,7 @@ px4-gui-ugv:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		./bin/px4 -s etc/init.d-posix/rcS
 
+
 # ------------------------------------------------------------------------------
 # UGV with Gazebo GUI - urban scenario (R2 from paper)
 # Uses src/guarded_swarms_gz/worlds/urban_ugv.sdf
@@ -186,12 +196,7 @@ px4-gui-ugv-urban:
 	@echo "=========================================="
 	$(CHECK_PX4)
 	$(CHECK_UGV)
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 3
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	$(GZ_KILL)
 	@echo "World: urban_ugv (street corridor + abandoned vehicle)"
 	@echo ""
 	@cd $(PX4_DIR)/build/px4_sitl_default && \
@@ -205,9 +210,9 @@ px4-gui-ugv-urban:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		./bin/px4 -s etc/init.d-posix/rcS
 
+
 # ------------------------------------------------------------------------------
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)
-# This is needed because PX4 always looks for worlds in its own directory.
 # ------------------------------------------------------------------------------
 setup-worlds:
 	@echo "=========================================="
@@ -258,16 +263,17 @@ setup-ugv:
 px4-kill:
 	@echo "Killing all PX4 and Gazebo processes..."
 	@pkill -9 -x px4 2>/dev/null || true
+	@pkill -9 -x gz 2>/dev/null || true
+	@pkill -9 -f "px4-gz_bridge" 2>/dev/null || true
+	@pkill -9 -f "gz_sim_server" 2>/dev/null || true
 	@pkill -9 gzserver 2>/dev/null || true
 	@pkill -9 gzclient 2>/dev/null || true
-	@pkill -9 -f gz_sim_server 2>/dev/null || true
-	@pkill -9 -f gz-sim 2>/dev/null || true
 	@pkill -9 MicroXRCEAgent 2>/dev/null || true
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
 	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "All processes stopped."
-
+ 
 px4-config:
 	@echo "=========================================="
 	@echo "PX4 Offboard Config - copy at pxh> prompt"
@@ -295,11 +301,11 @@ px4-reset-params:
 	@echo "param set COM_RCL_EXCEPT 0"
 	@echo "param save"
 	@echo ""
-
+ 
 gazebo-test:
 	@echo "Launching Gazebo standalone with empty world..."
 	@GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) gz sim empty.sdf
-
+ 
 gazebo-worlds:
 	@echo "PX4 built-in worlds:"
 	@ls -1 $(PX4_DIR)/Tools/simulation/gz/worlds/ 2>/dev/null || echo "  PX4 not found."

@@ -1,5 +1,22 @@
 #!/usr/bin/env bash
 # ==============================================================================
+# Copyright 2026 Luca D'Aurizio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# ==============================================================================
+# @file install.sh
 # Guarded Swarms - Installation Script
 #
 # Installs all dependencies and builds the workspace on Ubuntu 22.04 LTS.
@@ -146,7 +163,8 @@ sudo apt-get install -y \
     gstreamer1.0-plugins-ugly \
     gstreamer1.0-libav \
     libgstreamer-plugins-base1.0-dev \
-    xterm
+    xterm \
+    expect
 
 PX4_DIR="$HOME/PX4-Autopilot"
 
@@ -273,6 +291,13 @@ add_to_bashrc 'export BUN_INSTALL="$HOME/.bun"'
 add_to_bashrc 'export PATH="$BUN_INSTALL/bin:$HOME/.local/bin:$PATH"'
 
 ok "~/.bashrc configured."
+
+# ------------------------------------------------------------------------------
+# Make all utility scripts executable
+# ------------------------------------------------------------------------------
+log "Configuring scripts..."
+chmod +x "$REPO_DIR/scripts/"*.sh 2>/dev/null || true
+ok "Scripts configured."
 
 # ------------------------------------------------------------------------------
 # Done

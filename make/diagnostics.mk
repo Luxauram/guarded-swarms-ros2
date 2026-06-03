@@ -173,11 +173,4 @@ diagnose:
 # Kill all
 # ------------------------------------------------------------------------------
 kill-all:
-	@echo "Shutting down all processes..."
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 -x gz 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@pkill -9 MicroXRCEAgent 2>/dev/null || true
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@echo "All processes terminated."
+	@$(WORKSPACE_DIR)/scripts/kill_all.sh
