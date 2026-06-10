@@ -28,14 +28,14 @@
  * @author Luca D'Aurizio
  */
 
-import type { TimelineData } from '../types/charts.types';
+import type { TimelineData } from "../types/charts.types";
 import {
   TIMELINE_CONFIG,
   PRIORITY_CONFIG,
   COLORS,
   CHART_OPTIONS,
   ELEMENT_IDS,
-} from '../constants/charts.constants';
+} from "../constants/charts.constants";
 
 declare const Chart: any;
 
@@ -84,19 +84,19 @@ function initializeTimelineChart(): void {
     return;
   }
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) {
-    console.error('Failed to get 2D context for timeline chart');
+    console.error("Failed to get 2D context for timeline chart");
     return;
   }
 
   timelineChart = new Chart(ctx, {
-    type: 'line',
+    type: "line",
     data: {
       labels: timelineData.labels,
       datasets: [
         {
-          label: 'Approved',
+          label: "Approved",
           data: timelineData.approved,
           borderColor: COLORS.APPROVED.BORDER,
           backgroundColor: COLORS.APPROVED.BACKGROUND,
@@ -104,7 +104,7 @@ function initializeTimelineChart(): void {
           fill: true,
         },
         {
-          label: 'Rejected',
+          label: "Rejected",
           data: timelineData.rejected,
           borderColor: COLORS.REJECTED.BORDER,
           backgroundColor: COLORS.REJECTED.BACKGROUND,
@@ -142,7 +142,7 @@ function initializeTimelineChart(): void {
         },
       },
       interaction: {
-        mode: 'index',
+        mode: "index",
         intersect: false,
       },
     },
@@ -167,19 +167,19 @@ function initializePriorityChart(): void {
     return;
   }
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   if (!ctx) {
-    console.error('Failed to get 2D context for priority chart');
+    console.error("Failed to get 2D context for priority chart");
     return;
   }
 
   priorityChart = new Chart(ctx, {
-    type: 'bar',
+    type: "bar",
     data: {
       labels: [...PRIORITY_CONFIG.LABELS],
       datasets: [
         {
-          label: 'Token Count',
+          label: "Token Count",
           data: [0, 0, 0, 0, 0],
           backgroundColor: [...COLORS.PRIORITY.BACKGROUNDS],
           borderColor: [...COLORS.PRIORITY.BORDERS],
@@ -225,7 +225,7 @@ function initializePriorityChart(): void {
  */
 function updateTimelineChart(approved: number, rejected: number): void {
   if (!timelineChart) {
-    console.warn('Timeline chart not initialized');
+    console.warn("Timeline chart not initialized");
     return;
   }
 
@@ -249,11 +249,11 @@ function updateTimelineChart(approved: number, rejected: number): void {
  * priority value, then refreshes the bar chart. Priority values are mapped
  * to bins as follows:
  *
- * - 0–2  → Bin 0 (Minimal)
- * - 3–4  → Bin 1 (Low)
- * - 5–6  → Bin 2 (Normal)
- * - 7–8  → Bin 3 (High)
- * - 9–10 → Bin 4 (Emergency)
+ * - 0–2  -> Bin 0 (Minimal)
+ * - 3–4  -> Bin 1 (Low)
+ * - 5–6  -> Bin 2 (Normal)
+ * - 7–8  -> Bin 3 (High)
+ * - 9–10 -> Bin 4 (Emergency)
  *
  * Logs an error and returns early if the chart has not been initialized yet.
  *
@@ -261,10 +261,10 @@ function updateTimelineChart(approved: number, rejected: number): void {
  * @returns void
  */
 function updatePriorityChart(priority: number): void {
-  console.log('updatePriorityChart called with priority:', priority);
+  console.log("updatePriorityChart called with priority:", priority);
 
   if (!priorityChart) {
-    console.error('Priority chart not initialized!');
+    console.error("Priority chart not initialized!");
     return;
   }
 
@@ -281,23 +281,23 @@ function updatePriorityChart(priority: number): void {
     binIndex = 4;
   }
 
-  console.log(`Priority ${priority} → Bin ${binIndex}`);
-  console.log('Current data before:', priorityChart.data.datasets[0].data);
+  console.log(`Priority ${priority} -> Bin ${binIndex}`);
+  console.log("Current data before:", priorityChart.data.datasets[0].data);
 
   priorityChart.data.datasets[0].data[binIndex]++;
 
-  console.log('Current data after:', priorityChart.data.datasets[0].data);
+  console.log("Current data after:", priorityChart.data.datasets[0].data);
 
   priorityChart.update(CHART_OPTIONS.UPDATE_MODE);
 
-  console.log('Chart updated');
+  console.log("Chart updated");
 }
 
 // ============================================================================
 // Initialization
 // ============================================================================
 
-window.addEventListener('DOMContentLoaded', (): void => {
+window.addEventListener("DOMContentLoaded", (): void => {
   initializeCharts();
 });
 

@@ -112,3 +112,6 @@ docs/doxygen/
 # Temporary
 tmp/
 temp/
+
+
+scripts/resilience/results/*.json

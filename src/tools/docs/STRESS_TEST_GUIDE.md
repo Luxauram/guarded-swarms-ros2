@@ -5,13 +5,13 @@
 **By Design** the default agent zones are intentionally separated to simulate realistic distributed operations:
 
 ```
-Agent A: center (0,0)    ±5m → covers (-5,-5) to (5,5)
-Agent B: center (15,0)   ±5m → covers (10,-5) to (20,5)
-Agent C: center (0,15)   ±5m → covers (-5,10) to (5,20)
-Agent D: center (15,15)  ±5m → covers (10,10) to (20,20)
+Agent A: center (0,0)    ±5m -> covers (-5,-5) to (5,5)
+Agent B: center (15,0)   ±5m -> covers (10,-5) to (20,5)
+Agent C: center (0,15)   ±5m -> covers (-5,10) to (5,20)
+Agent D: center (15,15)  ±5m -> covers (10,10) to (20,20)
 ```
 
-**Minimum distance between zones: 5 meters** → NO overlap possible!
+**Minimum distance between zones: 5 meters** -> NO overlap possible!
 
 This is a **feature** for normal operations but prevents seeing arbitration logic in action.
 

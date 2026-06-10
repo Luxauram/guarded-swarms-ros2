@@ -3,7 +3,7 @@
   Guarded Swarms - Urban UGV World (R2 scenario)
 
   Scenario: UGV (rover with frontal lidar) patrols an urban street.
-  Agents C+D submit tokens → coordinator approves → UGV executes command.
+  Agents C+D submit tokens -> coordinator approves -> UGV executes command.
   When the lidar detects a vehicle or wall within 1.5m, the analog safety
   board vetoes the actuator command independently of the digital layer.
   This is the exact R2 case from the Guarded Swarms paper.
@@ -15,7 +15,7 @@
     - Right building row: at X = +8  (wall face at X = +3)
     - Abandoned vehicle obstacle: at (0, 10, 0.5) ← triggers proximity veto
     - Concrete barrier:           at (1, 6, 0.5)
-    - UGV spawn point: (0, 0, 0.1) → moves along street (Y direction)
+    - UGV spawn point: (0, 0, 0.1) -> moves along street (Y direction)
 -->
 <sdf version="1.9">
   <world name="urban_ugv">
@@ -194,7 +194,7 @@
 
     <!-- ================================================================ -->
     <!-- Obstacle: abandoned vehicle in street                            -->
-    <!-- UGV approaches from Y=0, vehicle at Y=10 → proximity veto       -->
+    <!-- UGV approaches from Y=0, vehicle at Y=10 -> proximity veto       -->
     <!-- This is the R2 case: token approved, analog layer BLOCKS command -->
     <!-- ================================================================ -->
     <model name="obstacle_vehicle">

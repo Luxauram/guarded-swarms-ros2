@@ -55,7 +55,7 @@ web_dashboard/
 │   │   ├── makefile.py         # /api/makefile - whitelisted build commands
 │   │   └── demo.py             # /api/demo - demo process lifecycle
 │   └── services/
-│       ├── ros2_bridge.py      # ROS 2 subscriber → async bridge
+│       ├── ros2_bridge.py      # ROS 2 subscriber -> async bridge
 │       └── token_processor.py  # Event aggregation and statistics
 └── frontend/
     ├── index.html

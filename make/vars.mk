@@ -36,6 +36,7 @@ WEB_BACKEND_DIR  := $(REPO_ROOT)/src/web_dashboard/backend
 WEB_FRONTEND_DIR := $(REPO_ROOT)/src/web_dashboard/frontend
 TOOLS_LAUNCH_DIR := src/tools/launch
 TOOLS_VIZ_DIR    := src/tools/visualization
+RESILIENCE_DIR   := $(REPO_ROOT)/scripts/resilience
 
 # Guarded Swarms custom assets (not part of PX4 repo)
 GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_safety/models

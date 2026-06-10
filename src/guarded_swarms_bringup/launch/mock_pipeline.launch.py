@@ -150,7 +150,7 @@ def generate_launch_description():
     )
 
     # =========================================================================
-    # Command Bridge (digital → analog interface)
+    # Command Bridge (digital -> analog interface)
     # =========================================================================
 
     command_bridge_node = Node(

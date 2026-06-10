@@ -3,7 +3,7 @@
   Guarded Swarms - Urban UAV World (R1 scenario)
 
   Scenario: UAV (x500 with frontal lidar) patrols an urban zone.
-  Agents A+B submit tokens → coordinator approves → UAV executes command.
+  Agents A+B submit tokens -> coordinator approves -> UAV executes command.
   When the lidar detects a building facade within 1.5m, the analog safety
   board vetoes the actuator command independently of the digital layer.
 
@@ -14,7 +14,7 @@
     - Building block South:  20x10x10m at (0, -25, 5)
     - Building block West:   10x20x12m at (-25, 0, 6)
     - Narrow alley obstacle:  2x2x8m  at (5, 8, 4)   ← triggers proximity veto
-    - UAV spawn point: (0, 0, 0) → takes off to 5m hover
+    - UAV spawn point: (0, 0, 0) -> takes off to 5m hover
 -->
 <sdf version="1.9">
   <world name="urban_uav">

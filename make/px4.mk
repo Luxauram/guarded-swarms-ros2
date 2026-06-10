@@ -57,17 +57,8 @@ endef
 # Kills all Gazebo Harmonic processes cleanly before launching a new world.
 # ------------------------------------------------------------------------------
 define GZ_KILL
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 -x gz 2>/dev/null || true
-	@pkill -9 -f "px4-gz_bridge" 2>/dev/null || true
-	@pkill -9 -f "gz_sim_server" 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@sleep 3
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	@bash $(REPO_ROOT)/scripts/gz_kill.sh
 endef
-
 
 # ------------------------------------------------------------------------------
 # UAV - x500 with frontal lidar (headless, default world)
@@ -158,8 +149,8 @@ px4-gui-uav-urban:
 		send "param save\r"; \
 		expect "pxh>"; \
 		send "commander takeoff\r"; \
-		interact \
-	'
+		wait \
+	' &
 
 
 # ------------------------------------------------------------------------------

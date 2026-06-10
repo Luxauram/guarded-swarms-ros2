@@ -1,0 +1,76 @@
+# ==============================================================================
+# Copyright 2026 Luca D'Aurizio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# ==============================================================================
+# @file swarm_4.yaml
+# Resilience test configuration for 4-agent swarm stress test.
+# All 4 agents compete for overlapping zones simultaneously,
+# exercising the coordinator's concurrency window and arbitration logic.
+# Requires mock pipeline (no PX4 needed).
+# ==============================================================================
+
+scenario: swarm_4
+description: "4-agent swarm stress test - all agents competing simultaneously"
+
+# All 4 agents with overlapping zone requests to stress the coordinator
+agents:
+  - id: test_agent_A
+    priority: 8
+    zone_center: [0.0, 0.0, 5.0]
+    zone_size: 10.0
+  - id: test_agent_B
+    priority: 6
+    zone_center: [3.0, 0.0, 5.0] # overlaps with A
+    zone_size: 10.0
+  - id: test_agent_C
+    priority: 4
+    zone_center: [0.0, 3.0, 5.0] # overlaps with A and B
+    zone_size: 10.0
+  - id: test_agent_D
+    priority: 2
+    zone_center: [3.0, 3.0, 5.0] # overlaps with all
+    zone_size: 10.0
+
+# Coordinator settings
+coordinator:
+  id: coordinator_swarm4
+  arbitration_mode: priority
+  concurrency_window_ms: 300
+
+# Safety board settings
+safety:
+  staleness_timeout_s: 5.0
+  min_proximity_m: 1.5
+  min_altitude_m: 0.3
+  max_altitude_m: 50.0
+  min_battery_pct: 15.0
+
+# ROS2 topics
+topics:
+  geometry_tokens: /geometry_tokens
+  auth_tokens: /auth_tokens
+  actuator_cmd_safe: /actuator_cmd_safe
+  actuator_cmd_raw: /actuator_cmd_raw
+  safety_status: /safety_status
+  proximity: /drone/proximity
+  altitude: /drone/altitude
+  battery: /drone/battery
+
+# Test timeouts
+timeouts:
+  response_ms: 1000
+  safety_reaction_s: 8.0
+  startup_s: 3.0

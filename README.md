@@ -44,7 +44,12 @@ guarded-swarms-ros2/
 ├── install.sh                      # Automated installation script (Ubuntu 22.04)
 ├── Makefile                        # Root Makefile
 ├── scripts/
-│   └── kill_all.sh                 # Process cleanup script (called by make kill-all)
+│   ├── kill_all.sh                 # Process cleanup script
+│   ├── record_demo.sh              # ROS2 bag recording
+│   └── resilience/                 # Resilience test suite
+│       ├── config/                 # Test configurations (mock, uav_r1, ugv_r2, swarm_4)
+│       ├── framework/              # Base test classes and utilities
+│       └── tests/                  # Test implementations
 ├── make/
 │   ├── vars.mk                     # Shared variables (paths, ROS 2 source, etc.)
 │   ├── ros2.mk                     # ROS 2 workspace management
@@ -70,7 +75,7 @@ guarded-swarms-ros2/
 │   ├── guarded_swarms_safety/      # Analog safety enforcement layer (ament_cmake, C++)
 │   │   ├── src/
 │   │   │   ├── safety_board_node.cpp       # OR-logic veto on actuator commands
-│   │   │   ├── px4_safety_bridge_node.cpp  # PX4 uORB → safety board adapter
+│   │   │   ├── px4_safety_bridge_node.cpp  # PX4 uORB -> safety board adapter
 │   │   │   └── mock_sensor_publisher.cpp   # 6 fault scenarios (no PX4)
 │   │   ├── models/                         # Gazebo UGV model with lidar
 │   │   └── px4_airframes/                  # Custom PX4 airframe for UGV
@@ -78,7 +83,7 @@ guarded-swarms-ros2/
 │   ├── guarded_swarms_control/     # Offboard UAV control + command bridge (ament_cmake, C++)
 │   │   └── src/
 │   │       ├── offboard_control_node.cpp   # UAV hover control
-│   │       ├── command_bridge_node.cpp     # AuthToken → actuator command
+│   │       ├── command_bridge_node.cpp     # AuthToken -> actuator command
 │   │       └── px4_safety_bridge_node.cpp  # PX4 sensor bridge (lidar topic configurable)
 │   │
 │   ├── guarded_swarms_bringup/     # Launch files package (ament_cmake)
@@ -387,7 +392,8 @@ ros2 topic echo /drone/altitude      # altitude (m)
 
 ### Phase 4 - Evaluation
 
-- [ ] Resilience testing: dropped tokens, forged tokens, sensor failure
+- [x] Resilience testing: dropped tokens, forged tokens, sensor staleness, sensor spike
+- [x] Automated test suite with `make test-resilience-mock` (4/4 passing)
 - [ ] Demonstration video
 
 ### Phase 5 - Documentation and Submission

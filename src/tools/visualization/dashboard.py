@@ -336,7 +336,7 @@ class GuardedSwarmsDashboard:
         self.agent_stats[agent_id]["requests"] += 1
 
         event = (
-            f"[REQ] {agent_id} → "
+            f"[REQ] {agent_id} -> "
             f"pos=({msg.position[0]:.1f}, {msg.position[1]:.1f}) "
             f"priority={msg.priority}"
         )
@@ -399,7 +399,7 @@ class GuardedSwarmsDashboard:
             symbol = "✗"
             color = "red"
 
-        event = f"[{symbol}] {agent_id} → {reason}"
+        event = f"[{symbol}] {agent_id} -> {reason}"
         self._add_event(event, color)
 
         self._update_stats()
