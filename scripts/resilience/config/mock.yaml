@@ -67,4 +67,4 @@ topics:
 timeouts:
   response_ms: 1000
   safety_reaction_s: 8.0
-  startup_s: 3.0
+  startup_s: 8.0
