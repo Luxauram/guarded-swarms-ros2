@@ -39,7 +39,7 @@ TOOLS_VIZ_DIR    := src/tools/visualization
 RESILIENCE_DIR   := $(REPO_ROOT)/scripts/resilience
 
 # Guarded Swarms custom assets (not part of PX4 repo)
-GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_safety/models
+GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_gz/models
 GS_AIRFRAMES_DIR := $(SRC_DIR)/guarded_swarms_safety/px4_airframes
 
 # Guarded Swarms Gazebo worlds (guarded_swarms_gz package)
@@ -48,7 +48,7 @@ GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models
 
 # GZ_SIM_RESOURCE_PATH: tells Gazebo where to find our worlds and models
 # without copying anything into the PX4 installation.
-GZ_RESOURCE_PATH := $(GS_WORLDS_DIR):$(GS_GZ_MODELS_DIR):$(PX4_DIR)/Tools/simulation/gz/models
+GZ_RESOURCE_PATH := $(GS_WORLDS_DIR):$(PX4_DIR)/Tools/simulation/gz/models:$(GS_GZ_MODELS_DIR)
 
 # ------------------------------------------------------------------------------
 # ROS 2

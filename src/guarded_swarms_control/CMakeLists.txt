@@ -71,13 +71,29 @@ ament_target_dependencies(px4_safety_bridge_node
 target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
 
 # ============================================================================
+# Executable: rover_control_node
+# ============================================================================
+add_executable(rover_control_node
+  src/rover_control_node.cpp
+)
+target_include_directories(rover_control_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(rover_control_node
+  rclcpp px4_msgs
+)
+target_compile_features(rover_control_node PUBLIC c_std_99 cxx_std_17) 
+
+# ============================================================================
 # Install
 # ============================================================================
 install(TARGETS
   offboard_control_node
   command_bridge_node
   px4_safety_bridge_node
-  DESTINATION lib/${PROJECT_NAME}
+  rover_control_node
+DESTINATION lib/${PROJECT_NAME}
 )
 
 install(DIRECTORY include/

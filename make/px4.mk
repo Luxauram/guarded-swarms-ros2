@@ -43,7 +43,7 @@ endef
 # Guard: verify UGV assets are installed
 # ------------------------------------------------------------------------------
 define CHECK_UGV
-	@if [ ! -f "$(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/50001_gz_rover_differential_lidar" ]; then \
+	@if ! grep -q "lidar_sensor_link" "$(PX4_DIR)/Tools/simulation/gz/models/r1_rover/model.sdf" 2>/dev/null; then \
 		echo ""; \
 		echo "ERROR: Guarded Swarms rover airframe not installed."; \
 		echo "Run 'make setup-ugv' first (only needed once)."; \
@@ -89,14 +89,7 @@ px4-run-ugv:
 	$(CHECK_UGV)
 	@pkill -9 -x px4 2>/dev/null || true
 	@sleep 1
-	@cd $(PX4_DIR)/build/px4_sitl_default && \
-		PX4_SYS_AUTOSTART=50001 \
-		PX4_GZ_WORLD=rover \
-		PX4_SIM_MODEL=rover_differential_lidar \
-		PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds \
-		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		HEADLESS=1 \
-		./bin/px4 -s etc/init.d-posix/rcS
+	@cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_r1_rover
 
 # ------------------------------------------------------------------------------
 # UAV with Gazebo GUI - default empty world
@@ -165,16 +158,11 @@ px4-gui-ugv:
 	$(GZ_KILL)
 	@echo "Starting Gazebo..."
 	@echo ""
-	@cd $(PX4_DIR)/build/px4_sitl_default && \
+	@cd $(PX4_DIR) && \
 		__NV_PRIME_RENDER_OFFLOAD=1 \
 		__GLX_VENDOR_LIBRARY_NAME=nvidia \
 		MESA_GL_VERSION_OVERRIDE=4.5 \
-		PX4_SYS_AUTOSTART=50001 \
-		PX4_GZ_WORLD=rover \
-		PX4_SIM_MODEL=rover_differential_lidar \
-		PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds \
-		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		./bin/px4 -s etc/init.d-posix/rcS
+		make px4_sitl gz_r1_rover 
 
 
 # ------------------------------------------------------------------------------
@@ -190,16 +178,13 @@ px4-gui-ugv-urban:
 	$(GZ_KILL)
 	@echo "World: urban_ugv (street corridor + abandoned vehicle)"
 	@echo ""
-	@cd $(PX4_DIR)/build/px4_sitl_default && \
+	@cd $(PX4_DIR) && \
 		__NV_PRIME_RENDER_OFFLOAD=1 \
 		__GLX_VENDOR_LIBRARY_NAME=nvidia \
 		MESA_GL_VERSION_OVERRIDE=4.5 \
-		PX4_SYS_AUTOSTART=50001 \
 		PX4_GZ_WORLD=urban_ugv \
-		PX4_SIM_MODEL=rover_differential_lidar \
-		PX4_GZ_WORLDS=$(PX4_DIR)/Tools/simulation/gz/worlds \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		./bin/px4 -s etc/init.d-posix/rcS
+		make px4_sitl gz_r1_rover
 
 
 # ------------------------------------------------------------------------------
@@ -230,19 +215,14 @@ setup-ugv:
 	@echo "=========================================="
 	@echo ""
 	$(CHECK_PX4)
-	@echo "[1/3] Installing custom airframe..."
-	@cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar \
-		$(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/
-	@cp $(GS_AIRFRAMES_DIR)/50001_gz_rover_differential_lidar \
-		$(PX4_DIR)/build/px4_sitl_default/rootfs/etc/init.d-posix/airframes/ 2>/dev/null || true
+	@echo "[1/2] Installing r1_rover model with frontal lidar..."
+	@echo "      (overwrites PX4's stock r1_rover model.sdf with our"
+	@echo "       lidar-equipped version; airframe 4009 stays unchanged)"
+	@cp $(GS_MODELS_DIR)/r1_rover/model.sdf \
+		$(PX4_DIR)/Tools/simulation/gz/models/r1_rover/model.sdf
 	@echo "      Done."
 	@echo ""
-	@echo "[2/3] Installing rover_differential_lidar Gazebo model..."
-	@cp -r $(GS_MODELS_DIR)/rover_differential_lidar \
-		$(PX4_DIR)/Tools/simulation/gz/models/
-	@echo "      Done."
-	@echo ""
-	@echo "[3/3] Rebuilding PX4 SITL to register new airframe..."
+	@echo "[2/2] Rebuilding PX4 SITL..."
 	@cd $(PX4_DIR) && make px4_sitl_default 2>&1 | tail -3
 	@echo ""
 	@echo "Rover setup complete. Run 'make px4-gui-ugv' or 'make px4-gui-ugv-urban'."
