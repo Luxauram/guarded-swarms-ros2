@@ -23,6 +23,7 @@ Guarded Swarms - UGV Urban Pipeline (R2 scenario from paper).
 
 Launches all ROS2 nodes for the UGV urban scenario:
   - ros_gz_bridge: Gazebo lidar -> ROS2
+  - rover_control_node: autonomous waypoint patrol (arms + moves the rover)
   - px4_safety_bridge_node: PX4 sensors + lidar -> /drone/proximity
   - safety_board_node: OR-logic veto (altitude disabled for rover)
   - command_bridge_node: AuthToken -> /actuator_cmd_raw
@@ -30,13 +31,16 @@ Launches all ROS2 nodes for the UGV urban scenario:
 
 Prerequisites (start manually before this launch):
   Terminal 1: make px4-gui-ugv-urban
-              -> wait for pxh>, no arming needed for rover
+              -> wait for pxh>, no manual arming needed (rover_control_node
+                 force-arms automatically 5s after this launch starts)
   Terminal 2: make ros2-agent
   Terminal 3: ros2 launch guarded_swarms_bringup ugv_urban_pipeline.launch.py
 
 Monitor:
   ros2 topic echo /actuator_cmd_safe   # 0.0 = proximity veto active
   ros2 topic echo /drone/proximity     # lidar distance reading
+Model: PX4's stock r1_rover with frontal lidar overlaid via 'make setup-ugv'.
+Airframe: PX4's original 4009_gz_r1_rover (unchanged).
 """
 
 from launch import LaunchDescription
@@ -44,18 +48,11 @@ from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
-
 LIDAR_TOPIC = (
-    "/world/urban_ugv/model/rover_differential_lidar_0"
+    "/world/urban_ugv/model/r1_rover_0"
     "/link/lidar_sensor_link/sensor/lidar/scan"
 )
-
-
 def generate_launch_description():
-
-    # =========================================================================
-    # Launch Arguments
-    # =========================================================================
     arbitration_mode_arg = DeclareLaunchArgument(
         "arbitration_mode",
         default_value="priority",
@@ -77,9 +74,6 @@ def generate_launch_description():
         "priority_D", default_value="5", description="Priority for agent_D (0-10)"
     )
 
-    # =========================================================================
-    # Gazebo -> ROS2 lidar bridge
-    # =========================================================================
     lidar_bridge_node = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
@@ -92,9 +86,14 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # =========================================================================
-    # PX4 Safety Bridge (reads from urban_ugv lidar topic)
-    # =========================================================================
+    rover_control_node = Node(
+        package="guarded_swarms_control",
+        executable="rover_control_node",
+        name="rover_control_node",
+        output="screen",
+        emulate_tty=True,
+    )
+
     px4_safety_bridge_node = Node(
         package="guarded_swarms_control",
         executable="px4_safety_bridge_node",
@@ -106,10 +105,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # =========================================================================
-    # Analog Safety Enforcement Layer
-    # Altitude check disabled: rover operates at ground level
-    # =========================================================================
     safety_board_node = Node(
         package="guarded_swarms_safety",
         executable="safety_board_node",
@@ -123,9 +118,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # =========================================================================
-    # Command Bridge
-    # =========================================================================
     command_bridge_node = Node(
         package="guarded_swarms_control",
         executable="command_bridge_node",
@@ -134,9 +126,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # =========================================================================
-    # Digital Coordination Layer
-    # =========================================================================
     coordinator_node = Node(
         package="guarded_swarms_coordinator",
         executable="coordinator_node",
@@ -203,9 +192,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # =========================================================================
-    # Launch Description
-    # =========================================================================
     return LaunchDescription([
         arbitration_mode_arg,
         num_agents_arg,
@@ -217,6 +203,7 @@ def generate_launch_description():
         LogInfo(msg="Guarded Swarms - UGV Urban Pipeline (R2 from paper)"),
         LogInfo(msg="============================================================"),
         LogInfo(msg="Prereqs: make px4-gui-ugv-urban + make ros2-agent"),
+        LogInfo(msg="Rover will auto-arm and start patrol in ~5s"),
         LogInfo(msg="Safety: altitude DISABLED (rover), proximity ACTIVE"),
         LogInfo(msg="Expected: digital tokens approved, analog VETO on proximity"),
         LogInfo(msg="------------------------------------------------------------"),
@@ -224,6 +211,7 @@ def generate_launch_description():
         LogInfo(msg="          ros2 topic echo /drone/proximity"),
         LogInfo(msg="============================================================"),
         lidar_bridge_node,
+        rover_control_node,
         px4_safety_bridge_node,
         safety_board_node,
         command_bridge_node,
