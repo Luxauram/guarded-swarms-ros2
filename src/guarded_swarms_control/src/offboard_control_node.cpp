@@ -91,11 +91,11 @@ private:
 
   // ROS 2 Topic Names
   static constexpr const char *TOPIC_OFFBOARD_CONTROL_MODE =
-      "/fmu/in/offboard_control_mode";
+      "fmu/in/offboard_control_mode";
   static constexpr const char *TOPIC_TRAJECTORY_SETPOINT =
-      "/fmu/in/trajectory_setpoint";
+      "fmu/in/trajectory_setpoint";
   static constexpr const char *TOPIC_VEHICLE_COMMAND =
-      "/fmu/in/vehicle_command";
+      "fmu/in/vehicle_command";
 
   // Publisher Configuration
   static constexpr int QUEUE_SIZE = 10;

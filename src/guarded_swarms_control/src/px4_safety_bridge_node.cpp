@@ -84,20 +84,20 @@ public:
                        .history(rclcpp::HistoryPolicy::KeepLast);
 
     attitude_sub_ = this->create_subscription<px4_msgs::msg::VehicleAttitude>(
-        "/fmu/out/vehicle_attitude", px4_qos,
+        "fmu/out/vehicle_attitude", px4_qos,
         [this](const px4_msgs::msg::VehicleAttitude::SharedPtr msg) {
           on_attitude(msg);
         });
 
     battery_sub_ = this->create_subscription<px4_msgs::msg::BatteryStatus>(
-        "/fmu/out/battery_status_v1", px4_qos,
+        "fmu/out/battery_status_v1", px4_qos,
         [this](const px4_msgs::msg::BatteryStatus::SharedPtr msg) {
           on_battery(msg);
         });
 
     local_pos_sub_ =
         this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
-            "/fmu/out/vehicle_local_position_v1", px4_qos,
+            "fmu/out/vehicle_local_position_v1", px4_qos,
             [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
               on_local_position(msg);
             });

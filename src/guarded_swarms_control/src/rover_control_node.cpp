@@ -86,15 +86,15 @@ public:
 
         pos_setpoint_pub_ = this->create_publisher<
             px4_msgs::msg::RoverPositionSetpoint>(
-            "/fmu/in/rover_position_setpoint", 10);
+            "fmu/in/rover_position_setpoint", 10);
 
         vehicle_cmd_pub_ = this->create_publisher<
             px4_msgs::msg::VehicleCommand>(
-            "/fmu/in/vehicle_command", 10);
+            "fmu/in/vehicle_command", 10);
 
         local_pos_sub_ = this->create_subscription<
             px4_msgs::msg::VehicleLocalPosition>(
-            "/fmu/out/vehicle_local_position_v1", qos,
+            "fmu/out/vehicle_local_position_v1", qos,
             [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
                 on_local_position(msg);
             });

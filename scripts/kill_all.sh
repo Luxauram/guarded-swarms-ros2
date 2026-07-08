@@ -31,7 +31,7 @@ pkill -9 -f "make.*px4_sitl" 2>/dev/null; true
 pkill -9 -f "cmake.*px4_sitl" 2>/dev/null; true
 sleep 1
 pkill -9 -x px4 2>/dev/null; true
-pkill -9 -x gz 2>/dev/null; true
+pkill -9 -f "gz sim" 2>/dev/null; true
 pkill -9 -f "px4-gz_bri" 2>/dev/null; true
 pkill -9 -f "gz_sim_serv" 2>/dev/null; true
 pkill -9 gzserver 2>/dev/null; true
@@ -43,6 +43,7 @@ pkill -9 -f "coordinator_" 2>/dev/null; true
 pkill -9 -f "agent_node" 2>/dev/null; true
 pkill -9 -f "px4_safety_b" 2>/dev/null; true
 pkill -9 -f "offboard_con" 2>/dev/null; true
+pkill -9 -f "rover_control" 2>/dev/null; true
 pkill -9 -f "parameter_br" 2>/dev/null; true
 rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null; true
 echo "All processes terminated."
