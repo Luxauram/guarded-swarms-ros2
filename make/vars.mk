@@ -94,3 +94,11 @@ COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers c
 # Web dashboard
 # ------------------------------------------------------------------------------
 DASHBOARD_PORT := 8765
+
+# ------------------------------------------------------------------------------
+# Swarm scenario
+# ------------------------------------------------------------------------------
+SWARM_WORLD    := urban_ugv
+UAV_POSE       := 0,0,0
+UGV_POSE       := 0,-8,0
+UAV_BOOT_WAIT  := 15

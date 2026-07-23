@@ -27,7 +27,7 @@
         px4-gui-uav-urban px4-gui-ugv-urban \
         px4-kill px4-config px4-reset-params \
         setup-ugv setup-worlds gazebo-test gazebo-worlds \
-        demo-px4-swarm-2
+        demo-swarm
 
 # ------------------------------------------------------------------------------
 # Guard: verify PX4 is installed
@@ -174,50 +174,62 @@ px4-gui-ugv-urban:
 		make px4_sitl gz_r1_rover
 
 # ------------------------------------------------------------------------------
-# Multi-vehicle demo - UAV (instance 0) + UGV (instance 1) in same world
-# Both auto-arm. UAV takes off, UGV starts on ground (drive via
-# rover_control_node separately, with --ros-args -r __ns:=/px4_1).
+# Multi-vehicle demo - UAV (instance 0) + UGV (instance 1), one Gazebo server
+#
+# Pattern: scripts/gz_launch.sh starts the world once; every PX4 instance
+# attaches to it with PX4_GZ_STANDALONE=1. Scaling to N vehicles means adding
+# instances, not changing the mechanism.
+#
+# PX4 SITL assigns MAV_SYS_ID = instance + 1, so instance 1 is system 2 —
+# hence target_system:=2 on the rover node. Topics are namespaced per
+# instance: instance 0 -> /fmu/..., instance 1 -> /px4_1/fmu/...
+#
+# The rover needs no parameter tweaks: PX4 defaults are correct for it.
+# In particular do NOT set SYS_HAS_MAG 0 (that is a UAV-only workaround) —
+# without a magnetometer the rover EKF never converges, local_position stays
+# invalid, and the vehicle is disarmed by failsafe right after arming.
 # ------------------------------------------------------------------------------
-demo-px4-swarm-2:
+demo-swarm:
 	@echo "=========================================="
-	@echo "Multi-Vehicle Demo - UAV + UGV (2 vehicles)"
+	@echo "Multi-Vehicle Demo - UAV + UGV"
 	@echo "=========================================="
 	$(CHECK_PX4)
 	$(CHECK_UGV)
 	$(GZ_KILL)
-	@echo "Starting UAV (instance 0, starts Gazebo) in its own window..."
-	@xterm -title "UAV instance 0" -geometry 120x30 -e bash -c ' \
-		expect -c "\
-			set timeout 60; \
-			spawn bash -c \"cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 PX4_GZ_WORLD=urban_uav GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front\"; \
-			expect \"pxh>\"; send \"param set COM_ARM_WO_GPS 1\r\"; \
-			expect \"pxh>\"; send \"param set SYS_HAS_MAG 0\r\"; \
-			expect \"pxh>\"; send \"param set COM_RC_IN_MODE 1\r\"; \
-			expect \"pxh>\"; send \"param set NAV_RCL_ACT 0\r\"; \
-			expect \"pxh>\"; send \"param set NAV_DLL_ACT 0\r\"; \
-			expect \"pxh>\"; send \"param set COM_RCL_EXCEPT 4\r\"; \
-			expect \"pxh>\"; send \"param save\r\"; \
-			expect \"pxh>\"; send \"commander takeoff\r\"; \
-			interact \
-		"; bash' &
-	@sleep 15
-	@echo "Starting UGV (instance 1, connects to same Gazebo) in its own window..."
-	@xterm -title "UGV instance 1" -geometry 120x30 -e bash -c ' \
-		expect -c "\
-			set timeout 60; \
-			spawn bash -c \"cd $(PX4_DIR)/build/px4_sitl_default && PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4009 PX4_SIM_MODEL=r1_rover PX4_GZ_WORLD=urban_uav PX4_GZ_MODEL_POSE=\\\"10,10\\\" ./bin/px4 -i 1\"; \
-			expect \"pxh>\"; send \"param set COM_ARM_WO_GPS 1\r\"; \
-			expect \"pxh>\"; send \"param set SYS_HAS_MAG 0\r\"; \
-			expect \"pxh>\"; send \"param set NAV_RCL_ACT 0\r\"; \
-			expect \"pxh>\"; send \"param set NAV_DLL_ACT 0\r\"; \
-			expect \"pxh>\"; send \"param save\r\"; \
-			interact \
-		"; bash' &
-	@echo ""
-	@echo "Both vehicles launching in separate windows. Wait ~20s, then:"
-	@echo "  make ros2-agent"
-	@echo "  ros2 run guarded_swarms_control rover_control_node --ros-args -r __ns:=/px4_1"
-	@echo ""
+	@echo "Clearing instance 1 state for a reproducible start..."
+	@rm -rf $(PX4_DIR)/build/px4_sitl_default/rootfs/1
+	@echo "[1/6] Gazebo world: $(SWARM_WORLD)"
+	@xterm -title "Gazebo - $(SWARM_WORLD)" -geometry 100x20 \
+		-e bash -c '$(GZ_LAUNCH) $(SWARM_WORLD); bash' &
+	@sleep $(GZ_BOOT_WAIT)
+	@echo "[2/6] uXRCE-DDS agent (before PX4, so clients find it listening)"
+	@xterm -title "uXRCE-DDS Agent" -geometry 100x20 \
+		-e bash -c 'MicroXRCEAgent udp4 -p 8888; bash' &
+	@sleep 3
+	@echo "[3/6] UAV - instance 0 (MAV_SYS_ID 1) at $(UAV_POSE)"
+	@xterm -title "PX4 UAV - instance 0" -geometry 120x30 -e bash -c ' \
+		cd $(PX4_DIR) && \
+		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_WORLD=$(SWARM_WORLD) \
+		PX4_GZ_MODEL_POSE=$(UAV_POSE) \
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		make px4_sitl gz_x500_lidar_front; bash' &
+	@sleep $(UAV_BOOT_WAIT)
+	@echo "[4/6] Configuring UAV parameters"
+	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
+	@echo "[5/6] UGV - instance 1 (MAV_SYS_ID 2) at $(UGV_POSE)"
+	@xterm -title "PX4 UGV - instance 1" -geometry 120x30 -e bash -c ' \
+		cd $(PX4_DIR)/build/px4_sitl_default && \
+		PX4_GZ_STANDALONE=1 \
+		PX4_SYS_AUTOSTART=4009 \
+		PX4_SIM_MODEL=gz_r1_rover \
+		PX4_GZ_WORLD=$(SWARM_WORLD) \
+		PX4_GZ_MODEL_POSE=$(UGV_POSE) \
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		./bin/px4 -i 1; bash' &
+	@sleep 10
+	@echo "[6/6] ROS 2 swarm pipeline"
+	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup swarm_pipeline.launch.py'
 
 # ------------------------------------------------------------------------------
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)
