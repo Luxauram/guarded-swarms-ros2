@@ -36,6 +36,7 @@
 #include <px4_msgs/msg/offboard_control_mode.hpp>
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
+#include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <chrono>
@@ -62,6 +63,9 @@ public:
   OffboardControlNode() : Node("offboard_control_node") {
     offboard_setpoint_counter_ = 0;
 
+    target_system_ = static_cast<uint8_t>(
+        this->declare_parameter<int>("target_system", 1));
+
     offboard_control_mode_publisher_ =
         this->create_publisher<px4_msgs::msg::OffboardControlMode>(
             TOPIC_OFFBOARD_CONTROL_MODE, QUEUE_SIZE);
@@ -74,6 +78,18 @@ public:
         this->create_publisher<px4_msgs::msg::VehicleCommand>(
             TOPIC_VEHICLE_COMMAND, QUEUE_SIZE);
 
+    auto status_qos = rclcpp::QoS(QUEUE_SIZE)
+        .reliability(rclcpp::ReliabilityPolicy::BestEffort)
+        .durability(rclcpp::DurabilityPolicy::TransientLocal);
+
+    vehicle_status_subscriber_ =
+        this->create_subscription<px4_msgs::msg::VehicleStatus>(
+            TOPIC_VEHICLE_STATUS, status_qos,
+            [this](const px4_msgs::msg::VehicleStatus::SharedPtr msg) {
+              armed_ = (msg->arming_state ==
+                        px4_msgs::msg::VehicleStatus::ARMING_STATE_ARMED);
+            });
+
     timer_ = this->create_wall_timer(
         TIMER_PERIOD, std::bind(&OffboardControlNode::timer_callback, this));
 
@@ -82,6 +98,7 @@ public:
                 HOVER_ALTITUDE_METERS);
     RCLCPP_INFO(this->get_logger(), "Waiting %.1f seconds before arming...",
                 ARMING_DELAY_SECONDS);
+    RCLCPP_INFO(this->get_logger(), "Target system ID: %u", target_system_);
   }
 
 private:
@@ -96,6 +113,8 @@ private:
       "fmu/in/trajectory_setpoint";
   static constexpr const char *TOPIC_VEHICLE_COMMAND =
       "fmu/in/vehicle_command";
+  static constexpr const char *TOPIC_VEHICLE_STATUS =
+      "fmu/out/vehicle_status_v1";
 
   // Publisher Configuration
   static constexpr int QUEUE_SIZE = 10;
@@ -126,9 +145,15 @@ private:
   static constexpr float PARAM_FORCE_ARM =
       21196.0f; // bypasses preflight checks - @TODO
 
-  // PX4 System IDs
-  static constexpr uint8_t PX4_SYSTEM_ID = 1;
+  // PX4 component ID. The system ID is deliberately NOT a constant: it is a
+  // ROS parameter, see target_system_.
   static constexpr uint8_t PX4_COMPONENT_ID = 1;
+
+  // Re-issue mode + arm every N cycles until PX4 reports armed. Sending them
+  // once is not enough: if PX4 is not ready at that exact instant, or the DDS
+  // session is still settling, the commands are lost and the vehicle never
+  // takes off.
+  static constexpr int ARMING_RETRY_PERIOD_CYCLES = 20;  // 2 s at 10 Hz
 
   // ========================================================================
   // Methods
@@ -145,13 +170,22 @@ private:
     publish_offboard_control_mode();
     publish_trajectory_setpoint();
 
-    if (offboard_setpoint_counter_ == ARMING_COUNTER_THRESHOLD) {
+    const auto counter = static_cast<int>(offboard_setpoint_counter_);
+
+    if (!armed_ && counter >= ARMING_COUNTER_THRESHOLD &&
+        (counter - ARMING_COUNTER_THRESHOLD) % ARMING_RETRY_PERIOD_CYCLES == 0) {
+
       RCLCPP_INFO(this->get_logger(), "Enabling offboard mode...");
       publish_vehicle_command(CMD_SET_MODE, PARAM_CUSTOM_MAIN_MODE,
                               PARAM_CUSTOM_SUB_MODE_OFFBOARD);
 
       RCLCPP_INFO(this->get_logger(), "Arming drone (force flag enabled)...");
       publish_vehicle_command(CMD_ARM_DISARM, PARAM_ARM, PARAM_FORCE_ARM);
+    }
+
+    if (armed_ && !arm_confirmed_) {
+      arm_confirmed_ = true;
+      RCLCPP_INFO(this->get_logger(), "PX4 reports ARMED. Holding hover.");
     }
 
     offboard_setpoint_counter_++;
@@ -224,9 +258,9 @@ private:
     msg.command = command;
     msg.param1 = param1;
     msg.param2 = param2;
-    msg.target_system = PX4_SYSTEM_ID;
+    msg.target_system = target_system_;
     msg.target_component = PX4_COMPONENT_ID;
-    msg.source_system = PX4_SYSTEM_ID;
+    msg.source_system = target_system_;
     msg.source_component = PX4_COMPONENT_ID;
     msg.from_external = true;
 
@@ -264,7 +298,13 @@ private:
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr
       vehicle_command_publisher_;
 
+  rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr
+      vehicle_status_subscriber_;
+
   uint64_t offboard_setpoint_counter_;
+  uint8_t target_system_ = 1;
+  bool armed_ = false;
+  bool arm_confirmed_ = false;
 };
 
 // ============================================================================
