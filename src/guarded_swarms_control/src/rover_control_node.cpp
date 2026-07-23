@@ -38,8 +38,13 @@
  *   Published:
  *     /fmu/in/rover_position_setpoint  (px4_msgs/RoverPositionSetpoint)
  *     /fmu/in/vehicle_command          (px4_msgs/VehicleCommand) — arming
- *   Subscribed:
+*   Subscribed:
  *     /fmu/out/vehicle_local_position_v1 (px4_msgs/VehicleLocalPosition)
+ *
+ * Parameters:
+ *   target_system (int, default 1) — PX4 MAV_SYS_ID of the target vehicle.
+ *     Multi-vehicle: instance N has MAV_SYS_ID N+1, so instance 1 needs
+ *     target_system:=2. Topics are namespaced separately (__ns:=/px4_1).
  *
  * @author Luca D'Aurizio
  */
@@ -79,6 +84,12 @@ class RoverControlNode : public rclcpp::Node
 public:
     RoverControlNode() : Node("rover_control_node")
     {
+        // PX4 MAV_SYS_ID of the target vehicle.
+        // SITL assigns instance 0 -> 1, instance 1 -> 2, etc. A command
+        // addressed to the wrong system ID is silently ignored by PX4.
+        target_system_ = static_cast<uint8_t>(
+            this->declare_parameter<int>("target_system", 1));
+
         // QoS for PX4 topics
         auto qos = rclcpp::QoS(10)
             .reliability(rclcpp::ReliabilityPolicy::BestEffort)
@@ -118,6 +129,8 @@ public:
         RCLCPP_INFO(this->get_logger(),
             "  Arming in:        %.0f s", ARM_DELAY_S);
         RCLCPP_INFO(this->get_logger(),
+            "  Target system ID: %u", target_system_);
+        RCLCPP_INFO(this->get_logger(),
             "============================================================");
     }
 
@@ -134,6 +147,7 @@ private:
     // State
     // -----------------------------------------------------------------------
     rclcpp::Time start_time_;
+    uint8_t target_system_ = 1;
     bool armed_          = false;
     bool patrol_active_  = false;
     size_t wp_index_     = 0;
@@ -251,9 +265,9 @@ private:
         cmd.command          = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM;
         cmd.param1           = 1.0f;   // 1 = arm
         cmd.param2           = 21196.0f; // force arm magic number
-        cmd.target_system    = 1;
+        cmd.target_system    = target_system_;
         cmd.target_component = 1;
-        cmd.source_system    = 1;
+        cmd.source_system    = target_system_;
         cmd.source_component = 1;
         cmd.from_external    = true;
         vehicle_cmd_pub_->publish(cmd);
