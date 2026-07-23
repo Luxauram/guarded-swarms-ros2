@@ -62,8 +62,11 @@ class CommandBridgeNode : public rclcpp::Node {
   explicit CommandBridgeNode();
 
  private:
+  // Absolute: the digital coordination layer is shared by the whole swarm,
+  // so every vehicle's bridge consumes the same auth token stream.
   static constexpr const char* TOPIC_AUTH_TOKENS = "/auth_tokens";
-  static constexpr const char* TOPIC_CMD_RAW = "/actuator_cmd_raw";
+  // Relative: the actuator command is per vehicle.
+  static constexpr const char* TOPIC_CMD_RAW = "actuator_cmd_raw";
 
   static constexpr int QUEUE_SIZE = 10;
 

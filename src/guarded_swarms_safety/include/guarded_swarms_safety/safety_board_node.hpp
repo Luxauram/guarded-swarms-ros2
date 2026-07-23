@@ -105,13 +105,15 @@ class SafetyBoardNode : public rclcpp::Node {
   explicit SafetyBoardNode();
 
  private:
-  static constexpr const char* TOPIC_IMU = "/drone/imu";
-  static constexpr const char* TOPIC_PROXIMITY = "/drone/proximity";
-  static constexpr const char* TOPIC_BATTERY = "/drone/battery";
-  static constexpr const char* TOPIC_ALTITUDE = "/drone/altitude";
-  static constexpr const char* TOPIC_CMD_RAW = "/actuator_cmd_raw";
-  static constexpr const char* TOPIC_CMD_SAFE = "/actuator_cmd_safe";
-  static constexpr const char* TOPIC_SAFETY_STATUS = "/safety_status";
+  // Relative paths: the node namespace selects the vehicle, so each vehicle
+  // gets its own independent safety envelope in multi-vehicle scenarios.
+  static constexpr const char* TOPIC_IMU = "drone/imu";
+  static constexpr const char* TOPIC_PROXIMITY = "drone/proximity";
+  static constexpr const char* TOPIC_BATTERY = "drone/battery";
+  static constexpr const char* TOPIC_ALTITUDE = "drone/altitude";
+  static constexpr const char* TOPIC_CMD_RAW = "actuator_cmd_raw";
+  static constexpr const char* TOPIC_CMD_SAFE = "actuator_cmd_safe";
+  static constexpr const char* TOPIC_SAFETY_STATUS = "safety_status";
 
   static constexpr int QUEUE_SIZE = 10;
 

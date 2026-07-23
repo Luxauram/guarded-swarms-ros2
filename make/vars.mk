@@ -100,5 +100,7 @@ DASHBOARD_PORT := 8765
 # ------------------------------------------------------------------------------
 SWARM_WORLD    := urban_ugv
 UAV_POSE       := 0,0,0
-UGV_POSE       := 0,-8,0
+# Offset along Y only: the rover patrols along X toward the abandoned vehicle,
+# so it must stay on the obstacle's line while clearing the UAV's spawn point.
+UGV_POSE       := -4,0,0
 UAV_BOOT_WAIT  := 15

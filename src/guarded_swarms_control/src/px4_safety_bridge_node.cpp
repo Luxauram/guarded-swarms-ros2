@@ -108,13 +108,13 @@ public:
           on_lidar(msg);
         });
 
-    imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", 10);
+    imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("drone/imu", 10);
     battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>(
-        "/drone/battery", 10);
+        "drone/battery", 10);
     altitude_pub_ =
-        this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
+        this->create_publisher<std_msgs::msg::Float32>("drone/altitude", 10);
     proximity_pub_ =
-        this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
+        this->create_publisher<sensor_msgs::msg::Range>("drone/proximity", 10);
 
     RCLCPP_INFO(this->get_logger(),
                 "Px4SafetyBridge initialized (BEST_EFFORT QoS)");
