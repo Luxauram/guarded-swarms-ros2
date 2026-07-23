@@ -26,7 +26,8 @@
         px4-gui-uav px4-gui-ugv \
         px4-gui-uav-urban px4-gui-ugv-urban \
         px4-kill px4-config px4-reset-params \
-        setup-ugv setup-worlds gazebo-test gazebo-worlds
+        setup-ugv setup-worlds gazebo-test gazebo-worlds \
+        demo-px4-swarm-2
 
 # ------------------------------------------------------------------------------
 # Guard: verify PX4 is installed
@@ -186,6 +187,51 @@ px4-gui-ugv-urban:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		make px4_sitl gz_r1_rover
 
+# ------------------------------------------------------------------------------
+# Multi-vehicle demo - UAV (instance 0) + UGV (instance 1) in same world
+# Both auto-arm. UAV takes off, UGV starts on ground (drive via
+# rover_control_node separately, with --ros-args -r __ns:=/px4_1).
+# ------------------------------------------------------------------------------
+demo-px4-swarm-2:
+	@echo "=========================================="
+	@echo "Multi-Vehicle Demo - UAV + UGV (2 vehicles)"
+	@echo "=========================================="
+	$(CHECK_PX4)
+	$(CHECK_UGV)
+	$(GZ_KILL)
+	@echo "Starting UAV (instance 0, starts Gazebo) in its own window..."
+	@xterm -title "UAV instance 0" -geometry 120x30 -e bash -c ' \
+		expect -c "\
+			set timeout 60; \
+			spawn bash -c \"cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 PX4_GZ_WORLD=urban_uav GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front\"; \
+			expect \"pxh>\"; send \"param set COM_ARM_WO_GPS 1\r\"; \
+			expect \"pxh>\"; send \"param set SYS_HAS_MAG 0\r\"; \
+			expect \"pxh>\"; send \"param set COM_RC_IN_MODE 1\r\"; \
+			expect \"pxh>\"; send \"param set NAV_RCL_ACT 0\r\"; \
+			expect \"pxh>\"; send \"param set NAV_DLL_ACT 0\r\"; \
+			expect \"pxh>\"; send \"param set COM_RCL_EXCEPT 4\r\"; \
+			expect \"pxh>\"; send \"param save\r\"; \
+			expect \"pxh>\"; send \"commander takeoff\r\"; \
+			interact \
+		"; bash' &
+	@sleep 15
+	@echo "Starting UGV (instance 1, connects to same Gazebo) in its own window..."
+	@xterm -title "UGV instance 1" -geometry 120x30 -e bash -c ' \
+		expect -c "\
+			set timeout 60; \
+			spawn bash -c \"cd $(PX4_DIR)/build/px4_sitl_default && PX4_GZ_STANDALONE=1 PX4_SYS_AUTOSTART=4009 PX4_SIM_MODEL=r1_rover PX4_GZ_WORLD=urban_uav PX4_GZ_MODEL_POSE=\\\"10,10\\\" ./bin/px4 -i 1\"; \
+			expect \"pxh>\"; send \"param set COM_ARM_WO_GPS 1\r\"; \
+			expect \"pxh>\"; send \"param set SYS_HAS_MAG 0\r\"; \
+			expect \"pxh>\"; send \"param set NAV_RCL_ACT 0\r\"; \
+			expect \"pxh>\"; send \"param set NAV_DLL_ACT 0\r\"; \
+			expect \"pxh>\"; send \"param save\r\"; \
+			interact \
+		"; bash' &
+	@echo ""
+	@echo "Both vehicles launching in separate windows. Wait ~20s, then:"
+	@echo "  make ros2-agent"
+	@echo "  ros2 run guarded_swarms_control rover_control_node --ros-args -r __ns:=/px4_1"
+	@echo ""
 
 # ------------------------------------------------------------------------------
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)
