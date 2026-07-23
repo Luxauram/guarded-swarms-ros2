@@ -32,6 +32,12 @@ SRC_DIR          := $(REPO_ROOT)/src
 INSTALL_DIR      := $(REPO_ROOT)/install
 BUILD_DIR        := $(REPO_ROOT)/build
 PX4_DIR          := $(HOME)/PX4-Autopilot
+
+# PX4 firmware pinned commit.
+# px4_msgs@31147da is generated from this exact PX4 commit; any other
+# firmware version will silently break uXRCE-DDS topic bridging.
+PX4_COMMIT       := 091ac918b133d518da8b73e395243ea0e0d087b5
+PX4_BRANCH       := guarded-swarms-pin
 WEB_BACKEND_DIR  := $(REPO_ROOT)/src/web_dashboard/backend
 WEB_FRONTEND_DIR := $(REPO_ROOT)/src/web_dashboard/frontend
 TOOLS_LAUNCH_DIR := src/tools/launch
@@ -48,7 +54,14 @@ GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models
 
 # GZ_SIM_RESOURCE_PATH: tells Gazebo where to find our worlds and models
 # without copying anything into the PX4 installation.
-GZ_RESOURCE_PATH := $(GS_WORLDS_DIR):$(PX4_DIR)/Tools/simulation/gz/models:$(GS_GZ_MODELS_DIR)
+# My assets first, so model:// resolves to the Guarded Swarms versions.
+# Gazebo itself is launched by scripts/gz_launch.sh; this is passed to the PX4
+# process so that it reads MY model.sdf when spawning the vehicle.
+GZ_RESOURCE_PATH := $(GS_GZ_MODELS_DIR):$(GS_WORLDS_DIR)
+
+GZ_LAUNCH        := bash $(REPO_ROOT)/scripts/gz_launch.sh
+PX4_STANDALONE   := PX4_GZ_STANDALONE=1
+GZ_BOOT_WAIT     := 8
 
 # ------------------------------------------------------------------------------
 # ROS 2

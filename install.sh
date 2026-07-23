@@ -51,6 +51,17 @@ NC='\033[0m'
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# ------------------------------------------------------------------------------
+# PX4 firmware pin
+#
+# px4_msgs (submodule, pinned by git) is generated from this exact PX4 commit.
+# Cloning PX4 main instead would produce mismatched uORB message definitions:
+# the uXRCE-DDS bridge then fails silently on some topics and vehicles never
+# move. Do not bump this without regenerating px4_msgs to match.
+# ------------------------------------------------------------------------------
+PX4_COMMIT="091ac918b133d518da8b73e395243ea0e0d087b5"
+PX4_BRANCH="guarded-swarms-pin"
+
 log()  { echo -e "${BLUE}[install]${NC} $1"; }
 ok()   { echo -e "${GREEN}[ok]${NC} $1"; }
 warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
@@ -169,13 +180,33 @@ sudo apt-get install -y \
 PX4_DIR="$HOME/PX4-Autopilot"
 
 if [ -d "$PX4_DIR" ]; then
-    ok "PX4-Autopilot already exists at $PX4_DIR. Skipping clone."
+    CURRENT_COMMIT=$(git -C "$PX4_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
+    if [ "$CURRENT_COMMIT" = "$PX4_COMMIT" ]; then
+        ok "PX4-Autopilot already at pinned commit ${PX4_COMMIT:0:8}."
+    else
+        warn "PX4-Autopilot exists but is at ${CURRENT_COMMIT:0:8}, expected ${PX4_COMMIT:0:8}."
+        warn "This WILL break uXRCE-DDS topic bridging (vehicles arm but never move)."
+        warn "To fix:"
+        warn "    cd $PX4_DIR"
+        warn "    git fetch --unshallow --tags   # only if the clone is shallow"
+        warn "    git checkout -B $PX4_BRANCH $PX4_COMMIT"
+        warn "    git submodule update --init --recursive"
+        warn "    make distclean && make px4_sitl_default"
+        fail "Refusing to continue with a mismatched PX4 version."
+    fi
 else
-    log "Cloning PX4-Autopilot..."
+    log "Cloning PX4-Autopilot at pinned commit ${PX4_COMMIT:0:8}..."
     cd "$HOME"
-    git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1
-    ok "PX4-Autopilot cloned."
+    # Blobless clone: full history (needed to check out an arbitrary commit)
+    # but blobs fetched on demand, so it stays fast.
+    git clone --filter=blob:none https://github.com/PX4/PX4-Autopilot.git
+    cd "$PX4_DIR"
+    git checkout -B "$PX4_BRANCH" "$PX4_COMMIT"
+    git submodule update --init --recursive
+    ok "PX4-Autopilot cloned and pinned."
 fi
+
+cd "$PX4_DIR"
 
 if [ -f "$PX4_DIR/build/px4_sitl_default/bin/px4" ]; then
     ok "PX4 already built. Skipping."

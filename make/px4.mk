@@ -44,11 +44,8 @@ endef
 # Guard: verify UGV assets are installed
 # ------------------------------------------------------------------------------
 define CHECK_UGV
-	@if ! grep -q "lidar_sensor_link" "$(PX4_DIR)/Tools/simulation/gz/models/r1_rover/model.sdf" 2>/dev/null; then \
-		echo ""; \
-		echo "ERROR: Guarded Swarms rover airframe not installed."; \
-		echo "Run 'make setup-ugv' first (only needed once)."; \
-		echo ""; \
+	@if ! grep -q "lidar_sensor_link" "$(GS_GZ_MODELS_DIR)/r1_rover/model.sdf" 2>/dev/null; then \
+		echo "ERROR: $(GS_GZ_MODELS_DIR)/r1_rover/model.sdf missing or has no lidar."; \
 		exit 1; \
 	fi
 endef
@@ -77,7 +74,7 @@ px4-run-uav:
 	@echo "  param set NAV_DLL_ACT 0   && param set COM_RCL_EXCEPT 4"
 	@echo "  param save && commander takeoff"
 	@echo ""
-	@cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500_lidar_front
+	@cd $(PX4_DIR) && HEADLESS=1 GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front
 
 # ------------------------------------------------------------------------------
 # UGV - differential rover with frontal lidar (headless, default rover world)
@@ -90,7 +87,7 @@ px4-run-ugv:
 	$(CHECK_UGV)
 	@pkill -9 -x px4 2>/dev/null || true
 	@sleep 1
-	@cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_r1_rover
+	@cd $(PX4_DIR) && HEADLESS=1 GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_r1_rover
 
 # ------------------------------------------------------------------------------
 # UAV with Gazebo GUI - default empty world
@@ -116,33 +113,23 @@ px4-gui-uav:
 # ------------------------------------------------------------------------------
 px4-gui-uav-urban:
 	@echo "=========================================="
-	@echo "Launching PX4 SITL + Gazebo GUI - UAV Urban (R1)"
+	@echo "PX4 SITL + Gazebo - UAV Urban (R1)"
 	@echo "=========================================="
 	$(CHECK_PX4)
 	$(GZ_KILL)
-	@echo "World: urban_uav (buildings + obstacle pillar)"
-	@echo ""
-	@# SIMULATION ONLY: auto-arms after PX4 starts via expect script.
-	@# Comment out the next 'expect' block when using real hardware.
+	@$(GZ_LAUNCH) urban_uav &
+	@sleep $(GZ_BOOT_WAIT)
 	@expect -c ' \
 		set timeout 60; \
-		spawn bash -c "cd $(PX4_DIR) && __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 PX4_GZ_WORLD=urban_uav GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front"; \
-		expect "pxh>"; \
-		send "param set COM_ARM_WO_GPS 1\r"; \
-		expect "pxh>"; \
-		send "param set SYS_HAS_MAG 0\r"; \
-		expect "pxh>"; \
-		send "param set COM_RC_IN_MODE 1\r"; \
-		expect "pxh>"; \
-		send "param set NAV_RCL_ACT 0\r"; \
-		expect "pxh>"; \
-		send "param set NAV_DLL_ACT 0\r"; \
-		expect "pxh>"; \
-		send "param set COM_RCL_EXCEPT 4\r"; \
-		expect "pxh>"; \
-		send "param save\r"; \
-		expect "pxh>"; \
-		send "commander takeoff\r"; \
+		spawn bash -c "cd $(PX4_DIR) && $(PX4_STANDALONE) PX4_GZ_WORLD=urban_uav GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front"; \
+		expect "pxh>"; send "param set COM_ARM_WO_GPS 1\r"; \
+		expect "pxh>"; send "param set SYS_HAS_MAG 0\r"; \
+		expect "pxh>"; send "param set COM_RC_IN_MODE 1\r"; \
+		expect "pxh>"; send "param set NAV_RCL_ACT 0\r"; \
+		expect "pxh>"; send "param set NAV_DLL_ACT 0\r"; \
+		expect "pxh>"; send "param set COM_RCL_EXCEPT 4\r"; \
+		expect "pxh>"; send "param save\r"; \
+		expect "pxh>"; send "commander takeoff\r"; \
 		wait \
 	' &
 
@@ -163,7 +150,8 @@ px4-gui-ugv:
 		__NV_PRIME_RENDER_OFFLOAD=1 \
 		__GLX_VENDOR_LIBRARY_NAME=nvidia \
 		MESA_GL_VERSION_OVERRIDE=4.5 \
-		make px4_sitl gz_r1_rover 
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		make px4_sitl gz_r1_rover
 
 
 # ------------------------------------------------------------------------------
@@ -172,17 +160,15 @@ px4-gui-ugv:
 # ------------------------------------------------------------------------------
 px4-gui-ugv-urban:
 	@echo "=========================================="
-	@echo "Launching PX4 SITL + Gazebo GUI - UGV Urban (R2)"
+	@echo "PX4 SITL + Gazebo - UGV Urban (R2)"
 	@echo "=========================================="
 	$(CHECK_PX4)
 	$(CHECK_UGV)
 	$(GZ_KILL)
-	@echo "World: urban_ugv (street corridor + abandoned vehicle)"
-	@echo ""
+	@$(GZ_LAUNCH) urban_ugv &
+	@sleep $(GZ_BOOT_WAIT)
 	@cd $(PX4_DIR) && \
-		__NV_PRIME_RENDER_OFFLOAD=1 \
-		__GLX_VENDOR_LIBRARY_NAME=nvidia \
-		MESA_GL_VERSION_OVERRIDE=4.5 \
+		$(PX4_STANDALONE) \
 		PX4_GZ_WORLD=urban_ugv \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		make px4_sitl gz_r1_rover
@@ -237,42 +223,23 @@ demo-px4-swarm-2:
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)
 # ------------------------------------------------------------------------------
 setup-worlds:
-	@echo "=========================================="
-	@echo "Installing Guarded Swarms World Files"
-	@echo "=========================================="
-	@echo ""
-	$(CHECK_PX4)
-	@echo "[1/1] Copying world files to PX4..."
-	@cp $(GS_WORLDS_DIR)/urban_uav.sdf $(PX4_DIR)/Tools/simulation/gz/worlds/
-	@cp $(GS_WORLDS_DIR)/urban_ugv.sdf $(PX4_DIR)/Tools/simulation/gz/worlds/
-	@echo "      Done."
-	@echo ""
-	@echo "Worlds installed:"
-	@echo "  urban_uav.sdf -> UAV urban scenario (R1)"
-	@echo "  urban_ugv.sdf -> UGV urban scenario (R2)"
-	@echo ""
+	@echo "setup-worlds is no longer needed: worlds are resolved from"
+	@echo "  $(GS_WORLDS_DIR)"
+	@echo "via GZ_SIM_RESOURCE_PATH in scripts/gz_launch.sh."
+	@ls -1 $(GS_WORLDS_DIR)/*.sdf
 
 # ------------------------------------------------------------------------------
 # Setup: install Guarded Swarms rover assets into PX4 (run once)
 # ------------------------------------------------------------------------------
 setup-ugv:
 	@echo "=========================================="
-	@echo "Installing Guarded Swarms Rover Assets"
+	@echo "Guarded Swarms Rover Assets"
 	@echo "=========================================="
-	@echo ""
 	$(CHECK_PX4)
-	@echo "[1/2] Installing r1_rover model with frontal lidar..."
-	@echo "      (overwrites PX4's stock r1_rover model.sdf with our"
-	@echo "       lidar-equipped version; airframe 4009 stays unchanged)"
-	@cp $(GS_MODELS_DIR)/r1_rover/model.sdf \
-		$(PX4_DIR)/Tools/simulation/gz/models/r1_rover/model.sdf
-	@echo "      Done."
-	@echo ""
-	@echo "[2/2] Rebuilding PX4 SITL..."
-	@cd $(PX4_DIR) && make px4_sitl_default 2>&1 | tail -3
-	@echo ""
-	@echo "Rover setup complete. Run 'make px4-gui-ugv' or 'make px4-gui-ugv-urban'."
-	@echo ""
+	$(CHECK_UGV)
+	@echo "OK: r1_rover model with lidar found at"
+	@echo "    $(GS_GZ_MODELS_DIR)/r1_rover/model.sdf"
+	@echo "No files are copied into PX4 — resolution is via GZ_SIM_RESOURCE_PATH."
 
 # ------------------------------------------------------------------------------
 # Misc
