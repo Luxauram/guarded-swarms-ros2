@@ -191,10 +191,18 @@ private:
    * is used as a safe fallback.
    */
   void on_lidar(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
+    // Gazebo encodes the two out-of-range cases with opposite signs, and they
+    // mean opposite things:
+    //   +inf  no return within range_max      -> nothing ahead, safe
+    //   -inf  closer than range_min           -> contact, maximally unsafe
+    // Discarding both as "not finite" makes the most dangerous reading produce
+    // the safest possible output, so the veto never fires exactly when it is
+    // needed. -inf is therefore clamped to range_min.
     float min_range = msg->range_max;
     for (float r : msg->ranges) {
-      if (std::isfinite(r) && r < min_range) {
-        min_range = r;
+      const float sample = (std::isinf(r) && r < 0.0f) ? msg->range_min : r;
+      if (std::isfinite(sample) && sample < min_range) {
+        min_range = sample;
       }
     }
     if (!std::isfinite(min_range)) {

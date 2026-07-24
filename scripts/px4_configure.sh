@@ -65,15 +65,21 @@ case "$VEHICLE" in
         param set NAV_DLL_ACT 0
         param set COM_RCL_EXCEPT 4
         param set COM_ARM_WO_GPS 1
+        # The SITL battery drains over time; in a long demo session it eventually
+        # trips a failsafe mid-flight. Disable it: this is a simulation scenario,
+        # not an endurance test.
+        param set COM_LOW_BAT_ACT 0
         param save
-        ;;
+                ;;
     ugv)
-        echo "[px4_configure] instance $INSTANCE: UGV uses PX4 defaults, nothing to do"
-        ;;
+        echo "[px4_configure] instance $INSTANCE: UGV parameters"
+        param set COM_LOW_BAT_ACT 0
+        param save
+                ;;
     *)
         echo "ERROR: unknown vehicle type '$VEHICLE' (expected uav or ugv)"
         exit 1
-        ;;
+                ;;
 esac
 
 if [ "$INSTANCE" != "0" ]; then

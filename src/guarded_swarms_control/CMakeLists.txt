@@ -81,7 +81,7 @@ target_include_directories(rover_control_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(rover_control_node
-  rclcpp px4_msgs
+  rclcpp px4_msgs std_msgs
 )
 target_compile_features(rover_control_node PUBLIC c_std_99 cxx_std_17) 
 

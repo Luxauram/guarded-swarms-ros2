@@ -44,6 +44,8 @@ SafetyBoardNode::SafetyBoardNode() : Node("safety_board_node") {
   this->declare_parameter("sensor_staleness_s", DEFAULT_SENSOR_STALENESS_S);
 
   min_proximity_m_ = this->get_parameter("min_proximity_m").as_double();
+  this->declare_parameter("proximity_release_m", DEFAULT_PROXIMITY_RELEASE_M);
+  proximity_release_m_ = this->get_parameter("proximity_release_m").as_double();
   max_pitch_deg_ = this->get_parameter("max_pitch_deg").as_double();
   max_roll_deg_ = this->get_parameter("max_roll_deg").as_double();
   min_battery_pct_ = this->get_parameter("min_battery_percent").as_double();
@@ -154,7 +156,7 @@ void SafetyBoardNode::cmd_raw_callback(
 // Safety Evaluation - OR Logic
 // ============================================================================
 
-SafetyVerdict SafetyBoardNode::evaluate_safety() const {
+SafetyVerdict SafetyBoardNode::evaluate_safety() {
   SafetyVerdict verdict;
   double now = now_seconds();
 
@@ -178,13 +180,20 @@ SafetyVerdict SafetyBoardNode::evaluate_safety() const {
     return verdict;
   }
 
-  // -- 2. Proximity --
+  // -- 2. Proximity, with hysteresis --
+  // Trip below min_proximity_m_, release only above proximity_release_m_.
   if (sensors_.proximity_m < min_proximity_m_) {
+    proximity_latched_ = true;
+  } else if (sensors_.proximity_m > proximity_release_m_) {
+    proximity_latched_ = false;
+  }
+
+  if (proximity_latched_) {
     verdict.proximity_ok = false;
     verdict.is_safe = false;
     verdict.violation_reason =
         "proximity=" + std::to_string(sensors_.proximity_m) +
-        "m < min=" + std::to_string(min_proximity_m_) + "m";
+        "m, latched below min=" + std::to_string(min_proximity_m_) + "m";
     return verdict;
   }
 

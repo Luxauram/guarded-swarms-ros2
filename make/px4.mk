@@ -26,7 +26,8 @@
         px4-gui-uav px4-gui-ugv \
         px4-gui-uav-urban px4-gui-ugv-urban \
         px4-kill px4-config px4-reset-params \
-        setup-ugv gen-coastal setup-worlds gazebo-test gazebo-worlds \
+        setup-ugv setup-worlds gazebo-test gazebo-worlds \
+				gen-coastal check-coastal \
         demo-swarm demo-coastal
 
 # ------------------------------------------------------------------------------
@@ -214,7 +215,7 @@ demo-swarm:
 		PX4_GZ_WORLD=$(SWARM_WORLD) \
 		PX4_GZ_MODEL_POSE=$(UAV_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		make px4_sitl gz_x500_lidar_front; bash' &
+		make px4_sitl gz_x500_lidar_front 2>&1 | tee /tmp/px4_0.log; bash' &
 	@sleep $(UAV_BOOT_WAIT)
 	@echo "[4/6] Configuring UAV parameters"
 	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
@@ -228,7 +229,7 @@ demo-swarm:
 		PX4_GZ_WORLD=$(SWARM_WORLD) \
 		PX4_GZ_MODEL_POSE=$(UGV_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		./bin/px4 -i 1; bash' &
+		./bin/px4 -i 1 2>&1 | tee /tmp/px4_1.log; bash' &
 	@sleep 10
 	@echo "[6/6] ROS 2 swarm pipeline"
 	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup swarm_pipeline.launch.py'
@@ -269,7 +270,7 @@ demo-coastal:
 		PX4_GZ_WORLD=$(COASTAL_WORLD) \
 		PX4_GZ_MODEL_POSE=$(UAV0_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		make px4_sitl gz_x500_lidar_front; bash' &
+		make px4_sitl gz_x500_lidar_front 2>&1 | tee /tmp/px4_0.log; bash' &
 	@sleep $(UAV_BOOT_WAIT)
 	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
 	@echo "[4/6] UAV 1 - instance 1 (MAV_SYS_ID 2) at $(UAV1_POSE)"
@@ -282,7 +283,7 @@ demo-coastal:
 		PX4_GZ_WORLD=$(COASTAL_WORLD) \
 		PX4_GZ_MODEL_POSE=$(UAV1_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		./bin/px4 -i 1; bash' &
+		./bin/px4 -i 1 2>&1 | tee /tmp/px4_1.log; bash' &
 	@sleep 12
 	@bash $(REPO_ROOT)/scripts/px4_configure.sh 1 uav
 	@echo "[5/6] UGV - instance 2 (MAV_SYS_ID 3) at $(COASTAL_UGV_POSE)"
@@ -295,18 +296,12 @@ demo-coastal:
 		PX4_GZ_WORLD=$(COASTAL_WORLD) \
 		PX4_GZ_MODEL_POSE=$(COASTAL_UGV_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		./bin/px4 -i 2; bash' &
+		./bin/px4 -i 2 2>&1 | tee /tmp/px4_2.log; bash' &
 	@sleep 12
 	@bash $(REPO_ROOT)/scripts/px4_configure.sh 2 ugv
-	@echo "[6/6] Ready. Start the control nodes in three terminals:"
-	@echo "  ros2 run guarded_swarms_control offboard_control_node"
-	@echo "  ros2 run guarded_swarms_control offboard_control_node \\"
-	@echo "      --ros-args -r __ns:=/px4_1 -p target_system:=2"
-	@echo "  ros2 run guarded_swarms_control rover_control_node \\"
-	@echo "      --ros-args -r __ns:=/px4_2 -p target_system:=3 \\"
-	@echo "      -p waypoints:=\"[0.0, 0.0, 0.0, 60.0]\""
+	@echo "[6/6] ROS 2 coastal pipeline"
 	@bash -c '$(FULL_SOURCE) && ros2 daemon stop && ros2 daemon start' || true
-	@echo "" 
+	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup coastal_pipeline.launch.py'
 
 # ------------------------------------------------------------------------------
 # Regenerate the coastal world from its generator (deterministic seed)
@@ -315,6 +310,9 @@ gen-coastal:
 	@echo "Regenerating $(GS_WORLDS_DIR)/coastal.sdf ..."
 	@python3 $(REPO_ROOT)/scripts/gen_coastal.py
 	@echo "Done. Verify with: bash scripts/gz_launch.sh coastal"
+
+check-coastal:
+	@bash $(REPO_ROOT)/scripts/check_coastal.sh
 
 # ------------------------------------------------------------------------------
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)

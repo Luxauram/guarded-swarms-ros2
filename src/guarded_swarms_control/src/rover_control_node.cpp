@@ -54,8 +54,10 @@
 
 #include <rclcpp/rclcpp.hpp>
 #include <px4_msgs/msg/rover_position_setpoint.hpp>
+#include <px4_msgs/msg/rover_throttle_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
+#include <std_msgs/msg/float32.hpp>
 #include <cmath>
 #include <vector>
 #include <array>
@@ -71,6 +73,15 @@ static constexpr float CRUISING_SPEED_MS   = 1.0f;   // m/s
 static constexpr float ARRIVAL_SPEED_MS    = 0.3f;   // m/s - slow on approach
 static constexpr double PUBLISH_RATE_HZ    = 10.0;
 static constexpr double ARM_DELAY_S        = 5.0;    // s - wait before arming
+// After this long under a sustained veto the current waypoint is treated as
+// unreachable and the patrol reverses. Without it the rover waits forever in
+// front of the first obstacle on its route.
+static constexpr double VETO_GIVEUP_S      = 6.0;
+// Minimum time a veto is honoured once it fires. Without it the vehicle stops,
+// the obstacle drops out of the lidar cone, the veto clears, and the vehicle
+// resumes: it edges forward a few centimetres per cycle and the give-up timer
+// never matures.
+static constexpr double VETO_MIN_HOLD_S    = 2.0;
 
 // Waypoints in NED frame (north, east) relative to spawn origin
 // Default patrol: 8 m straight ahead (NED north). Overridden by the
@@ -125,11 +136,38 @@ public:
             px4_msgs::msg::VehicleCommand>(
             "fmu/in/vehicle_command", 10);
 
+        // Under veto the rover is stopped by commanding zero throttle, not by
+        // commanding its own position: a position setpoint at zero distance
+        // leaves the target heading undefined and the vehicle spins in place.
+        throttle_pub_ = this->create_publisher<
+            px4_msgs::msg::RoverThrottleSetpoint>(
+            "fmu/in/rover_throttle_setpoint", 10);
+
         local_pos_sub_ = this->create_subscription<
             px4_msgs::msg::VehicleLocalPosition>(
             "fmu/out/vehicle_local_position_v1", qos,
             [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
                 on_local_position(msg);
+            });
+        
+        // The analogue safety board publishes its verdict here. The control
+        // node does not evaluate safety itself and does not know why a veto
+        // fires: it only stops commanding motion while one is active. The
+        // asymmetry is deliberate and mirrors the paper's decoupling.
+        //
+        // In simulation the board cannot physically interrupt actuation the
+        // way an analogue circuit would, so the gate lives in the commanding
+        // node. Document this as a simulation limitation.
+        cmd_safe_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+            "actuator_cmd_safe", 10,
+            [this](const std_msgs::msg::Float32::SharedPtr msg) {
+                if (msg->data < 0.01f) {
+                    vetoed_ = true;
+                    last_veto_ = this->now();
+                } else if (veto_timing_ &&
+                           (this->now() - last_veto_).seconds() > VETO_MIN_HOLD_S) {
+                    vetoed_ = false;
+                }
             });
 
         timer_ = this->create_wall_timer(
@@ -163,6 +201,8 @@ private:
     rclcpp::Publisher<px4_msgs::msg::RoverPositionSetpoint>::SharedPtr pos_setpoint_pub_;
     rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr vehicle_cmd_pub_;
     rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr local_pos_sub_;
+    rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr cmd_safe_sub_;
+    bool vetoed_ = false;
     rclcpp::TimerBase::SharedPtr timer_;
 
     // -----------------------------------------------------------------------
@@ -179,6 +219,11 @@ private:
     float rover_north_   = 0.0f;
     float rover_east_    = 0.0f;
     bool  pos_valid_     = false;
+
+    rclcpp::Publisher<px4_msgs::msg::RoverThrottleSetpoint>::SharedPtr throttle_pub_;
+    rclcpp::Time veto_start_;
+    rclcpp::Time last_veto_;
+    bool  veto_timing_   = false;
 
     // -----------------------------------------------------------------------
     // Local position callback
@@ -211,7 +256,26 @@ private:
 
         if (!patrol_active_ || !pos_valid_) return;
 
-        // --- Phase 2: publish current waypoint ---
+        // --- Phase 2: publish current waypoint, unless vetoed ---
+        if (vetoed_) {
+            publish_stop();
+
+            if (!veto_timing_) {
+                veto_timing_ = true;
+                veto_start_ = this->now();
+                RCLCPP_WARN(this->get_logger(),
+                    "Veto active: stopping at (%.1f, %.1f)",
+                    rover_north_, rover_east_);
+            } else if ((this->now() - veto_start_).seconds() > VETO_GIVEUP_S) {
+                RCLCPP_WARN(this->get_logger(),
+                    "WP%zu unreachable under sustained veto, reversing patrol.",
+                    wp_index_);
+                advance_waypoint();
+                veto_timing_ = false;
+            }
+            return;
+        }
+        veto_timing_ = false;
         publish_waypoint(waypoints_[wp_index_]);
 
         // --- Phase 3: check arrival ---
@@ -279,6 +343,15 @@ private:
         msg.start_ned[0]    = std::numeric_limits<float>::quiet_NaN();
         msg.start_ned[1]    = std::numeric_limits<float>::quiet_NaN();
         pos_setpoint_pub_->publish(msg);
+    }
+
+    void publish_stop()
+    {
+        px4_msgs::msg::RoverThrottleSetpoint msg;
+        msg.timestamp       = this->now().nanoseconds() / 1000;
+        msg.throttle_body_x = 0.0f;
+        msg.throttle_body_y = 0.0f;
+        throttle_pub_->publish(msg);
     }
 
     void arm_rover()

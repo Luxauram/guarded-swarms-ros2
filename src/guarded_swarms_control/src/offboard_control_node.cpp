@@ -66,6 +66,10 @@ public:
     target_system_ = static_cast<uint8_t>(
         this->declare_parameter<int>("target_system", 1));
 
+    // Hover altitude in metres, positive up. Multi-UAV scenarios stack the
+    // platforms at different altitudes so their patrol volumes do not overlap.
+    hover_altitude_m_ = this->declare_parameter<double>("hover_altitude", 5.0);
+
     offboard_control_mode_publisher_ =
         this->create_publisher<px4_msgs::msg::OffboardControlMode>(
             TOPIC_OFFBOARD_CONTROL_MODE, QUEUE_SIZE);
@@ -95,7 +99,7 @@ public:
 
     RCLCPP_INFO(this->get_logger(), "Offboard control node started");
     RCLCPP_INFO(this->get_logger(), "Target hover altitude: %.1f meters",
-                HOVER_ALTITUDE_METERS);
+                hover_altitude_m_);
     RCLCPP_INFO(this->get_logger(), "Waiting %.1f seconds before arming...",
                 ARMING_DELAY_SECONDS);
     RCLCPP_INFO(this->get_logger(), "Target system ID: %u", target_system_);
@@ -226,7 +230,7 @@ private:
 
     msg.position[0] = TARGET_POSITION_NORTH;
     msg.position[1] = TARGET_POSITION_EAST;
-    msg.position[2] = -HOVER_ALTITUDE_METERS;
+    msg.position[2] = -hover_altitude_m_;
 
     msg.yaw = TARGET_YAW_RADIANS;
 
@@ -304,6 +308,7 @@ private:
 
   uint64_t offboard_setpoint_counter_;
   uint8_t target_system_ = 1;
+  double hover_altitude_m_ = 5.0;
   bool armed_ = false;
   bool arm_confirmed_ = false;
 };

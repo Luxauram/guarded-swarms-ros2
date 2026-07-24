@@ -122,4 +122,8 @@ COASTAL_UGV_POSE := -60,-14,0
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the SECOND value drives along the shore.
 # From X = -60 eastward: the road barrier at X = -8 stops it via proximity veto.
-COASTAL_UGV_WAYPOINTS := [0.0, 0.0, 0.0, 60.0]
+# Patrol turnaround sits short of the road barrier at Gazebo X = -8: the
+# patrol route is deliberately clear. The proximity veto is a safety net for
+# obstacles that appear unexpectedly, not a navigation mechanism — route
+# replanning belongs to the worker agents in the digital layer.
+COASTAL_UGV_WAYPOINTS := [0.0, 0.0, 0.0, 46.0]

@@ -118,6 +118,11 @@ class SafetyBoardNode : public rclcpp::Node {
   static constexpr int QUEUE_SIZE = 10;
 
   static constexpr float DEFAULT_MIN_PROXIMITY_M = 1.5f;
+  // Release threshold, deliberately higher than the trip threshold. With a
+  // single threshold the veto clears as soon as the vehicle stops, the vehicle
+  // resumes, trips again, and creeps forward a few centimetres per cycle until
+  // it reaches the obstacle anyway.
+  static constexpr float DEFAULT_PROXIMITY_RELEASE_M = 2.5f;
   static constexpr float DEFAULT_MAX_PITCH_DEG = 30.0f;
   static constexpr float DEFAULT_MAX_ROLL_DEG = 30.0f;
   static constexpr float DEFAULT_MIN_BATTERY_PCT = 15.0f;
@@ -177,7 +182,7 @@ class SafetyBoardNode : public rclcpp::Node {
    * @return A @c SafetyVerdict describing the overall result and per-check
    * outcomes.
    */
-  SafetyVerdict evaluate_safety() const;
+  SafetyVerdict evaluate_safety();
 
   /**
    * @brief Publishes the current safety status on the status topic and emits a
@@ -204,6 +209,8 @@ class SafetyBoardNode : public rclcpp::Node {
   float min_altitude_m_;
   float max_altitude_m_;
   float sensor_staleness_s_;
+  float proximity_release_m_;
+  bool proximity_latched_ = false;
 
   SensorSnapshot sensors_;
 
