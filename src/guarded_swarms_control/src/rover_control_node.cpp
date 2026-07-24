@@ -45,6 +45,9 @@
  *   target_system (int, default 1) — PX4 MAV_SYS_ID of the target vehicle.
  *     Multi-vehicle: instance N has MAV_SYS_ID N+1, so instance 1 needs
  *     target_system:=2. Topics are namespaced separately (__ns:=/px4_1).
+ *   waypoints (double[], default [0,0,8,0]) — patrol waypoints in the NED
+ *     frame relative to spawn, flattened as north,east,north,east,...
+ *     NED East = Gazebo X, so a shore-parallel patrol varies the second value.
  *
  * @author Luca D'Aurizio
  */
@@ -70,10 +73,9 @@ static constexpr double PUBLISH_RATE_HZ    = 10.0;
 static constexpr double ARM_DELAY_S        = 5.0;    // s - wait before arming
 
 // Waypoints in NED frame (north, east) relative to spawn origin
-static const std::vector<std::array<float, 2>> WAYPOINTS = {
-    {  0.0f,  0.0f },   // WP0: home / return point
-    {  8.0f,  0.0f },   // WP1: advance toward obstacle (veto fires at ~8.5m)
-};
+// Default patrol: 8 m straight ahead (NED north). Overridden by the
+// "waypoints" parameter, flattened as north,east,north,east,...
+static const std::vector<double> DEFAULT_WAYPOINTS = { 0.0, 0.0, 8.0, 0.0 };
 
 // ============================================================================
 // RoverControlNode
@@ -89,6 +91,26 @@ public:
         // addressed to the wrong system ID is silently ignored by PX4.
         target_system_ = static_cast<uint8_t>(
             this->declare_parameter<int>("target_system", 1));
+
+        // Patrol waypoints, NED relative to spawn, flattened as
+        // north,east,north,east,... Making these a parameter lets one node
+        // serve different scenarios: the urban rover advances north toward
+        // the obstacle, the coastal rover patrols east along the shore.
+        const auto flat = this->declare_parameter<std::vector<double>>(
+            "waypoints", DEFAULT_WAYPOINTS);
+
+        if (flat.size() < 4 || flat.size() % 2 != 0) {
+            RCLCPP_ERROR(this->get_logger(),
+                "Parameter 'waypoints' must hold an even count of at least 4 "
+                "values (got %zu). Falling back to the default patrol.",
+                flat.size());
+            waypoints_ = {{0.0f, 0.0f}, {8.0f, 0.0f}};
+        } else {
+            for (size_t i = 0; i + 1 < flat.size(); i += 2) {
+                waypoints_.push_back({static_cast<float>(flat[i]),
+                                      static_cast<float>(flat[i + 1])});
+            }
+        }
 
         // QoS for PX4 topics
         auto qos = rclcpp::QoS(10)
@@ -121,7 +143,7 @@ public:
         RCLCPP_INFO(this->get_logger(),
             "RoverControlNode initialized");
         RCLCPP_INFO(this->get_logger(),
-            "  Patrol waypoints: %zu", WAYPOINTS.size());
+            "  Patrol waypoints: %zu", waypoints_.size());
         RCLCPP_INFO(this->get_logger(),
             "  Cruising speed:   %.1f m/s", CRUISING_SPEED_MS);
         RCLCPP_INFO(this->get_logger(),
@@ -148,6 +170,7 @@ private:
     // -----------------------------------------------------------------------
     rclcpp::Time start_time_;
     uint8_t target_system_ = 1;
+    std::vector<std::array<float, 2>> waypoints_;
     bool armed_          = false;
     bool patrol_active_  = false;
     size_t wp_index_     = 0;
@@ -189,15 +212,15 @@ private:
         if (!patrol_active_ || !pos_valid_) return;
 
         // --- Phase 2: publish current waypoint ---
-        publish_waypoint(WAYPOINTS[wp_index_]);
+        publish_waypoint(waypoints_[wp_index_]);
 
         // --- Phase 3: check arrival ---
-        if (reached_waypoint(WAYPOINTS[wp_index_])) {
+        if (reached_waypoint(waypoints_[wp_index_])) {
             RCLCPP_INFO(this->get_logger(),
                 "Reached WP%zu (%.1f, %.1f)",
                 wp_index_,
-                WAYPOINTS[wp_index_][0],
-                WAYPOINTS[wp_index_][1]);
+                waypoints_[wp_index_][0],
+                waypoints_[wp_index_][1]);
 
             advance_waypoint();
         }
@@ -209,7 +232,7 @@ private:
     void advance_waypoint()
     {
         if (wp_forward_) {
-            if (wp_index_ + 1 < WAYPOINTS.size()) {
+            if (wp_index_ + 1 < waypoints_.size()) {
                 wp_index_++;
             } else {
                 // reached end — reverse
@@ -229,8 +252,8 @@ private:
         RCLCPP_INFO(this->get_logger(),
             "Next WP%zu (%.1f, %.1f) | direction: %s",
             wp_index_,
-            WAYPOINTS[wp_index_][0],
-            WAYPOINTS[wp_index_][1],
+            waypoints_[wp_index_][0],
+            waypoints_[wp_index_][1],
             wp_forward_ ? "forward" : "returning");
     }
 

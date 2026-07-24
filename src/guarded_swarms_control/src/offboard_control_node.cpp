@@ -145,7 +145,8 @@ private:
   static constexpr float PARAM_FORCE_ARM =
       21196.0f; // bypasses preflight checks - @TODO
 
-  // PX4 component ID. The system ID is deliberately NOT a constant: it is a
+  // PX4 component ID. 
+  // The system ID is deliberately NOT a constant: it is a
   // ROS parameter, see target_system_.
   static constexpr uint8_t PX4_COMPONENT_ID = 1;
 

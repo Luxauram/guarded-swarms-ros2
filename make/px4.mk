@@ -26,8 +26,8 @@
         px4-gui-uav px4-gui-ugv \
         px4-gui-uav-urban px4-gui-ugv-urban \
         px4-kill px4-config px4-reset-params \
-        setup-ugv setup-worlds gazebo-test gazebo-worlds \
-        demo-swarm
+        setup-ugv gen-coastal setup-worlds gazebo-test gazebo-worlds \
+        demo-swarm demo-coastal
 
 # ------------------------------------------------------------------------------
 # Guard: verify PX4 is installed
@@ -210,6 +210,7 @@ demo-swarm:
 	@xterm -title "PX4 UAV - instance 0" -geometry 120x30 -e bash -c ' \
 		cd $(PX4_DIR) && \
 		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_NO_FOLLOW=1 \
 		PX4_GZ_WORLD=$(SWARM_WORLD) \
 		PX4_GZ_MODEL_POSE=$(UAV_POSE) \
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
@@ -221,6 +222,7 @@ demo-swarm:
 	@xterm -title "PX4 UGV - instance 1" -geometry 120x30 -e bash -c ' \
 		cd $(PX4_DIR)/build/px4_sitl_default && \
 		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_NO_FOLLOW=1 \
 		PX4_SYS_AUTOSTART=4009 \
 		PX4_SIM_MODEL=gz_r1_rover \
 		PX4_GZ_WORLD=$(SWARM_WORLD) \
@@ -230,6 +232,89 @@ demo-swarm:
 	@sleep 10
 	@echo "[6/6] ROS 2 swarm pipeline"
 	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup swarm_pipeline.launch.py'
+
+# ------------------------------------------------------------------------------
+# Coastal surveillance demo - 2 UAV + 1 UGV (IET paper 5.1)
+#
+# Same pattern as demo-swarm, one more vehicle. Instance N gets MAV_SYS_ID N+1
+# and the /px4_N topic namespace; instance 0 stays at the root.
+# ------------------------------------------------------------------------------
+demo-coastal:
+	@echo "=========================================="
+	@echo "Coastal Surveillance Demo - 2 UAV + 1 UGV"
+	@echo "=========================================="
+	$(CHECK_PX4)
+	$(CHECK_UGV)
+	$(GZ_KILL)
+	@echo "Clearing instance state for a reproducible start..."
+	@rm -rf $(PX4_DIR)/build/px4_sitl_default/rootfs/1
+	@rm -rf $(PX4_DIR)/build/px4_sitl_default/rootfs/2
+	@echo "[1/6] Gazebo world: $(COASTAL_WORLD)"
+	@xterm -title "Gazebo - $(COASTAL_WORLD)" -geometry 100x20 \
+		-e bash -c '$(GZ_LAUNCH) $(COASTAL_WORLD); bash' &
+	@sleep $(GZ_BOOT_WAIT)
+	@echo "[2/6] uXRCE-DDS agents, one UDP port per instance"
+	@xterm -title "DDS agent :8888" -geometry 90x14 \
+		-e bash -c 'MicroXRCEAgent udp4 -p 8888; bash' &
+	@xterm -title "DDS agent :8889" -geometry 90x14 \
+		-e bash -c 'MicroXRCEAgent udp4 -p 8889; bash' &
+	@xterm -title "DDS agent :8890" -geometry 90x14 \
+		-e bash -c 'MicroXRCEAgent udp4 -p 8890; bash' &
+	@sleep 3
+	@echo "[3/6] UAV 0 - instance 0 (MAV_SYS_ID 1) at $(UAV0_POSE)"
+	@xterm -title "PX4 UAV0 - instance 0" -geometry 120x30 -e bash -c ' \
+		cd $(PX4_DIR) && \
+		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_NO_FOLLOW=1 \
+		PX4_GZ_WORLD=$(COASTAL_WORLD) \
+		PX4_GZ_MODEL_POSE=$(UAV0_POSE) \
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		make px4_sitl gz_x500_lidar_front; bash' &
+	@sleep $(UAV_BOOT_WAIT)
+	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
+	@echo "[4/6] UAV 1 - instance 1 (MAV_SYS_ID 2) at $(UAV1_POSE)"
+	@xterm -title "PX4 UAV1 - instance 1" -geometry 120x30 -e bash -c ' \
+		cd $(PX4_DIR)/build/px4_sitl_default && \
+		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_NO_FOLLOW=1 \
+		PX4_SYS_AUTOSTART=4017 \
+		PX4_SIM_MODEL=gz_x500_lidar_front \
+		PX4_GZ_WORLD=$(COASTAL_WORLD) \
+		PX4_GZ_MODEL_POSE=$(UAV1_POSE) \
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		./bin/px4 -i 1; bash' &
+	@sleep 12
+	@bash $(REPO_ROOT)/scripts/px4_configure.sh 1 uav
+	@echo "[5/6] UGV - instance 2 (MAV_SYS_ID 3) at $(COASTAL_UGV_POSE)"
+	@xterm -title "PX4 UGV - instance 2" -geometry 120x30 -e bash -c ' \
+		cd $(PX4_DIR)/build/px4_sitl_default && \
+		PX4_GZ_STANDALONE=1 \
+		PX4_GZ_NO_FOLLOW=1 \
+		PX4_SYS_AUTOSTART=4009 \
+		PX4_SIM_MODEL=gz_r1_rover \
+		PX4_GZ_WORLD=$(COASTAL_WORLD) \
+		PX4_GZ_MODEL_POSE=$(COASTAL_UGV_POSE) \
+		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
+		./bin/px4 -i 2; bash' &
+	@sleep 12
+	@bash $(REPO_ROOT)/scripts/px4_configure.sh 2 ugv
+	@echo "[6/6] Ready. Start the control nodes in three terminals:"
+	@echo "  ros2 run guarded_swarms_control offboard_control_node"
+	@echo "  ros2 run guarded_swarms_control offboard_control_node \\"
+	@echo "      --ros-args -r __ns:=/px4_1 -p target_system:=2"
+	@echo "  ros2 run guarded_swarms_control rover_control_node \\"
+	@echo "      --ros-args -r __ns:=/px4_2 -p target_system:=3 \\"
+	@echo "      -p waypoints:=\"[0.0, 0.0, 0.0, 60.0]\""
+	@bash -c '$(FULL_SOURCE) && ros2 daemon stop && ros2 daemon start' || true
+	@echo "" 
+
+# ------------------------------------------------------------------------------
+# Regenerate the coastal world from its generator (deterministic seed)
+# ------------------------------------------------------------------------------
+gen-coastal:
+	@echo "Regenerating $(GS_WORLDS_DIR)/coastal.sdf ..."
+	@python3 $(REPO_ROOT)/scripts/gen_coastal.py
+	@echo "Done. Verify with: bash scripts/gz_launch.sh coastal"
 
 # ------------------------------------------------------------------------------
 # Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)

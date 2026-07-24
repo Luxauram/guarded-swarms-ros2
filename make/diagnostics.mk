@@ -68,12 +68,27 @@ setup-px4:
 	@echo "=========================================="
 	@echo ""
 	@if [ -d "$(PX4_DIR)" ]; then \
-		echo "PX4-Autopilot already exists at $(PX4_DIR). Skipping clone."; \
-		echo ""; \
+		CURRENT=$$(git -C $(PX4_DIR) rev-parse HEAD 2>/dev/null || echo unknown); \
+		if [ "$$CURRENT" = "$(PX4_COMMIT)" ]; then \
+			echo "PX4-Autopilot already at the pinned commit. Skipping clone."; \
+			echo ""; \
+		else \
+			echo "ERROR: PX4-Autopilot is at $$CURRENT, expected $(PX4_COMMIT)."; \
+			echo "A mismatched firmware silently breaks uXRCE-DDS topic bridging:"; \
+			echo "vehicles arm but never move. To fix:"; \
+			echo "  cd $(PX4_DIR)"; \
+			echo "  git fetch --unshallow --tags   # only if the clone is shallow"; \
+			echo "  git checkout -B $(PX4_BRANCH) $(PX4_COMMIT)"; \
+			echo "  git submodule update --init --recursive"; \
+			echo "  make distclean && make px4_sitl_default"; \
+			exit 1; \
+		fi; \
 	else \
-		echo "Cloning PX4-Autopilot..."; \
-		cd $(HOME) && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1; \
-		echo "Repository cloned."; \
+		echo "Cloning PX4-Autopilot at the pinned commit..."; \
+		cd $(HOME) && git clone --filter=blob:none https://github.com/PX4/PX4-Autopilot.git; \
+		cd $(PX4_DIR) && git checkout -B $(PX4_BRANCH) $(PX4_COMMIT); \
+		cd $(PX4_DIR) && git submodule update --init --recursive; \
+		echo "Repository cloned and pinned."; \
 		echo ""; \
 		echo "Installing dependencies..."; \
 		cd $(PX4_DIR) && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools; \
@@ -142,10 +157,10 @@ diagnose:
 	fi
 	@echo ""
 	@echo "[4] Rover assets:"
-	@if [ -f "$(PX4_DIR)/ROMFS/px4fmu_common/init.d-posix/airframes/50001_gz_rover_differential_lidar" ]; then \
-		echo "  Installed OK"; \
+	@if grep -q "lidar_sensor_link" "$(GS_GZ_MODELS_DIR)/r1_rover/model.sdf" 2>/dev/null; then \
+		echo "  r1_rover model with lidar found (resolved via GZ_SIM_RESOURCE_PATH)"; \
 	else \
-		echo "  Not installed - run make setup-ugv"; \
+		echo "  MISSING: $(GS_GZ_MODELS_DIR)/r1_rover/model.sdf"; \
 	fi
 	@echo ""
 	@echo "[5] Gazebo:"

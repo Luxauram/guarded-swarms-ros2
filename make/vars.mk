@@ -60,7 +60,10 @@ GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models
 GZ_RESOURCE_PATH := $(GS_GZ_MODELS_DIR):$(GS_WORLDS_DIR)
 
 GZ_LAUNCH        := bash $(REPO_ROOT)/scripts/gz_launch.sh
-PX4_STANDALONE   := PX4_GZ_STANDALONE=1
+# PX4_GZ_NO_FOLLOW: stops PX4 from putting the GUI camera in FOLLOW mode on
+# the vehicle it spawns. Follow mode disables orbit and pan, so with more than
+# one vehicle the view becomes unusable.
+PX4_STANDALONE   := PX4_GZ_STANDALONE=1 PX4_GZ_NO_FOLLOW=1
 GZ_BOOT_WAIT     := 8
 
 # ------------------------------------------------------------------------------
@@ -104,3 +107,19 @@ UAV_POSE       := 0,0,0
 # so it must stay on the obstacle's line while clearing the UAV's spawn point.
 UGV_POSE       := -4,0,0
 UAV_BOOT_WAIT  := 15
+
+# ------------------------------------------------------------------------------
+# Coastal scenario (IET paper 5.1): 2 UAV + 1 UGV
+#
+# Poses are Gazebo ENU (X = East, Y = North). The UAV pads are at (+/-24, -24)
+# and the shore road the rover patrols runs along X at Y = -14.
+# ------------------------------------------------------------------------------
+COASTAL_WORLD    := coastal
+UAV0_POSE        := -24,-24,0
+UAV1_POSE        := 24,-24,0
+COASTAL_UGV_POSE := -60,-14,0
+
+# Rover patrol, NED relative to spawn, flattened as north,east,north,east...
+# NED East = Gazebo X, so varying the SECOND value drives along the shore.
+# From X = -60 eastward: the road barrier at X = -8 stops it via proximity veto.
+COASTAL_UGV_WAYPOINTS := [0.0, 0.0, 0.0, 60.0]
