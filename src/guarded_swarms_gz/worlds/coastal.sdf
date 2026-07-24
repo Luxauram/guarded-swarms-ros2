@@ -2062,6 +2062,16 @@
 
     </model>
 
+    <!-- ============ Hostile aerial target ============
+         Driven kinematically by intruder_node, so the trajectory is
+         identical on every run. At world level: see above.
+         ============================================================== -->
+    <include>
+      <uri>model://intruder</uri>
+      <name>intruder</name>
+      <pose>0 180 15 0 0 0</pose>
+    </include>
+
     <!-- ============ Shore obstacles on the UGV patrol line: the digital layer keeps issuing the patrol command while the analogue board vetoes ============ -->
     <model name="obstacles">
       <static>true</static>

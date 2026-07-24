@@ -455,6 +455,25 @@ for i, x in enumerate((-24, 24)):
 group_close()
 
 # =============================================================================
+# adversary
+#
+# Deliberately NOT inside a group: Gazebo refuses to apply velocity commands
+# to nested models ("Unable to set linear velocity for nested models"), so the
+# intruder must sit at world level like the PX4 vehicles do.
+# =============================================================================
+
+W('    <!-- ============ Hostile aerial target ============')
+W('         Driven kinematically by intruder_node, so the trajectory is')
+W('         identical on every run. At world level: see above.')
+W('         ============================================================== -->')
+W('    <include>')
+W('      <uri>model://intruder</uri>')
+W('      <name>intruder</name>')
+W('      <pose>0 180 15 0 0 0</pose>')
+W('    </include>')
+W("")
+
+# =============================================================================
 # obstacles
 # =============================================================================
 

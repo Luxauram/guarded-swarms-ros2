@@ -164,8 +164,11 @@ public:
                 if (msg->data < 0.01f) {
                     vetoed_ = true;
                     last_veto_ = this->now();
-                } else if (veto_timing_ &&
+                } else if (vetoed_ &&
                            (this->now() - last_veto_).seconds() > VETO_MIN_HOLD_S) {
+                    // Guarded on vetoed_, not on veto_timing_: the give-up
+                    // logic clears veto_timing_, and gating the release on it
+                    // would make the veto impossible to lift afterwards.
                     vetoed_ = false;
                 }
             });

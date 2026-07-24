@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Guarded Swarms === Intruder
+
+  Hostile aerial target for the coastal surveillance scenario of Borghoff,
+  Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation, Section 5: the
+  swarm must detect, classify and intercept a potentially hostile aerial
+  target approaching through the maritime corridor.
+
+  WHY THIS IS NOT A PX4 VEHICLE
+  ============================
+  The intruder is an element of the scenario, not a platform under our control.
+  Driving it kinematically has two advantages that matter for the evaluation:
+
+    1. the trajectory is reproduced exactly on every run, so detection
+       latencies measured across runs are comparable;
+    2. no fourth PX4 instance is added to the lockstep, which already sets the
+       pace of the simulation with three vehicles.
+
+  Motion comes from the VelocityControl system: intruder_node publishes a
+  Twist, Gazebo applies it directly to the link. Gravity is disabled on the
+  link so the target holds altitude without any thrust model.
+
+  Its size and radar cross-section are not modelled. What the sensors see is
+  synthesised by the consultant agents from this model's ground-truth
+  odometry, which is a stated limitation of the simulation.
+-->
+<sdf version="1.9">
+  <model name="intruder">
+    <static>false</static>
+
+    <link name="base_link">
+      <!-- No gravity: the target holds altitude without a thrust model. -->
+      <gravity>0</gravity>
+
+      <inertial>
+        <mass>1.2</mass>
+        <inertia>
+          <ixx>0.02</ixx><ixy>0</ixy><ixz>0</ixz>
+          <iyy>0.02</iyy><iyz>0</iyz><izz>0.03</izz>
+        </inertia>
+      </inertial>
+
+      <!-- Collision is kept small and central: the target must be detectable
+           by a lidar beam, but must not snag on anything if a trajectory ever
+           takes it close to a structure. -->
+      <collision name="collision">
+        <geometry><box><size>0.5 0.5 0.2</size></box></geometry>
+      </collision>
+
+      <visual name="body">
+        <geometry><box><size>0.45 0.45 0.16</size></box></geometry>
+        <material>
+          <ambient>0.55 0.08 0.08 1</ambient>
+          <diffuse>0.75 0.10 0.10 1</diffuse>
+          <specular>0.3 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <!-- Four arms and rotor discs, so the shape reads as a small
+           multirotor in the demo video rather than as a floating box. -->
+      <visual name="arm_a">
+        <pose>0 0 0.02 0 0 0.785398</pose>
+        <geometry><box><size>1.1 0.06 0.04</size></box></geometry>
+        <material>
+          <ambient>0.15 0.15 0.15 1</ambient>
+          <diffuse>0.20 0.20 0.20 1</diffuse>
+        </material>
+      </visual>
+      <visual name="arm_b">
+        <pose>0 0 0.02 0 0 -0.785398</pose>
+        <geometry><box><size>1.1 0.06 0.04</size></box></geometry>
+        <material>
+          <ambient>0.15 0.15 0.15 1</ambient>
+          <diffuse>0.20 0.20 0.20 1</diffuse>
+        </material>
+      </visual>
+
+      <visual name="rotor_0">
+        <pose>0.39 0.39 0.06 0 0 0</pose>
+        <geometry><cylinder><radius>0.22</radius><length>0.02</length></cylinder></geometry>
+        <material>
+          <ambient>0.10 0.10 0.12 1</ambient>
+          <diffuse>0.16 0.16 0.18 1</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_1">
+        <pose>-0.39 0.39 0.06 0 0 0</pose>
+        <geometry><cylinder><radius>0.22</radius><length>0.02</length></cylinder></geometry>
+        <material>
+          <ambient>0.10 0.10 0.12 1</ambient>
+          <diffuse>0.16 0.16 0.18 1</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_2">
+        <pose>-0.39 -0.39 0.06 0 0 0</pose>
+        <geometry><cylinder><radius>0.22</radius><length>0.02</length></cylinder></geometry>
+        <material>
+          <ambient>0.10 0.10 0.12 1</ambient>
+          <diffuse>0.16 0.16 0.18 1</diffuse>
+        </material>
+      </visual>
+      <visual name="rotor_3">
+        <pose>0.39 -0.39 0.06 0 0 0</pose>
+        <geometry><cylinder><radius>0.22</radius><length>0.02</length></cylinder></geometry>
+        <material>
+          <ambient>0.10 0.10 0.12 1</ambient>
+          <diffuse>0.16 0.16 0.18 1</diffuse>
+        </material>
+      </visual>
+
+      <!-- Marker beacon: makes the target easy to follow in the demo video
+           against the sea background. -->
+      <visual name="beacon">
+        <pose>0 0 0.14 0 0 0</pose>
+        <geometry><sphere><radius>0.09</radius></sphere></geometry>
+        <material>
+          <ambient>0.90 0.55 0.05 1</ambient>
+          <diffuse>1.00 0.65 0.10 1</diffuse>
+          <emissive>0.60 0.35 0.00 1</emissive>
+        </material>
+      </visual>
+    </link>
+
+    <!-- Motion: intruder_node publishes Twist on /model/intruder/cmd_vel.
+         The velocity is applied directly to the link, so the path is a pure
+         function of the commanded velocities and is identical on every run. -->
+    <plugin filename="gz-sim-velocity-control-system"
+            name="gz::sim::systems::VelocityControl">
+    </plugin>
+
+    <!-- Ground truth for the consultant agents. They synthesise radar, RF,
+         acoustic and EO observations from this, each with its own range,
+         latency, noise and confidence model. -->
+    <plugin filename="gz-sim-odometry-publisher-system"
+            name="gz::sim::systems::OdometryPublisher">
+      <odom_frame>world</odom_frame>
+      <robot_base_frame>intruder</robot_base_frame>
+      <odom_publish_frequency>20</odom_publish_frequency>
+      <odom_topic>/model/intruder/odometry</odom_topic>
+      <dimensions>3</dimensions>
+    </plugin>
+
+  </model>
+</sdf>

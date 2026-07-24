@@ -14,6 +14,7 @@ find_package(px4_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
+find_package(nav_msgs REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
 
 # ============================================================================
@@ -86,6 +87,24 @@ ament_target_dependencies(rover_control_node
 target_compile_features(rover_control_node PUBLIC c_std_99 cxx_std_17) 
 
 # ============================================================================
+# Executable: intruder_node
+#
+# Scenario machinery, not part of the swarm: it plays the hostile aerial
+# target so the sensing and coordination layers have something to react to.
+# ============================================================================
+add_executable(intruder_node
+  src/intruder_node.cpp
+)
+target_include_directories(intruder_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(intruder_node
+  rclcpp geometry_msgs nav_msgs std_msgs
+)
+target_compile_features(intruder_node PUBLIC c_std_99 cxx_std_17)
+
+# ============================================================================
 # Install
 # ============================================================================
 install(TARGETS
@@ -93,6 +112,7 @@ install(TARGETS
   command_bridge_node
   px4_safety_bridge_node
   rover_control_node
+  intruder_node
 DESTINATION lib/${PROJECT_NAME}
 )
 
