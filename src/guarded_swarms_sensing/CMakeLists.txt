@@ -10,6 +10,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
+find_package(std_msgs REQUIRED)
 
 # ============================================================================
 # Consultant agents
@@ -29,8 +30,30 @@ ament_target_dependencies(radar_agent_node
 )
 target_compile_features(radar_agent_node PUBLIC c_std_99 cxx_std_17)
 
+add_executable(rf_agent_node src/rf_agent_node.cpp)
+target_include_directories(rf_agent_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(rf_agent_node
+  rclcpp geometry_msgs std_msgs guarded_swarms_msgs
+)
+target_compile_features(rf_agent_node PUBLIC c_std_99 cxx_std_17)
+
+add_executable(acoustic_agent_node src/acoustic_agent_node.cpp)
+target_include_directories(acoustic_agent_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(acoustic_agent_node
+  rclcpp geometry_msgs guarded_swarms_msgs
+)
+target_compile_features(acoustic_agent_node PUBLIC c_std_99 cxx_std_17)
+
 install(TARGETS
   radar_agent_node
+  rf_agent_node
+  acoustic_agent_node
   DESTINATION lib/${PROJECT_NAME}
 )
 

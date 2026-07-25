@@ -60,6 +60,7 @@
  *     /model/intruder/cmd_vel   (geometry_msgs/Twist)   via ros_gz_bridge
  *     intruder/ground_truth     (geometry_msgs/PoseStamped)
  *     intruder/active           (std_msgs/Bool)
+ *     intruder/transmitting     (std_msgs/Bool)
  *   Subscribed:
  *     /model/intruder/pose      (geometry_msgs/PoseStamped)  via ros_gz_bridge
  *
@@ -91,6 +92,10 @@ class IntruderNode : public rclcpp::Node {
     target_z_ = this->declare_parameter<double>("target_z", 15.0);
 
     speed_mps_ = this->declare_parameter<double>("speed_mps", 8.0);
+    // Whether the target emits a detectable radio control link. A silent
+    // target is invisible to the RF modality, which is one of the
+    // counterfactual trajectories of the paper (Section 5.3).
+    transmitting_ = this->declare_parameter<bool>("transmitting", true);
     start_delay_s_ = this->declare_parameter<double>("start_delay_s", 20.0);
     arrival_radius_m_ = this->declare_parameter<double>("arrival_radius_m", 3.0);
 
@@ -120,6 +125,8 @@ class IntruderNode : public rclcpp::Node {
         "intruder/ground_truth", 10);
     active_pub_ =
         this->create_publisher<std_msgs::msg::Bool>("intruder/active", 10);
+    transmitting_pub_ =
+        this->create_publisher<std_msgs::msg::Bool>("intruder/transmitting", 10);
 
     // Pose is used ONLY to refine the published ground truth. It never feeds
     // back into the velocity command, so a gap in this feed cannot stall the
@@ -212,6 +219,10 @@ class IntruderNode : public rclcpp::Node {
     std_msgs::msg::Bool active;
     active.data = (phase_ == Phase::Ingress);
     active_pub_->publish(active);
+
+    std_msgs::msg::Bool tx;
+    tx.data = transmitting_;
+    transmitting_pub_->publish(tx);
   }
 
   void publish_ground_truth() {
@@ -231,6 +242,7 @@ class IntruderNode : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr truth_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr active_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr transmitting_pub_;
   rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
@@ -240,6 +252,7 @@ class IntruderNode : public rclcpp::Node {
   double ingress_x_, ingress_y_, ingress_z_;
   double target_x_, target_y_, target_z_;
   double speed_mps_, start_delay_s_, arrival_radius_m_;
+  bool transmitting_ = true;
 
   double ux_ = 0.0, uy_ = 0.0, uz_ = 0.0, total_dist_ = 0.0;
   double dr_x_ = 0.0, dr_y_ = 0.0, dr_z_ = 0.0, travelled_ = 0.0;
