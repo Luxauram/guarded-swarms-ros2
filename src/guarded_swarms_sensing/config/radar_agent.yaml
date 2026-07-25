@@ -1,0 +1,31 @@
+# Coastal radar consultant agent.
+#
+# Coverage geometry is a simulation model, not specified by the paper. The
+# sea-facing sector is what produces the sea/inland detection asymmetry: a
+# target ingressing over the town enters the sector late or never.
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+    # Placement and coverage (world ENU)
+    pos_x: 0.0
+    pos_y: -160.0
+    pos_z: 20.0
+    bore_deg: 90.0          # points north, toward the sea
+    half_angle_deg: 70.0
+    max_range_m: 260.0
+    min_altitude_m: 2.0
+
+    # Error and rate model (the evaluation knobs)
+    position_noise_m: 3.0
+    detection_prob: 0.95
+    false_positive_hz: 0.0
+    latency_s: 0.2
+    ttl_s: 3.0
+    update_rate_hz: 5.0
+    confidence_near: 0.9
+    confidence_far: 0.5
+
+    # Targets
+    target_ids: ["intruder"]
+    ground_truth_topics: ["/intruder/ground_truth"]

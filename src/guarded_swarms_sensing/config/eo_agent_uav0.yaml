@@ -1,0 +1,30 @@
+# EO camera consultant agent, carried by UAV0.
+#
+# Coverage moves with the platform: the camera cone is pointed from the UAV's
+# live position. Today UAV0 hovers at (-24, -24, 12); when the worker agents
+# slew it, coverage follows automatically. Emits VISUAL, the confirmation that
+# turns a track into a ConfirmedAerialObject.
+/**:
+  ros__parameters:
+    use_sim_time: true
+
+    carrier: "uav0"
+    spawn_x: -24.0          # UAV0 Gazebo spawn pose, for NED->ENU offset
+    spawn_y: -24.0
+    spawn_z: 0.0
+
+    cam_bearing_deg: 90.0   # points north, toward the sea
+    cam_pitch_deg: -20.0
+    half_angle_deg: 30.0
+    max_range_m: 120.0
+
+    position_noise_m: 1.0
+    detection_prob: 0.98
+    latency_s: 0.15
+    ttl_s: 2.0
+    update_rate_hz: 5.0
+    confidence: 0.95
+
+    uav_pose_topic: "/fmu/out/vehicle_local_position_v1"
+    target_ids: ["intruder"]
+    ground_truth_topics: ["/intruder/ground_truth"]
