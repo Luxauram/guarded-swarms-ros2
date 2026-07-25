@@ -11,6 +11,7 @@ find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
 find_package(std_msgs REQUIRED)
+find_package(px4_msgs REQUIRED)
 
 # ============================================================================
 # Consultant agents
@@ -50,10 +51,21 @@ ament_target_dependencies(acoustic_agent_node
 )
 target_compile_features(acoustic_agent_node PUBLIC c_std_99 cxx_std_17)
 
+add_executable(eo_agent_node src/eo_agent_node.cpp)
+target_include_directories(eo_agent_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(eo_agent_node
+  rclcpp geometry_msgs px4_msgs guarded_swarms_msgs
+)
+target_compile_features(eo_agent_node PUBLIC c_std_99 cxx_std_17)
+
 install(TARGETS
   radar_agent_node
   rf_agent_node
   acoustic_agent_node
+  eo_agent_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
