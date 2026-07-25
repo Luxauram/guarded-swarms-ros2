@@ -25,15 +25,30 @@
  * hostile aerial target approaching through the maritime corridor.
  *
  * This node does NOT belong to the swarm. It is scenario machinery: it plays
- * the adversary so that the sensing and coordination layers have something to
- * react to. It is kept deliberately dumb — a straight ingress at constant
- * speed and altitude — because its purpose is to be reproducible, not
- * realistic. Detection latencies measured across runs are only comparable if
- * the stimulus is identical every time.
+ * the adversary so the sensing and coordination layers have something to react
+ * to. It is kept deliberately dumb - a straight ingress at constant speed and
+ * altitude - because its purpose is to be reproducible, not realistic.
  *
- * All motion is commanded in world ENU coordinates, matching Gazebo. The PX4
- * vehicles reason in NED; the consultant agents are responsible for whatever
- * frame conversion their own observation model requires.
+ * OPEN-LOOP BY DESIGN
+ * ===================
+ * The commanded velocity is a pure function of elapsed time and the ingress
+ * parameters. It does NOT depend on any feedback from Gazebo.
+ *
+ * An earlier version computed the heading from the model's own odometry, which
+ * created a deadlock: Gazebo's OdometryPublisher only emits while the model
+ * moves, and the node only moved while it received odometry. The target left
+ * its spawn point, the feedback never arrived, the node fell back to zero
+ * velocity, and it stalled a third of the way in. Commanding open-loop removes
+ * the loop entirely and, as a bonus, makes the trajectory perfectly
+ * repeatable: the same parameters always produce the same path.
+ *
+ * The dead-reckoned position (integrated from the commanded velocity) decides
+ * when the run is complete. The model's pose is subscribed only to publish an
+ * accurate ground truth for the consultant agents; it never feeds back into
+ * the motion command.
+ *
+ * All motion is in world ENU, matching Gazebo. The PX4 vehicles reason in NED;
+ * frame conversion, if any, is the consultant agents' responsibility.
  *
  * Phases:
  *   IDLE      before start_delay_s, the target holds at its spawn point
@@ -42,22 +57,11 @@
  *
  * Topics:
  *   Published:
- *     /model/intruder/cmd_vel   (geometry_msgs/Twist)  via ros_gz_bridge
+ *     /model/intruder/cmd_vel   (geometry_msgs/Twist)   via ros_gz_bridge
  *     intruder/ground_truth     (geometry_msgs/PoseStamped)
  *     intruder/active           (std_msgs/Bool)
  *   Subscribed:
- *     /model/intruder/odometry  (nav_msgs/Odometry)    via ros_gz_bridge
- *
- * Parameters (all in world ENU metres, seconds, metres per second):
- *   ingress_x, ingress_y, ingress_z   spawn / start point
- *   target_x, target_y, target_z      point the target runs toward
- *   speed_mps                         cruise speed along the ingress leg
- *   start_delay_s                     quiet period before ingress begins
- *   arrival_radius_m                  distance at which the run is complete
- *   cmd_vel_topic, odometry_topic     bridge topic names
- *
- * The counterfactual trajectories of the paper (Section 5.3) are meant to be
- * expressed as parameter sets over this node, not as separate code paths.
+ *     /model/intruder/pose      (geometry_msgs/PoseStamped)  via ros_gz_bridge
  *
  * @author Luca D'Aurizio
  */
@@ -66,7 +70,6 @@
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <geometry_msgs/msg/twist.hpp>
-#include <nav_msgs/msg/odometry.hpp>
 #include <std_msgs/msg/bool.hpp>
 
 #include <cmath>
@@ -93,8 +96,24 @@ class IntruderNode : public rclcpp::Node {
 
     const auto cmd_topic = this->declare_parameter<std::string>(
         "cmd_vel_topic", "/model/intruder/cmd_vel");
-    const auto odom_topic = this->declare_parameter<std::string>(
-        "odometry_topic", "/model/intruder/odometry");
+    const auto pose_topic = this->declare_parameter<std::string>(
+        "pose_topic", "/model/intruder/pose");
+
+    // Unit ingress direction and total distance, computed once.
+    const double dx = target_x_ - ingress_x_;
+    const double dy = target_y_ - ingress_y_;
+    const double dz = target_z_ - ingress_z_;
+    total_dist_ = std::sqrt(dx * dx + dy * dy + dz * dz);
+    if (total_dist_ > 1e-6) {
+      ux_ = dx / total_dist_;
+      uy_ = dy / total_dist_;
+      uz_ = dz / total_dist_;
+    }
+
+    // Dead-reckoned position starts at the spawn point.
+    dr_x_ = ingress_x_;
+    dr_y_ = ingress_y_;
+    dr_z_ = ingress_z_;
 
     cmd_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_topic, 10);
     truth_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
@@ -102,12 +121,15 @@ class IntruderNode : public rclcpp::Node {
     active_pub_ =
         this->create_publisher<std_msgs::msg::Bool>("intruder/active", 10);
 
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-        odom_topic, 10,
-        [this](const nav_msgs::msg::Odometry::SharedPtr msg) {
-          x_ = msg->pose.pose.position.x;
-          y_ = msg->pose.pose.position.y;
-          z_ = msg->pose.pose.position.z;
+    // Pose is used ONLY to refine the published ground truth. It never feeds
+    // back into the velocity command, so a gap in this feed cannot stall the
+    // trajectory.
+    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
+        pose_topic, 10,
+        [this](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
+          meas_x_ = m->pose.position.x;
+          meas_y_ = m->pose.position.y;
+          meas_z_ = m->pose.position.z;
           pose_valid_ = true;
         });
 
@@ -116,15 +138,17 @@ class IntruderNode : public rclcpp::Node {
         [this]() { step(); });
 
     start_time_ = this->now();
+    last_step_ = start_time_;
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
-    RCLCPP_INFO(this->get_logger(), "IntruderNode initialized");
+    RCLCPP_INFO(this->get_logger(), "IntruderNode initialized (open-loop)");
     RCLCPP_INFO(this->get_logger(), "  ingress : (%.1f, %.1f, %.1f)",
                 ingress_x_, ingress_y_, ingress_z_);
     RCLCPP_INFO(this->get_logger(), "  target  : (%.1f, %.1f, %.1f)",
                 target_x_, target_y_, target_z_);
-    RCLCPP_INFO(this->get_logger(), "  speed   : %.1f m/s", speed_mps_);
+    RCLCPP_INFO(this->get_logger(), "  distance: %.1f m at %.1f m/s",
+                total_dist_, speed_mps_);
     RCLCPP_INFO(this->get_logger(), "  start in: %.0f s", start_delay_s_);
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -134,11 +158,10 @@ class IntruderNode : public rclcpp::Node {
   enum class Phase { Idle, Ingress, Arrived };
 
   void step() {
-    const double elapsed = (this->now() - start_time_).seconds();
-
-    if (pose_valid_) {
-      publish_ground_truth();
-    }
+    const rclcpp::Time now = this->now();
+    const double elapsed = (now - start_time_).seconds();
+    const double dt = (now - last_step_).seconds();
+    last_step_ = now;
 
     switch (phase_) {
       case Phase::Idle:
@@ -152,32 +175,22 @@ class IntruderNode : public rclcpp::Node {
         break;
 
       case Phase::Ingress: {
-        if (!pose_valid_) {
-          // Without odometry the heading cannot be computed. Holding still is
-          // the correct fallback: a blind constant velocity would produce a
-          // different trajectory on every run and destroy comparability.
-          publish_velocity(0.0, 0.0, 0.0);
-          RCLCPP_WARN_THROTTLE(this->get_logger(), *this->get_clock(), 5000,
-                               "No odometry from the intruder model; holding. "
-                               "Is the ros_gz bridge running?");
-          return;
-        }
+        publish_velocity(ux_ * speed_mps_, uy_ * speed_mps_, uz_ * speed_mps_);
 
-        const double dx = target_x_ - x_;
-        const double dy = target_y_ - y_;
-        const double dz = target_z_ - z_;
-        const double dist = std::sqrt(dx * dx + dy * dy + dz * dz);
+        // Dead reckoning: integrate the commanded velocity. Independent of any
+        // Gazebo feedback, so the run always completes.
+        dr_x_ += ux_ * speed_mps_ * dt;
+        dr_y_ += uy_ * speed_mps_ * dt;
+        dr_z_ += uz_ * speed_mps_ * dt;
+        travelled_ += speed_mps_ * dt;
 
-        if (dist < arrival_radius_m_) {
+        if (travelled_ >= total_dist_ - arrival_radius_m_) {
           phase_ = Phase::Arrived;
           publish_velocity(0.0, 0.0, 0.0);
           RCLCPP_WARN(this->get_logger(),
-                      "Target point reached at (%.1f, %.1f, %.1f)", x_, y_, z_);
-          break;
+                      "Target point reached near (%.1f, %.1f, %.1f)",
+                      dr_x_, dr_y_, dr_z_);
         }
-
-        const double scale = speed_mps_ / dist;
-        publish_velocity(dx * scale, dy * scale, dz * scale);
         break;
       }
 
@@ -185,6 +198,8 @@ class IntruderNode : public rclcpp::Node {
         publish_velocity(0.0, 0.0, 0.0);
         break;
     }
+
+    publish_ground_truth();
   }
 
   void publish_velocity(double vx, double vy, double vz) {
@@ -203,9 +218,12 @@ class IntruderNode : public rclcpp::Node {
     geometry_msgs::msg::PoseStamped truth;
     truth.header.stamp = this->now();
     truth.header.frame_id = "world";
-    truth.pose.position.x = x_;
-    truth.pose.position.y = y_;
-    truth.pose.position.z = z_;
+    // Prefer the measured pose when available; fall back to dead reckoning so
+    // ground truth is published from the very first tick, before any pose has
+    // arrived.
+    truth.pose.position.x = pose_valid_ ? meas_x_ : dr_x_;
+    truth.pose.position.y = pose_valid_ ? meas_y_ : dr_y_;
+    truth.pose.position.z = pose_valid_ ? meas_z_ : dr_z_;
     truth.pose.orientation.w = 1.0;
     truth_pub_->publish(truth);
   }
@@ -213,17 +231,20 @@ class IntruderNode : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr truth_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr active_pub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
-  rclcpp::Time start_time_;
+  rclcpp::Time start_time_, last_step_;
   Phase phase_ = Phase::Idle;
 
   double ingress_x_, ingress_y_, ingress_z_;
   double target_x_, target_y_, target_z_;
   double speed_mps_, start_delay_s_, arrival_radius_m_;
 
-  double x_ = 0.0, y_ = 0.0, z_ = 0.0;
+  double ux_ = 0.0, uy_ = 0.0, uz_ = 0.0, total_dist_ = 0.0;
+  double dr_x_ = 0.0, dr_y_ = 0.0, dr_z_ = 0.0, travelled_ = 0.0;
+
+  double meas_x_ = 0.0, meas_y_ = 0.0, meas_z_ = 0.0;
   bool pose_valid_ = false;
 };
 

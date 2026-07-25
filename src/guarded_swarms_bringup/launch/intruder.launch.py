@@ -47,7 +47,7 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 CMD_VEL_TOPIC = "/model/intruder/cmd_vel"
-ODOMETRY_TOPIC = "/model/intruder/odometry"
+POSE_TOPIC = "/model/intruder/pose"
 
 
 def generate_launch_description():
@@ -84,12 +84,12 @@ def generate_launch_description():
     )
 
     # GZ -> ROS, ground truth.
-    odom_bridge = Node(
+    pose_bridge = Node(
         package="ros_gz_bridge",
         executable="parameter_bridge",
-        name="intruder_odom_bridge",
+        name="intruder_pose_bridge",
         output="screen",
-        arguments=[ODOMETRY_TOPIC + "@nav_msgs/msg/Odometry[gz.msgs.Odometry"],
+        arguments=[POSE_TOPIC + "@geometry_msgs/msg/PoseStamped[gz.msgs.Pose"],
         emulate_tty=True,
     )
 
@@ -109,7 +109,7 @@ def generate_launch_description():
             "start_delay_s": LaunchConfiguration("start_delay_s"),
             "arrival_radius_m": LaunchConfiguration("arrival_radius_m"),
             "cmd_vel_topic": CMD_VEL_TOPIC,
-            "odometry_topic": ODOMETRY_TOPIC,
+            "pose_topic": POSE_TOPIC,
         }],
         emulate_tty=True,
     )
@@ -125,6 +125,6 @@ def generate_launch_description():
         LogInfo(msg="          ros2 topic echo /intruder/active"),
         LogInfo(msg="============================================================"),
         cmd_bridge,
-        odom_bridge,
+        pose_bridge,
         intruder_node,
     ])
