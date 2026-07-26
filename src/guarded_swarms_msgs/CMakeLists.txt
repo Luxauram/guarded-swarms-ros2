@@ -14,6 +14,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ObsToken.msg"
   "msg/InterpToken.msg"
   "msg/MissionToken.msg"
+  "msg/SupervisorAuth.msg"
   DEPENDENCIES std_msgs geometry_msgs builtin_interfaces
 )
 

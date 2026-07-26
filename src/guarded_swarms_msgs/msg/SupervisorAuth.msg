@@ -1,0 +1,36 @@
+# AuthToken - human authorisation to release a mission
+#
+# The governed-action-release mechanism of Borghoff, Bottoni and Pareschi
+# (2026), IET Radar, Sonar and Navigation, Section 3.3: "Authorisation tokens
+# provided by supervisor agents are required for mission execution."
+#
+# Issued by a human supervisor (through the console) to authorise, or by its
+# absence to withhold, the interception of a specific target. The
+# mission-release transition (T6) fires only when a ConfirmedThreat for the
+# target and a matching AuthToken are both present within the synchronisation
+# window. No AuthToken, no mission: this is the human-in-the-loop, and its
+# absence is the "authorisation withheld" counterfactual of Section 5.3.
+
+# The target this authorisation refers to. Must match the target_id of the
+# ConfirmedThreat it is meant to release.
+string target_id
+
+# Identity of the supervisor issuing the authorisation. Carried into the
+# MissionToken.authorised_by field, so every dispatched mission records who
+# authorised it. Never empty for a genuine authorisation.
+string authorised_by
+
+# The decision. AUTHORISE releases the mission; DENY is an explicit refusal,
+# recorded for audit rather than merely being the absence of a token.
+string decision
+
+# Simulated time the decision was taken.
+builtin_interfaces/Time t
+
+# Validity window in seconds. An authorisation is not open-ended: it must fall
+# within the synchronisation window of a live ConfirmedThreat to take effect,
+# so a stale authorisation cannot release a mission against an expired threat.
+float64 ttl_s
+
+string DECISION_AUTHORISE=authorise
+string DECISION_DENY=deny
