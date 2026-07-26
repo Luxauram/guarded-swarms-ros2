@@ -23,8 +23,19 @@ ament_target_dependencies(interpretation_node
 )
 target_compile_features(interpretation_node PUBLIC c_std_99 cxx_std_17)
 
+add_executable(candidate_transition_node src/candidate_transition_node.cpp)
+target_include_directories(candidate_transition_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(candidate_transition_node
+  rclcpp guarded_swarms_msgs
+)
+target_compile_features(candidate_transition_node PUBLIC c_std_99 cxx_std_17)
+
 install(TARGETS
   interpretation_node
+  candidate_transition_node
   DESTINATION lib/${PROJECT_NAME}
 )
 
