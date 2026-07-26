@@ -51,3 +51,9 @@ string LABEL_LIKELY_DRONE_LINK=LikelyDroneLink
 string LABEL_CONFIRMED_AERIAL_OBJECT=ConfirmedAerialObject
 string LABEL_CANDIDATE_TARGET=CandidateTarget
 string LABEL_CONFIRMED_THREAT=ConfirmedThreat
+
+# Conflicting interpretation, for the third counterfactual of Section 5.3: the
+# RF consultant reads the same time window as legitimate civilian telemetry.
+# The concordance guard on the CandidateTarget transition then blocks, and the
+# candidate is never formed.
+string LABEL_LIKELY_CIVILIAN_TRAFFIC=LikelyCivilianTraffic
