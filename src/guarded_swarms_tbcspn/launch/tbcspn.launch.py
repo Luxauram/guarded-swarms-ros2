@@ -116,4 +116,11 @@ def generate_launch_description():
             name="t6_mission", output="screen", emulate_tty=True,
             parameters=[{"use_sim_time": True}],
         ),
+
+        # Dispatch: mission -> vehicle tasks
+        Node(
+            package=PKG, executable="dispatch_transition_node",
+            name="t7_dispatch", output="screen", emulate_tty=True,
+            parameters=[{"use_sim_time": True}],
+        ),
     ])
