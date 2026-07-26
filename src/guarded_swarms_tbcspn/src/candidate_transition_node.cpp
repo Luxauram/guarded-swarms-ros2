@@ -206,8 +206,9 @@ class CandidateTransitionNode : public rclcpp::Node {
 
     pub_->publish(tok);
     RCLCPP_INFO(this->get_logger(),
-                "CandidateTarget for '%s' (conf %.2f) from %zu origins",
-                tok.target_id.c_str(), tok.confidence, tok.origin.size());
+                "%s for '%s' (conf %.2f) from %zu origins",
+                emit_label_.c_str(), tok.target_id.c_str(), tok.confidence,
+                tok.origin.size());
   }
 
   void prune_all() {
