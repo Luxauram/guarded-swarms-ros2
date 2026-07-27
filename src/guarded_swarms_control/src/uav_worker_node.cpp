@@ -59,6 +59,7 @@
  * Topics:
  *   Subscribed:
  *     /vehicle_tasks               (guarded_swarms_msgs/VehicleTask)
+ *     /interp_tokens               (guarded_swarms_msgs/InterpToken)
  *     fmu/out/vehicle_status_v1    (px4_msgs/VehicleStatus)
  *   Published:
  *     fmu/in/offboard_control_mode (px4_msgs/OffboardControlMode)
@@ -74,12 +75,15 @@
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
 
+#include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <guarded_swarms_msgs/msg/vehicle_task.hpp>
 
 #include <chrono>
 #include <cmath>
+#include <string>
 
 using namespace std::chrono_literals;
+using guarded_swarms_msgs::msg::InterpToken;
 using guarded_swarms_msgs::msg::VehicleTask;
 
 class UavWorkerNode : public rclcpp::Node {
@@ -122,6 +126,15 @@ class UavWorkerNode : public rclcpp::Node {
         "/vehicle_tasks", 10,
         [this](const VehicleTask::SharedPtr m) { on_task(m); });
 
+    // Track-lock: once a task has designated a target, follow the system's
+    // latest threat estimate for it. The worker acts on what the sensors
+    // report (a ConfirmedThreat's position), not on ground truth -- it does
+    // not know where the intruder truly is, only what the TB-CSPN layer
+    // believes. This mirrors a real interceptor following its own sensor lock.
+    threat_sub_ = this->create_subscription<InterpToken>(
+        "/interp_tokens", 50,
+        [this](const InterpToken::SharedPtr m) { on_threat(m); });
+
     timer_ = this->create_wall_timer(
         TIMER_PERIOD, [this]() { control_loop(); });
 
@@ -159,17 +172,37 @@ class UavWorkerNode : public rclcpp::Node {
     if (m->vehicle_kind != VehicleTask::KIND_UAV) return;
     if (m->assigned_system != target_system_) return;
 
-    // Convert the target's world-ENU position to this vehicle's NED local
-    // frame, and adopt it as the horizontal goal. Altitude is our own
-    // interception altitude, not the target's.
-    task_north_ = m->target_position.y - spawn_y_;
-    task_east_ = m->target_position.x - spawn_x_;
+    // Lock onto the designated target. The task's target_position is the
+    // estimate at dispatch time; adopt it as the first goal, then keep
+    // following the target's threat estimate as it updates (see on_threat).
+    locked_target_ = m->target_id;
+    set_goal_from_enu(m->target_position.x, m->target_position.y);
     has_task_ = true;
 
     RCLCPP_WARN(this->get_logger(),
-                "Task '%s' (%s): flying to NED (%.1f, %.1f) at %.1f m",
-                m->task_id.c_str(), m->task_type.c_str(), task_north_,
-                task_east_, intercept_altitude_m_);
+                "Task '%s' (%s): locked on '%s', flying to NED (%.1f, %.1f) "
+                "at %.1f m",
+                m->task_id.c_str(), m->task_type.c_str(),
+                locked_target_.c_str(), task_north_, task_east_,
+                intercept_altitude_m_);
+  }
+
+  void on_threat(const InterpToken::SharedPtr m) {
+    // Only follow updates once locked, and only for the designated target.
+    if (!has_task_ || m->target_id != locked_target_) return;
+    if (m->label != InterpToken::LABEL_CONFIRMED_THREAT) return;
+
+    // Update the interception goal to the latest sensor estimate of the
+    // target's position. Stand-off altitude is held separately, so the UAV
+    // tracks the target horizontally without descending onto it.
+    set_goal_from_enu(m->position.x, m->position.y);
+  }
+
+  // Convert a world-ENU (x_east, y_north) point to this vehicle's NED local
+  // frame and store it as the horizontal goal.
+  void set_goal_from_enu(double enu_x, double enu_y) {
+    task_north_ = enu_y - spawn_y_;
+    task_east_ = enu_x - spawn_x_;
   }
 
   void control_loop() {
@@ -250,7 +283,10 @@ class UavWorkerNode : public rclcpp::Node {
   bool armed_ = false;
   bool arm_confirmed_ = false;
 
+  rclcpp::Subscription<InterpToken>::SharedPtr threat_sub_;
+
   bool has_task_ = false;
+  std::string locked_target_;
   double task_north_ = 0.0, task_east_ = 0.0;
 };
 

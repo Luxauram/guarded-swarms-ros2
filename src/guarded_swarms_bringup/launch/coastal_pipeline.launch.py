@@ -106,6 +106,9 @@ UAV1_HOVER_M = 20.0
 UAV0_SPAWN = (-24.0, -24.0)
 UAV1_SPAWN = (24.0, -24.0)
 
+# UGV spawn pose in world ENU (Gazebo), for the worker's ENU->NED conversion.
+UGV_SPAWN = (-60.0, -14.0)
+
 # Interception altitude held by a UAV once it has a task, so it closes on the
 # target's horizontal position without descending onto it.
 INTERCEPT_ALTITUDE_M = 15.0
@@ -180,12 +183,14 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
     if is_ground:
         nodes.append(Node(
             package="guarded_swarms_control",
-            executable="rover_control_node",
-            name="rover_control_node",
+            executable="ugv_worker_node",
+            name="ugv_worker_node",
             output="screen",
             parameters=[{
                 "target_system": system_id,
                 "waypoints": waypoints,
+                "spawn_x": spawn[0],
+                "spawn_y": spawn[1],
             }],
             emulate_tty=True,
             **ns,
@@ -248,7 +253,8 @@ def generate_launch_description():
                          is_ground=False, hover_altitude=UAV1_HOVER_M,
                          spawn=UAV1_SPAWN)
     ugv = vehicle_stack(UGV_NAMESPACE, UGV_MODEL, UGV_SYSTEM_ID,
-                        is_ground=True, waypoints=UGV_WAYPOINTS)
+                        is_ground=True, waypoints=UGV_WAYPOINTS,
+                        spawn=UGV_SPAWN)
 
     # =========================================================================
     # Digital coordination layer, shared by the whole swarm

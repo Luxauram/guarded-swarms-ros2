@@ -114,6 +114,16 @@ ament_target_dependencies(uav_worker_node
 )
 target_compile_features(uav_worker_node PUBLIC c_std_99 cxx_std_17)
 
+add_executable(ugv_worker_node src/ugv_worker_node.cpp)
+target_include_directories(ugv_worker_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(ugv_worker_node
+  rclcpp px4_msgs std_msgs guarded_swarms_msgs
+)
+target_compile_features(ugv_worker_node PUBLIC c_std_99 cxx_std_17)
+
 # ============================================================================
 # Install
 # ============================================================================
@@ -124,6 +134,7 @@ install(TARGETS
   rover_control_node
   intruder_node
   uav_worker_node
+  ugv_worker_node
 DESTINATION lib/${PROJECT_NAME}
 )
 
