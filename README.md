@@ -6,115 +6,145 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Ubuntu%2022.04-E95420.svg)](https://ubuntu.com/)
 
-ROS 2 simulation framework implementing the Guarded Swarms hybrid digital-analog coordination architecture for autonomous multi-robot systems (UAV + UGV). Developed as a thesis project at the University of Molise, in collaboration with ongoing swarm robotics research.
+A ROS 2 digital twin of the **Guarded Swarms** architecture: sensor-driven
+mission synthesis for a heterogeneous UAV/UGV swarm, with human-authorised
+action release and hardware-style safety enforcement at the actuator boundary.
+Built on PX4 SITL and Gazebo Harmonic. Master's thesis, University of Molise,
+supervised by Prof. Remo Pareschi.
 
-Based on: _Borghoff, Bottoni, Pareschi (2025/2026) - "Guarded Swarms: Hybrid Digital-Analog Coordination for AI-Robot Systems"_
+**Target paper:** Borghoff, Bottoni, Pareschi (2026), _"Sensor-Driven Mission
+Synthesis for UAV/UGV Swarms"_, IET Radar, Sonar & Navigation. That paper is
+architectural and leaves quantitative benchmarking and hardware-in-the-loop
+validation to future work; **this project builds the working digital twin and
+fills that gap.**
 
 ---
 
 > **Platform Notice**
 >
-> **This project runs natively on Ubuntu 22.04 LTS. DOCKER IS NOT USED.**
->
-> ROS 2 Humble, PX4, and Gazebo Harmonic are installed directly on the host system.
-> This ensures full GPU access for Gazebo rendering and lidar sensors without
-> the overhead and limitations of containerized environments.
->
-> - **Windows and macOS are not supported.**
-> - An NVIDIA GPU is recommended for Gazebo lidar sensor rendering.
-> - GPU flags are embedded in all `px4-gui-*` Makefile targets automatically.
+> **Runs natively on Ubuntu 22.04 LTS. Docker is not used.** ROS 2 Humble, PX4
+> and Gazebo Harmonic are installed on the host for full GPU access (Gazebo
+> rendering and lidar sensors). Windows and macOS are not supported. An NVIDIA
+> GPU is recommended (needed for the lidar sensors).
 
 ---
 
-## Overview
+## What the system does
 
-The Guarded Swarms architecture coordinates autonomous agents through two complementary layers:
+The coastal case study runs a full sensing-to-action pipeline against a moving
+intruder:
 
-- **Digital coordination layer** - a token-based arbitration system inspired by TB-CSPN, where agents request access to shared zones by issuing signed geometry and authorization tokens. A coordinator node resolves concurrent requests within a configurable 300 ms time window.
-- **Analog safety enforcement layer** - a virtual safety board that monitors real-time sensor data (proximity, attitude, battery, altitude) and applies OR-logic veto on actuator commands that violate any safety threshold, independently of the digital layer.
+```
+ sensors (radar, RF, acoustic, EO)  ->  semantic tokens
+     │
+     ▼  TB-CSPN coordination layer (Figure 4 of the paper)
+ T1..T5  observations are interpreted and fused into a ConfirmedThreat
+ T6      a human supervisor authorises (or denies) the interception
+ T7      the mission is dispatched into per-vehicle tasks
+ T8/T9   worker agents fly the interception / drive the observation
+     │
+     ▼
+ a UAV leaves hover and tracks the intruder; the UGV moves to a shore
+ observation point — all from one human authorisation, with a full,
+ auditable justification chain from raw observation to action.
+```
 
-The two layers are deliberately decoupled: the safety board has no knowledge of tokens, and the coordinator has no knowledge of sensor readings. This mirrors the architectural separation described in the paper.
+Two properties are the point of the architecture, and both are enforced
+structurally rather than by configuration:
+
+- **Human-in-the-loop.** No interception mission is ever formed without an
+  explicit supervisor authorisation. Withhold it, and the threat persists but
+  nothing is dispatched.
+- **Decoupled analogue safety.** Every vehicle carries an independent safety
+  board that vetoes its own actuator on a proximity/attitude/battery/altitude
+  violation, with no knowledge of the coordination layer.
 
 ---
 
-## Architecture
+## Architecture layers
+
+- **Sensing layer** (`guarded_swarms_sensing`) — four consultant agents (radar,
+  RF, acoustic, electro-optical) synthesise temporally-bounded semantic tokens
+  from the scene. Each has its own coverage and error model; the EO coverage
+  moves with its carrier UAV. The coverage geometry is a simulation model
+  (declared as such) and produces a realistic sea-vs-inland detection
+  asymmetry.
+- **Coordination layer** (`guarded_swarms_tbcspn`) — the TB-CSPN transitions of
+  Figure 4. Two generic nodes (interpretation, time-windowed join) plus mission
+  release and dispatch cover T1–T7. Tokens carry an unbroken provenance chain.
+- **Worker agents** (`guarded_swarms_control`) — the digital-physical bridge.
+  Each worker is the single controller of its vehicle: the UAV worker flies a
+  stand-off interception and track-locks the target's threat estimate; the UGV
+  worker drives to a shore observation point. Executors run deterministic
+  platform control only.
+- **Safety layer** (`guarded_swarms_safety`) — a per-vehicle virtual safety
+  board applying an OR-logic veto on the actuator command, decoupled from the
+  coordination layer.
+- **Adversary** (`guarded_swarms_control/intruder_node`) — a scripted,
+  open-loop, replayable intruder, with a radio-silence flag for a counterfactual.
+
+---
+
+## Quick start — the coastal pipeline
+
+The full case study is four launches plus one authorisation. **The scenario
+needs its own terminal (Gazebo GUI); a helper script runs everything else.**
+
+```bash
+# Terminal 1 — the world: 2 UAV + 1 UGV on the coastal map
+make demo-coastal
+
+# Terminal 2 — intruder + sensing + TB-CSPN, waits for a threat, then
+#              authorises automatically and reports which vehicle moved
+./scripts/test_pipeline.sh
+```
+
+To drive it by hand instead of the script, run the three layers and authorise
+yourself:
+
+```bash
+# after `make demo-coastal` in terminal 1:
+ros2 launch guarded_swarms_bringup intruder.launch.py start_delay_s:=20.0
+ros2 launch guarded_swarms_sensing sensing.launch.py
+ros2 launch guarded_swarms_tbcspn tbcspn.launch.py
+
+# when a ConfirmedThreat is scrolling, authorise:
+ros2 topic pub --once /auth_tokens guarded_swarms_msgs/msg/SupervisorAuth \
+  "{target_id: 'intruder', authorised_by: 'supervisor_luca', \
+    decision: 'authorise', ttl_s: 10.0}"
+```
+
+Health check and world regeneration:
+
+```bash
+make check-coastal   # RTF, DDS namespaces, per-vehicle arm/airborne, safety, pristine PX4
+make gen-coastal     # regenerate coastal.sdf (fixed seed, byte-identical)
+```
+
+Monitor:
+
+```bash
+ros2 topic echo /obs_tokens --field source     # what each modality sees
+ros2 topic echo /interp_tokens --field label   # the chain climbing to ConfirmedThreat
+ros2 topic echo /mission_tokens                # a released mission + justification
+ros2 topic echo /vehicle_tasks                 # the dispatched per-vehicle tasks
+```
+
+---
+
+## The PX4 version pin (important)
+
+`px4_msgs` and the PX4 firmware **must** come from the same commit, or the
+uXRCE-DDS bridge silently stops publishing some topics — the vehicle arms but
+never moves. The firmware is pinned:
 
 ```
-guarded-swarms-ros2/
-├── install.sh                      # Automated installation script (Ubuntu 22.04)
-├── Makefile                        # Root Makefile
-├── scripts/
-│   ├── kill_all.sh                 # Process cleanup script
-│   ├── record_demo.sh              # ROS2 bag recording
-│   └── resilience/                 # Resilience test suite
-│       ├── config/                 # Test configurations (mock, uav_r1, ugv_r2, swarm_4)
-│       ├── framework/              # Base test classes and utilities
-│       └── tests/                  # Test implementations
-├── make/
-│   ├── vars.mk                     # Shared variables (paths, ROS 2 source, etc.)
-│   ├── ros2.mk                     # ROS 2 workspace management
-│   ├── px4.mk                      # PX4 SITL + Gazebo management
-│   ├── demo.mk                     # Demo launch targets
-│   ├── web.mk                      # Web dashboard
-│   └── diagnostics.mk              # Setup + diagnostics
-├── src/
-│   ├── guarded_swarms_msgs/        # ROS 2 message definitions (ament_cmake)
-│   │   └── msg/
-│   │       ├── Token.msg
-│   │       ├── GeometryToken.msg
-│   │       └── AuthToken.msg
-│   │
-│   ├── guarded_swarms_coordinator/ # Digital coordination layer (ament_python)
-│   │   ├── setup.py
-│   │   ├── setup.cfg
-│   │   └── guarded_swarms_coordinator/
-│   │       ├── token_system.py     # Core token logic and arbitration
-│   │       ├── agent_node.py       # Monitoring agent (publishes tokens)
-│   │       └── coordinator_node.py # Arbitration coordinator
-│   │
-│   ├── guarded_swarms_safety/      # Analog safety enforcement layer (ament_cmake, C++)
-│   │   ├── src/
-│   │   │   ├── safety_board_node.cpp       # OR-logic veto on actuator commands
-│   │   │   ├── px4_safety_bridge_node.cpp  # PX4 uORB -> safety board adapter
-│   │   │   └── mock_sensor_publisher.cpp   # 6 fault scenarios (no PX4)
-│   │   ├── models/                         # Gazebo UGV model with lidar
-│   │   └── px4_airframes/                  # Custom PX4 airframe for UGV
-│   │
-│   ├── guarded_swarms_control/     # Offboard UAV control + command bridge (ament_cmake, C++)
-│   │   └── src/
-│   │       ├── offboard_control_node.cpp   # UAV hover control
-│   │       ├── command_bridge_node.cpp     # AuthToken -> actuator command
-│   │       └── px4_safety_bridge_node.cpp  # PX4 sensor bridge (lidar topic configurable)
-│   │
-│   ├── guarded_swarms_bringup/     # Launch files package (ament_cmake)
-│   │   └── launch/
-│   │       ├── mock_pipeline.launch.py         # Full pipeline, no PX4
-│   │       ├── uav_pipeline.launch.py          # UAV pipeline (default world)
-│   │       ├── uav_urban_pipeline.launch.py    # UAV urban pipeline (R1 scenario)
-│   │       ├── ugv_pipeline.launch.py          # UGV pipeline (default world)
-│   │       └── ugv_urban_pipeline.launch.py    # UGV urban pipeline (R2 scenario)
-│   │
-│   ├── guarded_swarms_gz/          # Gazebo simulation assets
-│   │   ├── worlds/
-│   │   │   ├── urban_uav.sdf       # UAV urban scenario (R1): buildings + obstacle pillar
-│   │   │   └── urban_ugv.sdf       # UGV urban scenario (R2): street corridor + vehicle
-│   │   └── models/                 # Custom Gazebo models
-│   │
-│   ├── tools/
-│   │   ├── launch/
-│   │   │   └── demo.launch.py      # Coordinator-only launch
-│   │   └── visualization/
-│   │       └── dashboard.py        # Lightweight terminal dashboard
-│   │
-│   ├── web_dashboard/              # Real-time browser-based monitoring UI
-│   │   ├── backend/                # FastAPI server + ROS 2 WebSocket bridge
-│   │   └── frontend/               # TypeScript + Tailwind + Chart.js
-│   │
-│   ├── px4_msgs/                   # PX4 message definitions (submodule)
-│   └── px4_ros_com/                # PX4-ROS 2 communication bridge (submodule)
-│
-└── README.md
+PX4 commit  091ac918b133d518da8b73e395243ea0e0d087b5   (branch guarded-swarms-pin)
 ```
+
+Never bump PX4 without regenerating `px4_msgs`. The PX4 tree is treated as
+read-only (`git -C ~/PX4-Autopilot status --short` must print nothing);
+everything is layered via environment variables.
 
 ---
 
@@ -125,7 +155,7 @@ guarded-swarms-ros2/
 | **OS**     | **Ubuntu 22.04 LTS (required)**             |
 | **ROS 2**  | Humble Hawksbill                            |
 | **Gazebo** | Harmonic (gz-harmonic)                      |
-| **PX4**    | Autopilot SITL (cloned to ~/PX4-Autopilot)  |
+| **PX4**    | Autopilot SITL, pinned commit (see above)   |
 | RAM        | 8 GB minimum, 16 GB recommended             |
 | Storage    | 20 GB free                                  |
 | GPU        | NVIDIA GPU recommended (required for lidar) |
@@ -134,315 +164,134 @@ guarded-swarms-ros2/
 
 ## Installation
 
-The easiest way is to use the automated script:
-
 ```bash
 git clone --recurse-submodules git@github.com:YOUR_USERNAME/guarded-swarms-ros2.git
 cd guarded-swarms-ros2
 chmod +x install.sh && ./install.sh
 ```
 
-Estimated time: 20-40 minutes depending on internet speed.
+Estimated 20–40 minutes. `install.sh` installs ROS 2 Humble, Gazebo Harmonic,
+the Micro-XRCE-DDS agent, PX4 dependencies, checks out and builds the pinned PX4
+commit, and builds the workspace. A fresh clone plus `./install.sh` should
+produce a working demo with no manual steps.
 
-### Manual installation (step by step)
-
-#### 1. ROS 2 Humble
+After install, install the scenario assets into PX4 once:
 
 ```bash
-sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-  -o /usr/share/keyrings/ros-archive-keyring.gpg
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-  http://packages.ros.org/ros2/ubuntu jammy main" \
-  | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-sudo apt update && sudo apt install -y \
-  ros-humble-desktop \
-  ros-humble-ros-gzharmonic-bridge \
-  python3-colcon-common-extensions \
-  python3-rosdep
-echo "source /opt/ros/humble/setup.bash" >> ~/.bashrc
-source ~/.bashrc
+make setup-ugv       # rover airframe + model
+make setup-worlds    # world assets
+make gen-coastal     # generate the coastal world
 ```
 
-#### 2. Gazebo Harmonic
+<details>
+<summary>Manual installation (step by step)</summary>
 
-```bash
-sudo curl -sSL https://packages.osrfoundation.org/gazebo.gpg \
-  | sudo tee /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg > /dev/null
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] \
-  http://packages.osrfoundation.org/gazebo/ubuntu-stable jammy main" \
-  | sudo tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null
-sudo apt update && sudo apt install -y gz-harmonic
+The manual sequence (ROS 2, Gazebo, Micro-XRCE-DDS, PX4 deps, workspace build)
+is unchanged from the standard PX4 + ROS 2 Humble setup; see `install.sh` for
+the authoritative, current steps. The one project-specific requirement is the
+PX4 commit pin above and building `guarded_swarms_msgs` + `px4_msgs` first, then
+the rest of the workspace.
+
+</details>
+
+---
+
+## Package layout
+
 ```
-
-#### 3. Micro-XRCE-DDS Agent (PX4 bridge)
-
-```bash
-sudo apt install -y git cmake build-essential
-cd /tmp && git clone --depth 1 https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
-cd Micro-XRCE-DDS-Agent && mkdir build && cd build
-cmake .. && make -j$(nproc) && sudo make install && sudo ldconfig /usr/local/lib/
-```
-
-#### 4. PX4 dependencies and build
-
-```bash
-sudo apt install -y bc libeigen3-dev libopencv-dev pkg-config protobuf-compiler \
-  gstreamer1.0-plugins-bad gstreamer1.0-plugins-base gstreamer1.0-plugins-good \
-  gstreamer1.0-plugins-ugly gstreamer1.0-libav libgstreamer-plugins-base1.0-dev \
-  xterm expect
-cd ~ && git clone https://github.com/PX4/PX4-Autopilot.git --recursive --depth 1
-cd ~/PX4-Autopilot && bash ./Tools/setup/ubuntu.sh --no-nuttx --no-sim-tools
-make px4_sitl_default  # initial build (~10-20 minutes)
-```
-
-#### 5. Python dependencies
-
-```bash
-pip3 install \
-  fastapi==0.104.1 "uvicorn[standard]==0.24.0" \
-  websockets==12.0 pydantic==2.5.0 python-multipart==0.0.6
-curl -fsSL https://bun.sh/install | bash && source ~/.bashrc
-```
-
-#### 6. Build the ROS 2 workspace
-
-```bash
-cd ~/guarded-swarms-ros2
-git submodule update --init --recursive
-source /opt/ros/humble/setup.bash
-colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install
-source install/setup.bash
-colcon build --packages-select \
-  guarded_swarms_coordinator \
-  guarded_swarms_safety \
-  guarded_swarms_control \
-  guarded_swarms_bringup \
-  --symlink-install
-echo "source ~/guarded-swarms-ros2/install/setup.bash" >> ~/.bashrc
-source ~/.bashrc
-```
-
-#### 7. Install Guarded Swarms assets (run once)
-
-```bash
-make setup-ugv      # install rover airframe and model into PX4
-make setup-worlds   # install urban world files into PX4
+src/
+├── guarded_swarms_msgs/        # message definitions
+│   └── msg/  ObsToken, InterpToken, MissionToken, SupervisorAuth, VehicleTask,
+│             + AuthToken, Token, GeometryToken (the older coordinator's tokens)
+├── guarded_swarms_sensing/     # the four consultant agents + sensing.launch.py
+├── guarded_swarms_tbcspn/      # TB-CSPN transitions T1-T7 + tbcspn.launch.py
+├── guarded_swarms_control/     # worker agents (uav/ugv), offboard, rover,
+│                               # intruder, command/safety bridges
+├── guarded_swarms_safety/      # analogue safety board + mock sensors
+├── guarded_swarms_coordinator/ # older Python token-coordination layer
+├── guarded_swarms_bringup/     # launch files (coastal_pipeline, intruder, ...)
+├── guarded_swarms_gz/          # worlds (coastal, urban) + models (incl. intruder)
+├── web_dashboard/              # browser UI (to be reframed as the supervisor console)
+├── px4_msgs/                   # PX4 messages (submodule, pinned)
+└── px4_ros_com/                # PX4-ROS 2 bridge (submodule)
 ```
 
 ---
 
-## Quick Start
+## Other demos (no PX4 / earlier scenarios, still working)
+
+These predate the coastal case study and remain useful for isolated testing.
 
 ```bash
-# Token coordination demo (no PX4, no Gazebo)
-make demo-coordinator   # Terminal 1
-make demo-web           # Terminal 2 -> http://localhost:8765
+# Analogue safety board with mock sensors (6 fault scenarios, no PX4/Gazebo)
+make demo-safety-board      # terminal 1
+make demo-safety-sensors    # terminal 2
+ros2 topic echo /actuator_cmd_safe    # 0.6 = pass, 0.0 = vetoed
 
-# Safety board demo with mock sensors (no PX4, no Gazebo)
-make demo-safety-board    # Terminal 1
-make demo-safety-sensors  # Terminal 2
-
-# Full pipeline with mock sensors (all layers, no PX4)
+# Full software pipeline with mock sensors (no PX4)
 ros2 launch guarded_swarms_bringup mock_pipeline.launch.py
 
-# Monitor output
-ros2 topic echo /actuator_cmd_safe
-```
-
----
-
-## Gazebo Simulation
-
-### UAV Urban Scenario (R1 from paper) - single command
-
-```bash
+# Older single-vehicle urban scenarios (R1 UAV, R2 UGV)
 make demo-px4-uav-urban
-```
-
-Opens Gazebo with the urban world, auto-arms the drone, launches the full
-ROS2 pipeline. The analog safety board vetoes actuator commands when the
-lidar detects an obstacle within 1.5m.
-
-```bash
-ros2 topic echo /actuator_cmd_safe   # 0.0 = vetoed
-ros2 topic echo /drone/proximity     # lidar distance
-```
-
-### UGV Urban Scenario (R2 from paper) - single command
-
-```bash
-make setup-ugv              # run once
 make demo-px4-ugv-urban
 ```
 
-Opens Gazebo with the urban street world, launches the full ROS2 pipeline.
-Move the abandoned vehicle obstacle near the rover in Gazebo to trigger veto.
-
-### Manual launch (advanced)
-
-```bash
-# UAV default world
-make px4-gui-uav      # Terminal 1
-make ros2-agent       # Terminal 2
-ros2 launch guarded_swarms_bringup uav_pipeline.launch.py  # Terminal 3
-
-# UGV default world
-make px4-gui-ugv      # Terminal 1
-make ros2-agent       # Terminal 2
-ros2 launch guarded_swarms_bringup ugv_pipeline.launch.py  # Terminal 3
-```
+Safety board mock scenarios: NOMINAL (pass), PROXIMITY 0.8 m (veto), ATTITUDE
+45° (veto), BATTERY 10% (veto), ALTITUDE 60 m (veto), NOMINAL recovery (pass).
 
 ---
 
-## Available Demos
+## Development roadmap
 
-### A) Token Coordination (no PX4)
+**Done**
 
-```bash
-make demo-coordinator   # Terminal 1
-make demo-web           # Terminal 2 -> http://localhost:8765
-```
+- Environment, PX4 pin, native Ubuntu 22.04 stack
+- Digital coordination layer + analogue safety layer, decoupled
+- Coastal scenario: 2 UAV + 1 UGV, one command (`make demo-coastal`)
+- Scripted replayable intruder (radio-silence counterfactual)
+- Token types (multi-target) and the four consultant sensing agents
+- TB-CSPN detection chain T1–T5, verified in flight
+- T6 human authorisation (withheld-authorisation counterfactual comes free)
+- T7 dispatch into per-vehicle tasks
+- T8 UAV worker: flies the interception, track-locks the threat estimate
+- T9 UGV worker: drives to a shore observation point
+- One-command end-to-end test (`scripts/test_pipeline.sh`)
 
-### B) Safety Board with Mock Sensors (no PX4)
+**Next**
 
-| Scenario | Description                             | Result |
-| -------- | --------------------------------------- | ------ |
-| 0        | NOMINAL - all sensors within bounds     | PASS   |
-| 1        | PROXIMITY - obstacle at 0.8 m (< 1.5 m) | VETO   |
-| 2        | ATTITUDE - pitch 45 deg (> 30 deg)      | VETO   |
-| 3        | BATTERY LOW - 10% (< 15%)               | VETO   |
-| 4        | ALTITUDE HIGH - 60 m (> 50 m)           | VETO   |
-| 5        | NOMINAL RECOVERY                        | PASS   |
-
-```bash
-make demo-safety-board    # Terminal 1
-make demo-safety-sensors  # Terminal 2
-ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
-```
-
-### C) Full Pipeline with Mock Sensors
-
-```bash
-ros2 launch guarded_swarms_bringup mock_pipeline.launch.py
-```
-
-### D) UAV Urban Scenario (R1 from paper)
-
-```bash
-make demo-px4-uav-urban
-```
-
-### E) UGV Urban Scenario (R2 from paper)
-
-```bash
-make setup-ugv
-make demo-px4-ugv-urban
-```
+- [ ] Supervisor console: a web decision-support interface (rosbridge + a
+      decision panel showing the threat and its justification, then a
+      situational picture). Replaces the manual authorisation.
+- [ ] Wire the analogue veto into the UAV worker (the rover already honours it)
+- [ ] The two remaining §5.3 counterfactuals (stale EO, conflicting labels)
+- [ ] Multi-intruder waves (sea + inland) from a YAML config
+- [ ] Metrics (sim time): detection→mission latency, per-transition latency,
+      detection latency by attack vector, the counterfactuals as pass/fail tests
+- [ ] Demonstration video, thesis PDF
 
 ---
 
-## Monitor Topics
-
-```bash
-ros2 topic echo /actuator_cmd_safe   # 0.6 = pass, 0.0 = vetoed
-ros2 topic echo /actuator_cmd_raw    # 0.6 when token approved
-ros2 topic echo /safety_status       # 1.0 = safe, 0.0 = unsafe
-ros2 topic echo /drone/proximity     # lidar distance (m)
-ros2 topic echo /drone/altitude      # altitude (m)
-```
-
----
-
-## Development Roadmap
-
-### Phase 0 - Environment Setup
-
-- [x] ROS 2 Humble + Gazebo Harmonic native installation (Ubuntu 22.04)
-- [x] PX4 SITL integration via Micro-XRCE-DDS bridge
-- [x] Basic UAV offboard control (takeoff, hover, position hold)
-- [x] Makefile-based development workflow
-
-### Phase 1 - Digital Coordination Layer
-
-- [x] Separate `guarded_swarms_msgs` package for ROS 2 message definitions
-- [x] `agent_node`: publishes geometry and authorization tokens
-- [x] `coordinator_node`: arbitrates concurrent requests within 300 ms window
-- [x] Token buffering, expiry, and signature validation
-- [x] Real-time web dashboard for token stream monitoring
-- [x] Multi-agent concurrency validation with live demo
-
-### Phase 2 - Analog Safety Enforcement Layer
-
-- [x] `safety_board_node` (C++) with configurable sensor thresholds
-- [x] OR-logic veto on actuator commands upon any threshold violation
-- [x] `mock_sensor_publisher` (C++) with 6 pre-defined fault scenarios
-- [x] Safety interventions validated: proximity veto, attitude veto
-- [x] PX4 safety bridge: IMU, battery, altitude from real Gazebo simulation
-- [x] Lidar proximity from Gazebo (end-to-end validated)
-
-### Phase 3 - Integration and Full Pipeline
-
-- [x] Full software pipeline validated with mock sensors
-- [x] UAV pipeline with real PX4 sensors and lidar (R1 scenario)
-- [x] UGV pipeline with real PX4 sensors and proximity veto (R2 scenario)
-- [x] `guarded_swarms_bringup` package with 5 launch files
-- [x] Urban world files (R1 + R2 scenarios) in `guarded_swarms_gz`
-- [x] Single-command demo launch for both UAV and UGV urban scenarios
-- [x] ROS 2 bag recording and scenario replay
-
-### Phase 4 - Evaluation
-
-- [x] Resilience testing: dropped tokens, forged tokens, sensor staleness, sensor spike
-- [x] Automated test suite with `make test-resilience-mock` (4/4 passing)
-- [ ] Demonstration video
-
-### Phase 5 - Documentation and Submission
-
-- [ ] Complete API documentation
-- [ ] Finalize GitHub repository
-- [ ] Submit thesis report (PDF)
-
----
-
-## Development Commands
+## Development commands
 
 ```bash
 make help                  # full command reference
-make show-guide            # complete usage guide and workflows
-make diagnose              # full system diagnostic
-make ros2-rebuild-ws       # clean and rebuild the ROS 2 workspace
-make px4-kill              # terminate PX4 and Gazebo processes
+make show-guide            # usage guide and workflows
+make diagnose              # system diagnostic
+make check-coastal         # coastal scenario health check
+make ros2-rebuild-ws       # clean + rebuild the workspace
 make kill-all              # terminate all processes
 ```
-
----
-
-## Web Dashboard
-
-A browser-based monitoring panel is included under `src/web_dashboard/`.
-It bridges ROS 2 token topics to the browser via WebSocket, providing live
-token stream visualization, per-agent statistics, and demo lifecycle control.
-
-Build the frontend once before first use:
-
-```bash
-make web-ts-build
-```
-
-Access at `http://localhost:8765` after running `make demo-web`.
 
 ---
 
 ## Citation
 
 ```bibtex
-@inproceedings{borghoff2025guarded,
-  author    = {Borghoff, Uwe M. and Bottoni, Paolo and Pareschi, Remo},
-  title     = {Guarded Swarms: Hybrid Digital--Analog Coordination for {AI}--Robot Systems},
-  booktitle = {Proceedings of the IEEE International Workshop on Technologies
-               for Defense and Security (TechDefense 2025)},
-  year      = {2025},
-  publisher = {IEEE}
+@article{borghoff2026sensor,
+  author  = {Borghoff, Uwe M. and Bottoni, Paolo and Pareschi, Remo},
+  title   = {Sensor-Driven Mission Synthesis for {UAV}/{UGV} Swarms},
+  journal = {IET Radar, Sonar \& Navigation},
+  year    = {2026}
 }
 ```
 
@@ -450,13 +299,11 @@ Access at `http://localhost:8765` after running `make demo-web`.
 
 ## License
 
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
----
+Apache License 2.0 — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
-- Developed under the supervision of Prof. R. Pareschi, University of Molise.
-- Built on [PX4 Autopilot](https://px4.io/) and [ROS 2 Humble](https://docs.ros.org/en/humble/).
-- Gazebo simulation powered by [Gazebo Harmonic](https://gazebosim.org/).
-- Coordination architecture based on the Guarded Swarms paper by Borghoff, Bottoni, and Pareschi (2025).
+Developed under the supervision of Prof. R. Pareschi, University of Molise.
+Built on [PX4 Autopilot](https://px4.io/), [ROS 2 Humble](https://docs.ros.org/en/humble/)
+and [Gazebo Harmonic](https://gazebosim.org/). Architecture from the Guarded
+Swarms line of work by Borghoff, Bottoni and Pareschi.
