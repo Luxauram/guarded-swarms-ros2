@@ -101,6 +101,15 @@ UGV_SYSTEM_ID = 3
 UAV0_HOVER_M = 12.0
 UAV1_HOVER_M = 20.0
 
+# UAV spawn poses in world ENU (Gazebo), for the worker's ENU->NED conversion
+# of a task target. Must match the spawn poses in make/px4.mk.
+UAV0_SPAWN = (-24.0, -24.0)
+UAV1_SPAWN = (24.0, -24.0)
+
+# Interception altitude held by a UAV once it has a task, so it closes on the
+# target's horizontal position without descending onto it.
+INTERCEPT_ALTITUDE_M = 15.0
+
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the second value drives along the shore.
 # From X = -60 eastward, the road barrier at X = -8 triggers the veto.
@@ -115,7 +124,7 @@ def lidar_topic(model_name):
 
 
 def vehicle_stack(namespace, model_name, system_id, is_ground,
-                  hover_altitude=None, waypoints=None):
+                  hover_altitude=None, waypoints=None, spawn=None):
     """Build the per-vehicle node set.
 
     namespace of None means the root namespace, used by PX4 instance 0.
@@ -184,12 +193,15 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
     else:
         nodes.append(Node(
             package="guarded_swarms_control",
-            executable="offboard_control_node",
-            name="offboard_control_node",
+            executable="uav_worker_node",
+            name="uav_worker_node",
             output="screen",
             parameters=[{
                 "target_system": system_id,
                 "hover_altitude": hover_altitude,
+                "intercept_altitude": INTERCEPT_ALTITUDE_M,
+                "spawn_x": spawn[0],
+                "spawn_y": spawn[1],
             }],
             emulate_tty=True,
             **ns,
@@ -230,9 +242,11 @@ def generate_launch_description():
     # =========================================================================
 
     uav0 = vehicle_stack(None, UAV0_MODEL, UAV0_SYSTEM_ID,
-                         is_ground=False, hover_altitude=UAV0_HOVER_M)
+                         is_ground=False, hover_altitude=UAV0_HOVER_M,
+                         spawn=UAV0_SPAWN)
     uav1 = vehicle_stack(UAV1_NAMESPACE, UAV1_MODEL, UAV1_SYSTEM_ID,
-                         is_ground=False, hover_altitude=UAV1_HOVER_M)
+                         is_ground=False, hover_altitude=UAV1_HOVER_M,
+                         spawn=UAV1_SPAWN)
     ugv = vehicle_stack(UGV_NAMESPACE, UGV_MODEL, UGV_SYSTEM_ID,
                         is_ground=True, waypoints=UGV_WAYPOINTS)
 

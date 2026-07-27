@@ -104,6 +104,16 @@ ament_target_dependencies(intruder_node
 )
 target_compile_features(intruder_node PUBLIC c_std_99 cxx_std_17)
 
+add_executable(uav_worker_node src/uav_worker_node.cpp)
+target_include_directories(uav_worker_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(uav_worker_node
+  rclcpp px4_msgs guarded_swarms_msgs
+)
+target_compile_features(uav_worker_node PUBLIC c_std_99 cxx_std_17)
+
 # ============================================================================
 # Install
 # ============================================================================
@@ -113,6 +123,7 @@ install(TARGETS
   px4_safety_bridge_node
   rover_control_node
   intruder_node
+  uav_worker_node
 DESTINATION lib/${PROJECT_NAME}
 )
 
