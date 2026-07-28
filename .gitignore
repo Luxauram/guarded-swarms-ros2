@@ -113,5 +113,5 @@ docs/doxygen/
 tmp/
 temp/
 
-
+# Resilience test results
 scripts/resilience/results/*.json

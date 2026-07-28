@@ -317,9 +317,23 @@ def generate_launch_description():
         LogInfo(msg="Monitor:  ros2 topic echo /px4_2/actuator_cmd_safe"),
         LogInfo(msg="          ros2 topic echo /px4_2/drone/proximity"),
         LogInfo(msg="============================================================"),
+        # ---------------------------------------------------------------
+        # Simulation clock bridge (Gazebo -> ROS).
+        # Every node runs with use_sim_time=true and subscribes to /clock.
+        # Without this bridge no one publishes /clock, sim time is frozen at
+        # zero, and every token's `t` field (and the time-windowed joins of
+        # T3/T5) operate on a stopped clock. This must come up first so the
+        # chain nodes have a valid clock before they emit their first tokens.
+        # ---------------------------------------------------------------
+        Node(
+            package="ros_gz_bridge",
+            executable="parameter_bridge",
+            name="clock_gz_bridge",
+            output="screen",
+            arguments=["/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock"],
+            emulate_tty=True,
+        ),
         *uav0,
         *uav1,
         *ugv,
-        coordinator_node,
-        *agents,
     ])

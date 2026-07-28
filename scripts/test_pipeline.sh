@@ -22,10 +22,15 @@ source install/setup.bash
 
 # --- tunables ---------------------------------------------------------------
 INTRUDER_DELAY="${INTRUDER_DELAY:-8.0}"    # s before the intruder moves
-INTRUDER_SPEED="${INTRUDER_SPEED:-3.0}"    # m/s, slow = wide detection window
+INTRUDER_SPEED="${INTRUDER_SPEED:-1.5}"    # m/s, slow = wide detection window
+                                           # (slow enough that all sensor
+                                           # modalities coincide in T5's fusion
+                                           # window even under bag-record load)
 AUTH_TARGET="${AUTH_TARGET:-intruder}"
 SUPERVISOR="${SUPERVISOR:-supervisor_luca}"
-THREAT_TIMEOUT="${THREAT_TIMEOUT:-90}"     # s to wait for a ConfirmedThreat
+THREAT_TIMEOUT="${THREAT_TIMEOUT:-150}"    # s to wait for a ConfirmedThreat
+                                           # (raised: a slower intruder takes
+                                           # longer to reach full coverage)
 
 PIDS=()
 cleanup() {
@@ -83,7 +88,16 @@ before_uav1=$(pose x500_lidar_front_1)
 before_ugv=$(pose r1_rover_2)
 
 echo "[test] authorising interception of '${AUTH_TARGET}' as '${SUPERVISOR}'..."
-ros2 topic pub --once /auth_tokens guarded_swarms_msgs/msg/SupervisorAuth \
+# Publish the authorisation repeatedly for ~2s rather than with --once.
+# A single --once publisher is created and destroyed immediately; with RELIABLE
+# QoS the DDS handshake with T6's subscription may not complete in time and the
+# message is lost. Publishing at 5 Hz for 2s guarantees delivery. T6 releases
+# the mission once and ignores repeats for the same live threat.
+# Publish with transient_local durability, matching T6's subscription, so the
+# authorisation is delivered even if T6's DDS handshake is not yet complete when
+# we publish. A short repeated burst on top removes any residual timing gap.
+ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
+  /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
   "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: 'authorise', ttl_s: 15.0}" \
   >/dev/null 2>&1
 

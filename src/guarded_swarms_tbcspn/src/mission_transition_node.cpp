@@ -60,7 +60,7 @@
  * Topics:
  *   Subscribed:
  *     /interp_tokens   (guarded_swarms_msgs/InterpToken)  -- ConfirmedThreat
- *     /auth_tokens     (guarded_swarms_msgs/SupervisorAuth)     -- supervisor
+ *     /supervisor_auth (guarded_swarms_msgs/SupervisorAuth)     -- supervisor
  *   Published:
  *     /mission_tokens  (guarded_swarms_msgs/MissionToken)
  *
@@ -98,8 +98,15 @@ class MissionTransitionNode : public rclcpp::Node {
     threat_sub_ = this->create_subscription<InterpToken>(
         "/interp_tokens", 50,
         [this](const InterpToken::SharedPtr m) { on_interp(m); });
+    // Durable QoS for the authorisation: an authorisation is a one-shot,
+    // must-not-be-missed event. transient_local means a late-joining T6 still
+    // receives the last authorisation a supervisor published, and removes the
+    // startup race where a briefly-lived command-line publisher delivers to no
+    // one. Depth 10 keeps the recent authorisations, not just the very last.
+    rclcpp::QoS auth_qos(10);
+    auth_qos.transient_local();
     auth_sub_ = this->create_subscription<SupervisorAuth>(
-        "/auth_tokens", 10,
+        "/supervisor_auth", auth_qos,
         [this](const SupervisorAuth::SharedPtr m) { on_auth(m); });
 
     mission_pub_ =
@@ -115,7 +122,7 @@ class MissionTransitionNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "  %s + SupervisorAuth(authorise)  ->  %s",
                 require_label_.c_str(), mission_type_.c_str());
     RCLCPP_INFO(this->get_logger(),
-                "  awaiting supervisor authorisation on /auth_tokens");
+                "  awaiting supervisor authorisation on /supervisor_auth");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
@@ -123,6 +130,14 @@ class MissionTransitionNode : public rclcpp::Node {
  private:
   struct Held {
     InterpToken tok;
+    rclcpp::Time expiry;
+  };
+  // A pending authorisation is buffered symmetrically with a threat: the join
+  // must fire regardless of which of the two arrives first. Holding only
+  // threats (and consuming auths on arrival) loses an authorisation that
+  // arrives a moment before its threat is buffered.
+  struct HeldAuth {
+    SupervisorAuth auth;
     rclcpp::Time expiry;
   };
 
@@ -133,18 +148,29 @@ class MissionTransitionNode : public rclcpp::Node {
 
     Held h;
     h.tok = *m;
-    h.expiry = rclcpp::Time(m->t) + rclcpp::Duration::from_seconds(m->ttl_s);
+    // Build the token's time in the node's own clock domain. Under
+    // use_sim_time the node clock is RCL_ROS_TIME, while a default-constructed
+    // rclcpp::Time(m->t) is RCL_SYSTEM_TIME; comparing the two throws. Passing
+    // the clock type keeps every time comparison in one domain.
+    const rcl_clock_type_t clk = this->now().get_clock_type();
+    h.expiry = rclcpp::Time(m->t, clk) + rclcpp::Duration::from_seconds(m->ttl_s);
     if (h.expiry <= this->now()) return;
 
     // Keep only the freshest threat per target, so the buffer does not grow
     // while a threat is continuously re-confirmed.
+    bool updated = false;
     for (auto& held : threats_) {
       if (held.tok.target_id == m->target_id) {
         held = h;
-        return;
+        updated = true;
+        break;
       }
     }
-    threats_.push_back(h);
+    if (!updated) threats_.push_back(h);
+
+    // A threat has just arrived or refreshed: if an authorisation for this
+    // target is already waiting, the join can fire now.
+    try_release(m->target_id);
   }
 
   void on_auth(const SupervisorAuth::SharedPtr m) {
@@ -168,38 +194,52 @@ class MissionTransitionNode : public rclcpp::Node {
     // may leave the timestamp unset. Treat an unset stamp as "now", so the
     // supervisor does not have to reason about the simulation clock: a human
     // decision is taken at the moment it is issued.
-    rclcpp::Time auth_t = rclcpp::Time(m->t);
+    const rcl_clock_type_t clk = this->now().get_clock_type();
+    rclcpp::Time auth_t = rclcpp::Time(m->t, clk);
     if (auth_t.nanoseconds() == 0) {
       auth_t = this->now();
     }
-    const rclcpp::Time auth_expiry =
-        auth_t + rclcpp::Duration::from_seconds(m->ttl_s);
-    if (auth_expiry <= this->now()) return;
+    HeldAuth ha;
+    ha.auth = *m;
+    ha.expiry = auth_t + rclcpp::Duration::from_seconds(m->ttl_s);
+    if (ha.expiry <= this->now()) return;
 
-    prune();  // drops any ConfirmedThreat whose validity has elapsed
-
-    // Release against any ConfirmedThreat for this target that is still live.
-    // A threat survives in the buffer only while unexpired (prune runs every
-    // tick and on entry here), so its mere presence means it is within its own
-    // validity window. Comparing the two tokens' expiry INSTANTS would be
-    // wrong: they carry different TTLs, so their expiries differ by design even
-    // when both are valid right now. What matters is that the threat is live at
-    // the moment of authorisation, which is exactly what a non-empty buffer
-    // entry guarantees.
-    for (size_t i = 0; i < threats_.size(); ++i) {
-      if (threats_[i].tok.target_id != m->target_id) continue;
-      release_mission(threats_[i], *m);
-      threats_.erase(threats_.begin() + i);
-      return;
+    // Buffer the authorisation (freshest per target) and attempt the join. The
+    // threat may already be present (auth arrived second) or may still be on
+    // its way (auth arrived first): try_release fires as soon as both are here.
+    bool updated = false;
+    for (auto& held : auths_) {
+      if (held.auth.target_id == m->target_id) {
+        held = ha;
+        updated = true;
+        break;
+      }
     }
+    if (!updated) auths_.push_back(ha);
 
-    // Authorisation arrived but no live threat matches it. This is not an
-    // error: the threat may have expired, or the operator may have acted on a
-    // stale view. Recorded, no mission.
-    RCLCPP_WARN(this->get_logger(),
-                "AUTHORISE for '%s' by '%s' but no live ConfirmedThreat within "
-                "the window - no mission released.",
-                m->target_id.c_str(), m->authorised_by.c_str());
+    try_release(m->target_id);
+  }
+
+  // Fire the join for one target if BOTH a live threat and a live
+  // authorisation are buffered for it. Symmetric in threat/auth arrival order.
+  // A threat or auth survives in its buffer only while unexpired (prune runs
+  // every tick), so mere presence means "valid now" -- the join is on
+  // validity windows, never on comparing the two tokens' differing expiry
+  // instants.
+  void try_release(const std::string& target_id) {
+    prune();
+    long ti = -1, ai = -1;
+    for (size_t i = 0; i < threats_.size(); ++i) {
+      if (threats_[i].tok.target_id == target_id) { ti = static_cast<long>(i); break; }
+    }
+    for (size_t i = 0; i < auths_.size(); ++i) {
+      if (auths_[i].auth.target_id == target_id) { ai = static_cast<long>(i); break; }
+    }
+    if (ti < 0 || ai < 0) return;  // one side missing: wait for it
+
+    release_mission(threats_[ti], auths_[ai].auth);
+    threats_.erase(threats_.begin() + ti);
+    auths_.erase(auths_.begin() + ai);
   }
 
   void release_mission(const Held& threat, const SupervisorAuth& auth) {
@@ -236,12 +276,22 @@ class MissionTransitionNode : public rclcpp::Node {
         ++it;
       }
     }
+    // Authorisations expire on their own TTL too: a supervisor's decision does
+    // not authorise action indefinitely.
+    for (auto it = auths_.begin(); it != auths_.end();) {
+      if (it->expiry <= now) {
+        it = auths_.erase(it);
+      } else {
+        ++it;
+      }
+    }
   }
 
   std::string require_label_, mission_type_;
   double sync_threshold_s_, mission_ttl_s_;
 
   std::deque<Held> threats_;
+  std::deque<HeldAuth> auths_;
 
   rclcpp::Subscription<InterpToken>::SharedPtr threat_sub_;
   rclcpp::Subscription<SupervisorAuth>::SharedPtr auth_sub_;
