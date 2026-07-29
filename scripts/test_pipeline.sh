@@ -23,6 +23,18 @@ source install/setup.bash
 # --- tunables ---------------------------------------------------------------
 INTRUDER_DELAY="${INTRUDER_DELAY:-8.0}"    # s before the intruder moves
 INTRUDER_SPEED="${INTRUDER_SPEED:-1.5}"    # m/s, slow = wide detection window
+# Attack vector: ingress geometry of the intruder, chosen from the sensor
+# coverage map. "frontal" is the well-covered sea front; "east-deep" and "rear"
+# cross the sparse zones so the detection modality richness degrades. Used by
+# the Group 4 (detection-by-vector) metric. Default frontal = the paper's
+# nominal coastal ingress.
+ATTACK_VECTOR="${ATTACK_VECTOR:-frontal}"
+case "$ATTACK_VECTOR" in
+  frontal)   IN_X=0.0;   IN_Y=180.0;  TG_X=0.0; TG_Y=10.0 ;;
+  east-deep) IN_X=250.0; IN_Y=-120.0; TG_X=0.0; TG_Y=10.0 ;;
+  rear)      IN_X=0.0;   IN_Y=-200.0; TG_X=0.0; TG_Y=-120.0 ;;
+  *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear)"; exit 1 ;;
+esac
                                            # (slow enough that all sensor
                                            # modalities coincide in T5's fusion
                                            # window even under bag-record load)
@@ -31,6 +43,9 @@ SUPERVISOR="${SUPERVISOR:-supervisor_luca}"
 export EO_DELAY_S="${EO_DELAY_S:-0}"       # seconds to delay EO delivery;
                                            # >threat TTL reproduces the stale-EO
                                            # counterfactual (C2) of the paper.
+RADAR_ENABLED="${RADAR_ENABLED:-true}"     # per-modality enables for the
+RF_ENABLED="${RF_ENABLED:-true}"           # loss-of-modality metric (Group 4b):
+ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"  # drop one and measure the degrade.
 EO_ENABLED="${EO_ENABLED:-true}"          # set false to reproduce the
                                            # "EO confirmation unavailable in
                                            # the fusion window" counterfactual
@@ -62,20 +77,38 @@ cleanup() {
   for pid in "${PIDS[@]}"; do
     kill "$pid" 2>/dev/null
   done
+  # Killing a `ros2 launch` process does NOT reliably kill the nodes it spawned:
+  # they are reparented and survive as orphans, which then run alongside the
+  # next launch and produce a duplicated sensing chain (doubled observation
+  # counts, overlapping timestamps). Explicitly sweep the nodes each launch
+  # starts, so every run ends from a clean slate. Names are specific to this
+  # pipeline; nothing else in the workspace shares them.
+  for n in radar_agent_node rf_agent_node acoustic_agent_node eo_agent_node \
+           interpretation_node candidate_transition_node \
+           mission_transition_node dispatch_transition_node \
+           uav_worker_node ugv_worker_node intruder_node; do
+    pkill -f "$n" 2>/dev/null
+  done
+  pkill -f "sensing.launch" 2>/dev/null
+  pkill -f "tbcspn.launch" 2>/dev/null
+  pkill -f "intruder.launch" 2>/dev/null
   wait 2>/dev/null
   echo "[test] done."
 }
 trap cleanup EXIT INT TERM
 
-echo "[test] launching intruder (delay ${INTRUDER_DELAY}s, speed ${INTRUDER_SPEED} m/s)..."
+echo "[test] launching intruder (vector ${ATTACK_VECTOR}, delay ${INTRUDER_DELAY}s, speed ${INTRUDER_SPEED} m/s)..."
 ros2 launch guarded_swarms_bringup intruder.launch.py \
   start_delay_s:="${INTRUDER_DELAY}" speed_mps:="${INTRUDER_SPEED}" \
+  ingress_x:="${IN_X}" ingress_y:="${IN_Y}" ingress_z:=15.0 \
+  target_x:="${TG_X}" target_y:="${TG_Y}" target_z:=15.0 \
   >/tmp/gs_intruder.log 2>&1 &
 PIDS+=($!)
 
 echo "[test] launching sensing layer..."
 ros2 launch guarded_swarms_sensing sensing.launch.py \
-  eo:="${EO_ENABLED}" \
+  radar:="${RADAR_ENABLED}" rf:="${RF_ENABLED}" \
+  acoustic:="${ACOUSTIC_ENABLED}" eo:="${EO_ENABLED}" \
   >/tmp/gs_sensing.log 2>&1 &
 PIDS+=($!)
 

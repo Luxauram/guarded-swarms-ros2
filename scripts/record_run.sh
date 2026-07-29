@@ -36,6 +36,8 @@ TOPICS=(
   /mission_tokens
   /vehicle_tasks
   /supervisor_auth
+  /intruder/ground_truth
+  /intruder/active
   /clock
   /fmu/out/vehicle_local_position_v1
   /px4_1/fmu/out/vehicle_local_position_v1
@@ -79,9 +81,13 @@ export DECISION="${DECISION:-authorise}"
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 export EO_ENABLED="${EO_ENABLED:-true}"
 export EO_DELAY_S="${EO_DELAY_S:-0}"
+export ATTACK_VECTOR="${ATTACK_VECTOR:-frontal}"
+export RADAR_ENABLED="${RADAR_ENABLED:-true}"
+export RF_ENABLED="${RF_ENABLED:-true}"
+export ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
 export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT AUTH_TARGET SUPERVISOR \
        EO_DELAY_S 2>/dev/null || true
-echo "[record] scenario: DECISION=${DECISION}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}"
+echo "[record] scenario: DECISION=${DECISION}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
 ./scripts/test_pipeline.sh
 
 # test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user
