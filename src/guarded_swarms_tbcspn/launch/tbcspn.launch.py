@@ -77,6 +77,7 @@ Authorise (from the console, or by hand for now):
 @author Luca D'Aurizio
 """
 
+import os
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -89,6 +90,16 @@ PKG = "guarded_swarms_tbcspn"
 # Exposed as launch arguments so a metric campaign can sweep them without a
 # rebuild, and so the experiment configuration is documented in one place.
 # -----------------------------------------------------------------------------
+# The label T2 emits for an RF detection. Normally LikelyDroneLink. Set to
+# LikelyCivilianTraffic to reproduce the "conflicting interpretation"
+# counterfactual (Sec 5.3): T3 needs PossibleUAV + LikelyDroneLink to form a
+# CandidateTarget, so a civilian label -- concordant with nothing -- blocks the
+# candidate, and no threat and no mission follow.
+# The RF interpretation label. Read from the RF_LABEL environment variable so a
+# counterfactual run (RF_LABEL=LikelyCivilianTraffic) can override it without a
+# launch-argument substitution, which does not reliably resolve when passed as
+# a value inside a node's parameter dict. Falls back to the concordant label.
+DEFAULT_RF_INTERP_LABEL = os.environ.get("RF_LABEL", "LikelyDroneLink")
 DEFAULT_SYNC_THRESHOLD_S = "3.0"
 DEFAULT_THREAT_TTL_S = "10.0"    # was 4.0; raised so a confirmed threat waits
                                  # long enough for the human authorisation
@@ -160,7 +171,7 @@ def generate_launch_description():
 
         # First-level interpretations (T1, T2, T4)
         interp("t1_radar", "radar", "PossibleUAV"),
-        interp("t2_rf", "rf", "LikelyDroneLink"),
+        interp("t2_rf", "rf", DEFAULT_RF_INTERP_LABEL),
         interp("t4_eo", "eo", "ConfirmedAerialObject"),
 
         # Time-windowed joins (T3, T5). T5 emits the ConfirmedThreat, whose TTL

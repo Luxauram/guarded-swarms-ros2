@@ -28,6 +28,29 @@ INTRUDER_SPEED="${INTRUDER_SPEED:-1.5}"    # m/s, slow = wide detection window
                                            # window even under bag-record load)
 AUTH_TARGET="${AUTH_TARGET:-intruder}"
 SUPERVISOR="${SUPERVISOR:-supervisor_luca}"
+export EO_DELAY_S="${EO_DELAY_S:-0}"       # seconds to delay EO delivery;
+                                           # >threat TTL reproduces the stale-EO
+                                           # counterfactual (C2) of the paper.
+EO_ENABLED="${EO_ENABLED:-true}"          # set false to reproduce the
+                                           # "EO confirmation unavailable in
+                                           # the fusion window" counterfactual
+                                           # (C2): CandidateTarget forms but
+                                           # is never promoted to
+                                           # ConfirmedThreat.
+export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"   # T2's emitted label; set to
+                                           # LikelyCivilianTraffic to reproduce
+                                           # the conflict counterfactual (C3)
+EXPECT_THREAT="${EXPECT_THREAT:-yes}"      # yes | no. no = do not wait for a
+                                           # ConfirmedThreat (it must NOT come,
+                                           # as in the C3 conflict run); instead
+                                           # let the pipeline run for OBSERVE_S
+                                           # and just record.
+OBSERVE_S="${OBSERVE_S:-90}"               # seconds to let a no-threat run breathe
+DECISION="${DECISION:-authorise}"        # authorise | deny
+                                           # deny reproduces the "authorisation
+                                           # withheld" counterfactual (Sec 5.3):
+                                           # the threat forms but no mission is
+                                           # released.
 THREAT_TIMEOUT="${THREAT_TIMEOUT:-150}"    # s to wait for a ConfirmedThreat
                                            # (raised: a slower intruder takes
                                            # longer to reach full coverage)
@@ -52,15 +75,33 @@ PIDS+=($!)
 
 echo "[test] launching sensing layer..."
 ros2 launch guarded_swarms_sensing sensing.launch.py \
+  eo:="${EO_ENABLED}" \
   >/tmp/gs_sensing.log 2>&1 &
 PIDS+=($!)
 
 echo "[test] launching TB-CSPN layer (T1-T7)..."
+# RF_LABEL is exported above; tbcspn.launch.py reads it from the environment
+# (a launch-argument substitution inside a parameter dict did not resolve).
 ros2 launch guarded_swarms_tbcspn tbcspn.launch.py \
   >/tmp/gs_tbcspn.log 2>&1 &
 PIDS+=($!)
 
 # --- wait for a ConfirmedThreat --------------------------------------------
+# In a counterfactual run where the threat must NOT form (EXPECT_THREAT=no, the
+# C3 conflict case), waiting for it would be waiting for something that is
+# correctly never produced. Instead let the pipeline run for OBSERVE_S so the
+# sensors and interpretations do their work, then record and finish. The
+# counterfactual check on the bag then confirms the forbidden token is absent.
+if [[ "$EXPECT_THREAT" == "no" ]]; then
+  echo "[test] counterfactual run: NOT expecting a ConfirmedThreat."
+  echo "[test] letting the pipeline run for ${OBSERVE_S}s..."
+  sleep "${OBSERVE_S}"
+  echo "[test] done observing; the bag holds the (non-)result."
+  echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
+  wait
+  exit 0
+fi
+
 echo "[test] waiting for a ConfirmedThreat (up to ${THREAT_TIMEOUT}s)..."
 deadline=$(( SECONDS + THREAT_TIMEOUT ))
 got_threat=0
@@ -87,7 +128,7 @@ before_uav0=$(pose x500_lidar_front_0)
 before_uav1=$(pose x500_lidar_front_1)
 before_ugv=$(pose r1_rover_2)
 
-echo "[test] authorising interception of '${AUTH_TARGET}' as '${SUPERVISOR}'..."
+echo "[test] supervisor decision '${DECISION}' for '${AUTH_TARGET}' as '${SUPERVISOR}'..."
 # Publish the authorisation repeatedly for ~2s rather than with --once.
 # A single --once publisher is created and destroyed immediately; with RELIABLE
 # QoS the DDS handshake with T6's subscription may not complete in time and the
@@ -98,7 +139,7 @@ echo "[test] authorising interception of '${AUTH_TARGET}' as '${SUPERVISOR}'..."
 # we publish. A short repeated burst on top removes any residual timing gap.
 ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
   /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
-  "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: 'authorise', ttl_s: 15.0}" \
+  "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: '${DECISION}', ttl_s: 15.0}" \
   >/dev/null 2>&1
 
 echo "[test] letting the vehicles react (10s)..."

@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 /**
  * @file eo_agent_node.cpp
  *
@@ -39,6 +38,17 @@
  * time-windowed join of Section 5.3 fail: the mission is not released if the
  * visual arrives after the window has closed.
  *
+ * THE STALE-EO COUNTERFACTUAL
+ * ===========================
+ * emit_delay_s (parameter, or the EO_DELAY_S environment variable) holds each
+ * EO observation back by a fixed wall-clock delay before publishing it. With a
+ * large enough delay the ConfirmedAerialObject reaches T5 only after the
+ * CandidateTarget's validity window has closed, so the two cannot fuse and no
+ * ConfirmedThreat is produced. This reproduces the paper's "stale EO
+ * confirmation" trajectory (Section 5.3) literally: the confirmation IS
+ * generated and IS delivered, but too late to matter. The default is 0 (no
+ * delay), so normal runs are unaffected.
+ *
  * The camera is modelled as a cone: an axis direction (a fixed bearing and
  * pitch in the world frame for now) and a half-angle. When the worker agents
  * start slewing the UAVs, the coverage follows the platform automatically,
@@ -62,61 +72,63 @@
  *
  * @author Luca D'Aurizio
  */
-
 #include <rclcpp/rclcpp.hpp>
-
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
-
 #include <cmath>
+#include <cstdlib>
+#include <deque>
 #include <random>
 #include <string>
 #include <vector>
-
 namespace {
 constexpr double kPi = 3.14159265358979323846;
 }
-
 class EoAgentNode : public rclcpp::Node {
  public:
   EoAgentNode() : Node("eo_agent_node"), rng_(std::random_device{}()) {
     // Carrier UAV identity, used only in the ObsToken.id prefix.
     carrier_ = this->declare_parameter<std::string>("carrier", "uav0");
-
     // The UAV's Gazebo spawn pose (world ENU). PX4 local position is relative
     // to this, so it is needed to place the camera in the world frame.
     spawn_x_ = this->declare_parameter<double>("spawn_x", -24.0);
     spawn_y_ = this->declare_parameter<double>("spawn_y", -24.0);
     spawn_z_ = this->declare_parameter<double>("spawn_z", 0.0);
-
     // Camera cone. bearing 90 deg points north (toward the sea); pitch below
     // horizontal looks down at low-altitude tracks over the water.
     cam_bearing_deg_ = this->declare_parameter<double>("cam_bearing_deg", 90.0);
     cam_pitch_deg_ = this->declare_parameter<double>("cam_pitch_deg", -20.0);
     half_angle_deg_ = this->declare_parameter<double>("half_angle_deg", 30.0);
     max_range_m_ = this->declare_parameter<double>("max_range_m", 120.0);
-
     position_noise_m_ = this->declare_parameter<double>("position_noise_m", 1.0);
     detection_prob_ = this->declare_parameter<double>("detection_prob", 0.98);
     latency_s_ = this->declare_parameter<double>("latency_s", 0.15);
     ttl_s_ = this->declare_parameter<double>("ttl_s", 2.0);
     update_rate_hz_ = this->declare_parameter<double>("update_rate_hz", 5.0);
     confidence_ = this->declare_parameter<double>("confidence", 0.95);
-
+    // Stale-EO counterfactual: hold each observation back by this many seconds
+    // before publishing. Parameter default 0; overridable by EO_DELAY_S in the
+    // environment so a counterfactual run needs no rebuild or YAML edit.
+    emit_delay_s_ = this->declare_parameter<double>("emit_delay_s", 0.0);
+    if (const char* env = std::getenv("EO_DELAY_S")) {
+      try {
+        emit_delay_s_ = std::stod(env);
+      } catch (...) {
+        RCLCPP_WARN(this->get_logger(),
+                    "EO_DELAY_S='%s' is not a number; ignoring.", env);
+      }
+    }
     const auto uav_topic = this->declare_parameter<std::string>(
         "uav_pose_topic", "/fmu/out/vehicle_local_position_v1");
-
     target_ids_ = this->declare_parameter<std::vector<std::string>>(
         "target_ids", std::vector<std::string>{"intruder"});
     const auto gt_topics = this->declare_parameter<std::vector<std::string>>(
         "ground_truth_topics",
         std::vector<std::string>{"/intruder/ground_truth"});
-
     auto px4_qos = rclcpp::QoS(10)
                        .reliability(rclcpp::ReliabilityPolicy::BestEffort)
                        .durability(rclcpp::DurabilityPolicy::TransientLocal);
-
     uav_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
         uav_topic, px4_qos,
         [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr m) {
@@ -128,7 +140,6 @@ class EoAgentNode : public rclcpp::Node {
           uav_z_ = spawn_z_ - m->z;
           uav_valid_ = true;
         });
-
     const size_t n = target_ids_.size();
     if (gt_topics.size() != n) {
       RCLCPP_ERROR(this->get_logger(),
@@ -148,14 +159,18 @@ class EoAgentNode : public rclcpp::Node {
                 }));
       }
     }
-
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
         "/obs_tokens", 10);
-
     timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / update_rate_hz_),
         [this]() { scan(); });
-
+    // A second timer drains the delayed-publication queue, so a held-back EO
+    // observation is released once its delay has elapsed even if no new scan
+    // happens meanwhile.
+    if (emit_delay_s_ > 0.0) {
+      drain_timer_ = this->create_wall_timer(
+          std::chrono::milliseconds(50), [this]() { drain_delayed(); });
+    }
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
     RCLCPP_INFO(this->get_logger(), "EoAgent (UAV-mounted EO camera)");
@@ -164,13 +179,20 @@ class EoAgentNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "  cone: bearing %.0f, pitch %.0f, half-angle %.0f, range %.0f",
                 cam_bearing_deg_, cam_pitch_deg_, half_angle_deg_, max_range_m_);
+    if (emit_delay_s_ > 0.0) {
+      RCLCPP_WARN(this->get_logger(),
+                  "  STALE-EO counterfactual: emit delay %.1f s", emit_delay_s_);
+    }
     RCLCPP_INFO(this->get_logger(),
                 "  coverage moves with the platform; emits VISUAL");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
-
  private:
+  struct Pending {
+    guarded_swarms_msgs::msg::ObsToken tok;
+    rclcpp::Time release_at;  // wall-clock instant to publish
+  };
   void scan() {
     if (!uav_valid_) return;  // no carrier pose yet, no camera to point
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
@@ -179,77 +201,81 @@ class EoAgentNode : public rclcpp::Node {
       }
     }
   }
-
   void evaluate_target(size_t i) {
     const auto& p = last_pose_[i].pose.position;
-
     // Vector from the camera (at the UAV) to the target.
     const double dx = p.x - uav_x_;
     const double dy = p.y - uav_y_;
     const double dz = p.z - uav_z_;
     const double range = std::sqrt(dx * dx + dy * dy + dz * dz);
-
     if (range > max_range_m_) return;
-
     // Camera axis unit vector from bearing and pitch.
     const double b = cam_bearing_deg_ * kPi / 180.0;
     const double pit = cam_pitch_deg_ * kPi / 180.0;
     const double ax = std::cos(pit) * std::cos(b);
     const double ay = std::cos(pit) * std::sin(b);
     const double az = std::sin(pit);
-
     // Angle between the camera axis and the line to the target.
     const double dot = (dx * ax + dy * ay + dz * az) / std::max(range, 1e-6);
     const double ang = std::acos(std::max(-1.0, std::min(1.0, dot)));
     if (ang > half_angle_deg_ * kPi / 180.0) return;  // outside the cone
-
     if (uniform_(rng_) > detection_prob_) return;
-
     guarded_swarms_msgs::msg::ObsToken tok;
     tok.id = "eo-" + carrier_ + "-" + std::to_string(seq_++);
     tok.target_id = target_ids_[i];
     tok.source = guarded_swarms_msgs::msg::ObsToken::SOURCE_EO;
     tok.kind = guarded_swarms_msgs::msg::ObsToken::KIND_VISUAL;
-
     // A high-quality position fix: x, y, z in world ENU.
     tok.value = {p.x + noise(), p.y + noise(), p.z + noise()};
-
     tok.confidence = confidence_;
     tok.t = builtin_interfaces::msg::Time(
         this->now() - rclcpp::Duration::from_seconds(latency_s_));
     tok.ttl_s = ttl_s_;
+    if (emit_delay_s_ > 0.0) {
+      // Stale-EO counterfactual: queue for later publication. The token's own
+      // timestamp is left as observed; it is the DELIVERY that is late, which
+      // is what pushes the ConfirmedAerialObject outside T5's fusion window.
+      Pending pend;
+      pend.tok = tok;
+      pend.release_at =
+          this->now() + rclcpp::Duration::from_seconds(emit_delay_s_);
+      delayed_.push_back(pend);
+      return;
+    }
     obs_pub_->publish(tok);
   }
-
+  void drain_delayed() {
+    const rclcpp::Time now = this->now();
+    while (!delayed_.empty() && delayed_.front().release_at <= now) {
+      obs_pub_->publish(delayed_.front().tok);
+      delayed_.pop_front();
+    }
+  }
   double noise() {
     std::normal_distribution<double> d(0.0, position_noise_m_);
     return d(rng_);
   }
-
   std::string carrier_;
   double spawn_x_, spawn_y_, spawn_z_;
   double cam_bearing_deg_, cam_pitch_deg_, half_angle_deg_, max_range_m_;
   double position_noise_m_, detection_prob_, latency_s_, ttl_s_;
-  double update_rate_hz_, confidence_;
-
+  double update_rate_hz_, confidence_, emit_delay_s_;
   double uav_x_ = 0.0, uav_y_ = 0.0, uav_z_ = 0.0;
   bool uav_valid_ = false;
-
   std::vector<std::string> target_ids_;
   std::vector<geometry_msgs::msg::PoseStamped> last_pose_;
   std::vector<bool> pose_valid_;
-
+  std::deque<Pending> delayed_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr uav_sub_;
   std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr>
       gt_subs_;
   rclcpp::Publisher<guarded_swarms_msgs::msg::ObsToken>::SharedPtr obs_pub_;
   rclcpp::TimerBase::SharedPtr timer_;
-
+  rclcpp::TimerBase::SharedPtr drain_timer_;
   std::mt19937 rng_;
   std::uniform_real_distribution<double> uniform_{0.0, 1.0};
   uint64_t seq_ = 0;
 };
-
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<EoAgentNode>());

@@ -71,6 +71,17 @@ sleep 2
 # reports. When it returns (or is interrupted), we stop the bag.
 echo "[record] launching the pipeline via test_pipeline.sh..."
 echo "============================================================"
+# Propagate the scenario knobs to the child process. A variable set as
+# `RF_LABEL=... ./record_run.sh` is NOT exported, so test_pipeline.sh (a
+# separate process) would otherwise fall back to its own defaults. Export the
+# ones a counterfactual run needs to override.
+export DECISION="${DECISION:-authorise}"
+export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
+export EO_ENABLED="${EO_ENABLED:-true}"
+export EO_DELAY_S="${EO_DELAY_S:-0}"
+export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT AUTH_TARGET SUPERVISOR \
+       EO_DELAY_S 2>/dev/null || true
+echo "[record] scenario: DECISION=${DECISION}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}"
 ./scripts/test_pipeline.sh
 
 # test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user

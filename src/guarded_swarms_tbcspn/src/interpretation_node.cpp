@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 /**
  * @file interpretation_node.cpp
  *
@@ -40,6 +39,23 @@
  * -- time-windowed joins across sources -- but the shape is the same: consume
  * tokens, check guards, maybe emit.
  *
+ * TEMPORAL PROVENANCE OF THE INTERPRETATION
+ * =========================================
+ * The paper's tokens are "timestamped with the time t of their generation" and
+ * carry a ttl, and the time-windowed joins fire only for tokens whose validity
+ * intervals are close: abs((t0'+ttl') - (t0+ttl)) <= ths (Section 5). For that
+ * rule to mean anything, the age of the underlying evidence must survive
+ * interpretation: an interpretation of an OLD observation must itself be old.
+ * We therefore inherit the observation's timestamp (obs->t) into the
+ * InterpToken rather than stamping it with now(). Two consequences follow, both
+ * intended:
+ *   - In normal operation the interpretation's t is the observation's t (a few
+ *     tenths of a second in the past), which does not change fusion.
+ *   - A LATE observation (e.g. a delayed EO confirmation) produces an
+ *     interpretation whose validity window is correspondingly in the past, so
+ *     it can no longer fuse with a fresh CandidateTarget -- exactly the "stale
+ *     EO confirmation" counterfactual of Section 5.3.
+ *
  * PROVENANCE
  * ==========
  * The emitted InterpToken records the id of the ObsToken it came from in its
@@ -59,14 +75,10 @@
  *
  * @author Luca D'Aurizio
  */
-
 #include <rclcpp/rclcpp.hpp>
-
 #include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
-
 #include <string>
-
 class InterpretationNode : public rclcpp::Node {
  public:
   InterpretationNode() : Node("interpretation_node") {
@@ -83,17 +95,14 @@ class InterpretationNode : public rclcpp::Node {
     // downstream time-windowed joins, so it is a parameter of the transition,
     // not inherited from the observation.
     interp_ttl_s_ = this->declare_parameter<double>("interp_ttl_s", 4.0);
-
     obs_sub_ = this->create_subscription<guarded_swarms_msgs::msg::ObsToken>(
         "/obs_tokens", 50,
         [this](const guarded_swarms_msgs::msg::ObsToken::SharedPtr m) {
           on_observation(m);
         });
-
     interp_pub_ =
         this->create_publisher<guarded_swarms_msgs::msg::InterpToken>(
             "/interp_tokens", 50);
-
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
     RCLCPP_INFO(this->get_logger(), "InterpretationNode (TB-CSPN transition)");
@@ -105,25 +114,26 @@ class InterpretationNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
-
  private:
   void on_observation(
       const guarded_swarms_msgs::msg::ObsToken::SharedPtr obs) {
     // --- Guard 1: this transition only consumes its own modality ---
     if (obs->source != accept_source_) return;
-
     // --- Guard 2: confidence floor ---
     if (obs->confidence < min_confidence_) return;
-
     guarded_swarms_msgs::msg::InterpToken tok;
     tok.id = emit_label_ + "-" + std::to_string(seq_++);
     tok.target_id = obs->target_id;
     tok.label = emit_label_;
     tok.origin = {obs->id};  // provenance: the observation this came from
     tok.confidence = obs->confidence;
-    tok.t = this->now();
+    // Inherit the observation's timestamp, so the age of the evidence survives
+    // interpretation and the downstream time-windowed joins (T3, T5) act on the
+    // true validity of the evidence. See "Temporal provenance" above: this is
+    // what makes a late observation produce a late interpretation, which is the
+    // mechanism behind the stale-EO counterfactual.
+    tok.t = obs->t;
     tok.ttl_s = interp_ttl_s_;
-
     // A track observation carries a position; pass it through so downstream
     // transitions and worker agents have somewhere to send vehicles. A
     // signature or bearing observation does not, and position stays zero.
@@ -133,21 +143,17 @@ class InterpretationNode : public rclcpp::Node {
       tok.position.y = obs->value[1];
       tok.position.z = obs->value[2];
     }
-
     interp_pub_->publish(tok);
   }
-
   std::string accept_source_;
   std::string emit_label_;
   double min_confidence_;
   double interp_ttl_s_;
-
   rclcpp::Subscription<guarded_swarms_msgs::msg::ObsToken>::SharedPtr obs_sub_;
   rclcpp::Publisher<guarded_swarms_msgs::msg::InterpToken>::SharedPtr
       interp_pub_;
   uint64_t seq_ = 0;
 };
-
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<InterpretationNode>());
