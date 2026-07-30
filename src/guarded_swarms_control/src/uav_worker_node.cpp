@@ -74,6 +74,7 @@
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
+#include <std_msgs/msg/float32.hpp>
 
 #include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <guarded_swarms_msgs/msg/vehicle_task.hpp>
@@ -134,6 +135,27 @@ class UavWorkerNode : public rclcpp::Node {
     threat_sub_ = this->create_subscription<InterpToken>(
         "/interp_tokens", 50,
         [this](const InterpToken::SharedPtr m) { on_threat(m); });
+    // The analogue safety board publishes its verdict here, per vehicle
+    // (relative topic, namespaced per UAV). This worker is the single command
+    // source for its vehicle (see file header), so it is where the board's
+    // verdict is honoured -- exactly as rover_control_node does for the UGV.
+    // A multirotor cannot be stopped by zeroing throttle (it would fall); the
+    // aerial equivalent of the rover's zero-throttle stop is a position hold,
+    // implemented in publish_setpoint() by freezing the last commanded setpoint.
+    // The board's independence is unchanged: it decides, the worker obeys. The
+    // physical PWM-level cut the paper describes lives inside PX4/hardware and
+    // is not reachable from SITL -- the same limitation as the rover.
+    veto_sub_ = this->create_subscription<std_msgs::msg::Float32>(
+        "actuator_cmd_safe", 10,
+        [this](const std_msgs::msg::Float32::SharedPtr msg) {
+          if (msg->data < 0.01f) {
+            vetoed_ = true;
+            last_veto_ = this->now();
+          } else if (vetoed_ &&
+                     (this->now() - last_veto_).seconds() > VETO_MIN_HOLD_S) {
+            vetoed_ = false;
+          }
+        });
 
     timer_ = this->create_wall_timer(
         TIMER_PERIOD, [this]() { control_loop(); });
@@ -167,7 +189,10 @@ class UavWorkerNode : public rclcpp::Node {
   static constexpr float ARM = 1.0f;
   static constexpr float FORCE_ARM = 21196.0f;
   static constexpr uint8_t COMPONENT_ID = 1;
-
+  // Minimum time a veto is honoured once it fires, matching the rover. Without
+  // it the UAV holds, the hazard leaves the board's window, the veto clears,
+  // the UAV moves back in, and it chatters. Same value as rover_control_node.
+  static constexpr double VETO_MIN_HOLD_S = 2.0;
   void on_task(const VehicleTask::SharedPtr m) {
     if (m->vehicle_kind != VehicleTask::KIND_UAV) return;
     if (m->assigned_system != target_system_) return;
@@ -232,15 +257,30 @@ class UavWorkerNode : public rclcpp::Node {
   void publish_setpoint() {
     px4_msgs::msg::TrajectorySetpoint msg;
     msg.timestamp = now_us();
-    if (has_task_) {
-      msg.position[0] = static_cast<float>(task_north_);
-      msg.position[1] = static_cast<float>(task_east_);
-      msg.position[2] = static_cast<float>(-intercept_altitude_m_);
+    if (vetoed_) {
+      // Under veto: hold position. Re-publish the last commanded setpoint so
+      // the UAV freezes where it was rather than advancing toward its goal --
+      // the aerial equivalent of the rover's zero-throttle stop. The board has
+      // inhibited motion; the worker does not compute a new goal until the veto
+      // lifts.
+      msg.position[0] = static_cast<float>(last_north_);
+      msg.position[1] = static_cast<float>(last_east_);
+      msg.position[2] = static_cast<float>(last_down_);
     } else {
-      // Default: hold hover over the spawn point.
-      msg.position[0] = 0.0f;
-      msg.position[1] = 0.0f;
-      msg.position[2] = static_cast<float>(-hover_altitude_m_);
+      if (has_task_) {
+        msg.position[0] = static_cast<float>(task_north_);
+        msg.position[1] = static_cast<float>(task_east_);
+        msg.position[2] = static_cast<float>(-intercept_altitude_m_);
+      } else {
+        // Default: hold hover over the spawn point.
+        msg.position[0] = 0.0f;
+        msg.position[1] = 0.0f;
+        msg.position[2] = static_cast<float>(-hover_altitude_m_);
+      }
+      // Remember what we commanded, so a veto on the next tick can freeze it.
+      last_north_ = msg.position[0];
+      last_east_ = msg.position[1];
+      last_down_ = msg.position[2];
     }
     msg.yaw = 0.0f;
     msg.velocity = {NAN, NAN, NAN};
@@ -288,6 +328,12 @@ class UavWorkerNode : public rclcpp::Node {
   bool has_task_ = false;
   std::string locked_target_;
   double task_north_ = 0.0, task_east_ = 0.0;
+  // Analogue safety board veto (honoured as in rover_control_node).
+  rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
+  bool vetoed_ = false;
+  rclcpp::Time last_veto_;
+  // Last commanded setpoint, frozen under veto to hold position.
+  double last_north_ = 0.0, last_east_ = 0.0, last_down_ = -5.0;
 };
 
 int main(int argc, char* argv[]) {
