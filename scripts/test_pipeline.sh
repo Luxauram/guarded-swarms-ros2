@@ -33,7 +33,20 @@ case "$ATTACK_VECTOR" in
   frontal)   IN_X=0.0;   IN_Y=180.0;  TG_X=0.0; TG_Y=10.0 ;;
   east-deep) IN_X=250.0; IN_Y=-120.0; TG_X=0.0; TG_Y=10.0 ;;
   rear)      IN_X=0.0;   IN_Y=-200.0; TG_X=0.0; TG_Y=-120.0 ;;
-  *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear)"; exit 1 ;;
+  demo)      IN_X=-24.0; IN_Y=180.0;  TG_X=-24.0; TG_Y=20.0; IN_Z=2.0; TG_Z=2.0 ;;
+  # 'demo' is the end-to-end demonstration scenario, not a measurement vector.
+  # The intruder ingresses down the EO camera's line of sight (the EO sits on
+  # UAV0 at (-24,-24) looking north) and holds station on a coastal objective
+  # at (-24, 20), squarely inside the 30-deg EO cone. The low altitude (3 m)
+  # matters: the EO camera is pitched down 20 deg to watch the sea surface, so a
+  # high-flying target passes ABOVE its vertical field of view; a low, sea-
+  # skimming ingress stays inside it, and the EO then confirms continuously.
+  # Once it arrives and holds, the ConfirmedThreat is stable rather than a brief
+  # pass-through -- which is what a live console demonstration needs. This is a
+  # realistic hostile profile (a low target penetrating to a coastal objective
+  # and loitering over it), and it changes only the intruder's path, never the
+  # sensor models, so the Group 4 detection metrics are untouched.
+  *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear|demo)"; exit 1 ;;
 esac
                                            # (slow enough that all sensor
                                            # modalities coincide in T5's fusion
@@ -62,11 +75,14 @@ EXPECT_THREAT="${EXPECT_THREAT:-yes}"      # yes | no. no = do not wait for a
                                            # and just record.
 OBSERVE_S="${OBSERVE_S:-90}"               # seconds to let a no-threat run breathe
 DECISION="${DECISION:-authorise}"        # authorise | deny
+MANUAL_AUTH="${MANUAL_AUTH:-0}"          # 1 = wait for the supervisor to
+                                         # authorise from the console/browser
+                                         # instead of publishing it automatically
                                            # deny reproduces the "authorisation
                                            # withheld" counterfactual (Sec 5.3):
                                            # the threat forms but no mission is
                                            # released.
-THREAT_TIMEOUT="${THREAT_TIMEOUT:-150}"    # s to wait for a ConfirmedThreat
+THREAT_TIMEOUT="${THREAT_TIMEOUT:-30}"     # s to wait for a ConfirmedThreat
                                            # (raised: a slower intruder takes
                                            # longer to reach full coverage)
 
@@ -100,8 +116,8 @@ trap cleanup EXIT INT TERM
 echo "[test] launching intruder (vector ${ATTACK_VECTOR}, delay ${INTRUDER_DELAY}s, speed ${INTRUDER_SPEED} m/s)..."
 ros2 launch guarded_swarms_bringup intruder.launch.py \
   start_delay_s:="${INTRUDER_DELAY}" speed_mps:="${INTRUDER_SPEED}" \
-  ingress_x:="${IN_X}" ingress_y:="${IN_Y}" ingress_z:=15.0 \
-  target_x:="${TG_X}" target_y:="${TG_Y}" target_z:=15.0 \
+  ingress_x:="${IN_X}" ingress_y:="${IN_Y}" ingress_z:="${IN_Z:-15.0}" \
+  target_x:="${TG_X}" target_y:="${TG_Y}" target_z:="${TG_Z:-15.0}" \
   >/tmp/gs_intruder.log 2>&1 &
 PIDS+=($!)
 
@@ -118,6 +134,24 @@ echo "[test] launching TB-CSPN layer (T1-T7)..."
 ros2 launch guarded_swarms_tbcspn tbcspn.launch.py \
   >/tmp/gs_tbcspn.log 2>&1 &
 PIDS+=($!)
+
+# Start watching /mission_tokens IMMEDIATELY, in the background, writing every
+# released mission_id to a file. This must begin now -- not later in the manual
+# phase -- because the ConfirmedThreat can form while we are still waiting for
+# it, and the supervisor may authorise the instant the console arms, before the
+# script reaches the manual-decision phase. Watching from the start means no
+# release is ever missed, whatever the timing of the human click.
+: > /tmp/gs_missions.log
+if [ "$MANUAL_AUTH" = "1" ]; then
+  ( stdbuf -oL ros2 topic echo /mission_tokens --field mission_id 2>/dev/null \
+      | stdbuf -oL grep -v '^---$' \
+      | while IFS= read -r mid; do
+          [ -z "$mid" ] && continue
+          echo "$(date +%H:%M:%S) $mid" >> /tmp/gs_missions.log
+        done ) &
+  MISSION_WATCH_PID=$!
+  PIDS+=($MISSION_WATCH_PID)
+fi
 
 # --- wait for a ConfirmedThreat --------------------------------------------
 # In a counterfactual run where the threat must NOT form (EXPECT_THREAT=no, the
@@ -161,22 +195,56 @@ before_uav0=$(pose x500_lidar_front_0)
 before_uav1=$(pose x500_lidar_front_1)
 before_ugv=$(pose r1_rover_2)
 
-echo "[test] supervisor decision '${DECISION}' for '${AUTH_TARGET}' as '${SUPERVISOR}'..."
-# Publish the authorisation repeatedly for ~2s rather than with --once.
-# A single --once publisher is created and destroyed immediately; with RELIABLE
-# QoS the DDS handshake with T6's subscription may not complete in time and the
-# message is lost. Publishing at 5 Hz for 2s guarantees delivery. T6 releases
-# the mission once and ignores repeats for the same live threat.
-# Publish with transient_local durability, matching T6's subscription, so the
-# authorisation is delivered even if T6's DDS handshake is not yet complete when
-# we publish. A short repeated burst on top removes any residual timing gap.
-ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
-  /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
-  "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: '${DECISION}', ttl_s: 15.0}" \
-  >/dev/null 2>&1
+if [ "$MANUAL_AUTH" = "1" ]; then
+  # Manual mode: the supervisor authorises from the console/browser. The script
+  # does not publish the authorisation. Instead it follows the TB-CSPN log in
+  # real time and prints every mission release the instant it appears, so the
+  # moment you press Authorise in the panel you see the swarm act here -- no
+  # blind wait, no fragile before/after counting. Following the log with tail -f
+  # is immune to the QoS/DDS quirks that make `ros2 topic echo` unreliable from
+  # a second process, and it catches a release whenever it happens, even if you
+  # authorise while the threat is still forming.
+  #
+  # The intruder keeps holding station in the EO cone, so ConfirmedThreat keeps
+  # streaming and the panel stays armed until you decide. Press Ctrl-C when done.
+  echo "[test] MANUAL_AUTH: the console is live. Open console/decision_panel.html."
+  echo "[test] Press Authorise in the panel; each released mission appears below"
+  echo "[test] the instant T6 fires. Ctrl-C to finish."
+  echo "[test] ----------------------------------------------------------------"
+  # The background watcher started at pipeline launch has been recording every
+  # release to /tmp/gs_missions.log since before the ConfirmedThreat even
+  # formed. Show anything already captured (a mission authorised while the
+  # threat was forming is not lost), then follow the file for new ones. This is
+  # what makes the feedback immediate regardless of WHEN you clicked Authorise.
+  if [ -s /tmp/gs_missions.log ]; then
+    while IFS= read -r rec; do
+      echo "[swarm] mission released: ${rec#* }  (authorised from the console)"
+    done < /tmp/gs_missions.log
+  fi
+  stdbuf -oL tail -n0 -f /tmp/gs_missions.log 2>/dev/null | \
+    while IFS= read -r rec; do
+      echo "[swarm] mission released: ${rec#* }  (authorised from the console)"
+    done
+  # tail -f runs until the user Ctrl-C's; the trap tears everything down.
+else
 
-echo "[test] letting the vehicles react (10s)..."
-sleep 10
+  echo "[test] supervisor decision '${DECISION}' for '${AUTH_TARGET}' as '${SUPERVISOR}'..."
+  # Publish the authorisation repeatedly for ~2s rather than with --once.
+  # A single --once publisher is created and destroyed immediately; with RELIABLE
+  # QoS the DDS handshake with T6's subscription may not complete in time and the
+  # message is lost. Publishing at 5 Hz for 2s guarantees delivery. T6 releases
+  # the mission once and ignores repeats for the same live threat.
+  # Publish with transient_local durability, matching T6's subscription, so the
+  # authorisation is delivered even if T6's DDS handshake is not yet complete when
+  # we publish. A short repeated burst on top removes any residual timing gap.
+  ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
+    /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
+    "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: '${DECISION}', ttl_s: 15.0}" \
+    >/dev/null 2>&1
+
+  echo "[test] letting the vehicles react (10s)..."
+  sleep 10
+fi
 
 after_uav0=$(pose x500_lidar_front_0)
 after_uav1=$(pose x500_lidar_front_1)

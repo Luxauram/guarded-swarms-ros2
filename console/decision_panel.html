@@ -1,0 +1,594 @@
+<!doctype html>
+<!--
+  Guarded Swarms — Supervisor Decision Panel
+  Copyright 2026 Luca D'Aurizio. Apache-2.0.
+
+  A decision-support panel for the human supervisor of the coastal-surveillance
+  case study (Borghoff, Bottoni & Pareschi 2026, IET Radar Sonar & Navigation).
+  It is the human-in-the-loop of the TB-CSPN chain made operational: it shows
+  the live ConfirmedThreat and the origin chain that produced it, and it is
+  where the supervisor authorises or denies the interception.
+
+  Authorise / Deny publish a SupervisorAuth on /supervisor_auth, which the
+  mission-release transition (T6) consumes. No authorisation, no mission.
+
+  Single self-contained file: open in a browser, no build step. Connects to
+  rosbridge at ws://localhost:9090 (launch rosbridge with the workspace sourced
+  so the custom message types are known).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Guarded Swarms — Supervisor Decision Panel</title>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --panel-2: #1c2330;
+        --edge: #2d3646;
+        --ink: #e6edf3;
+        --ink-dim: #8b98a9;
+        --ink-faint: #5b6675;
+        --alert: #ff5c5c;
+        --alert-bg: #2a1416;
+        --ok: #3fb950;
+        --hold: #d29922;
+        --accent: #4a9eff;
+        --mono:
+          "SF Mono", "JetBrains Mono", "Roboto Mono", ui-monospace, monospace;
+        --sans: "Inter", system-ui, -apple-system, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--sans);
+        -webkit-font-smoothing: antialiased;
+      }
+      body {
+        display: grid;
+        grid-template-rows: auto 1fr;
+        max-width: 820px;
+        margin: 0 auto;
+        padding: 0 20px 28px;
+      }
+
+      header {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        padding: 18px 2px 14px;
+        border-bottom: 1px solid var(--edge);
+      }
+      header h1 {
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+        margin: 0;
+      }
+      header h1 span {
+        color: var(--ink-faint);
+        font-weight: 400;
+      }
+      .conn {
+        font-family: var(--mono);
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink-dim);
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ink-faint);
+      }
+      .dot.up {
+        background: var(--ok);
+        box-shadow: 0 0 8px var(--ok);
+      }
+      .dot.down {
+        background: var(--alert);
+        box-shadow: 0 0 8px var(--alert);
+      }
+
+      main {
+        padding-top: 22px;
+      }
+      .state {
+        font-family: var(--mono);
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 12px;
+      }
+
+      .card {
+        background: var(--panel);
+        border: 1px solid var(--edge);
+        border-radius: 10px;
+        overflow: hidden;
+        transition:
+          border-color 0.2s,
+          box-shadow 0.2s;
+      }
+      .card.armed {
+        border-color: var(--alert);
+        box-shadow:
+          0 0 0 1px var(--alert),
+          0 8px 40px -12px var(--alert-bg);
+      }
+      .card-empty {
+        padding: 48px 28px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 14px;
+      }
+
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 16px 20px;
+        background: var(--panel-2);
+        border-bottom: 1px solid var(--edge);
+      }
+      .threat-id {
+        font-family: var(--mono);
+        font-size: 18px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+      .badge {
+        font-family: var(--mono);
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 4px 10px;
+        border-radius: 4px;
+        background: var(--alert-bg);
+        color: var(--alert);
+        border: 1px solid var(--alert);
+      }
+
+      .card-body {
+        padding: 18px 20px 20px;
+      }
+      .row {
+        display: flex;
+        gap: 24px;
+        margin-bottom: 18px;
+        flex-wrap: wrap;
+      }
+      .field {
+        flex: 1;
+        min-width: 120px;
+      }
+      .field .label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-faint);
+        margin-bottom: 4px;
+      }
+      .field .value {
+        font-family: var(--mono);
+        font-size: 14px;
+        color: var(--ink);
+      }
+
+      .just-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-faint);
+        margin: 4px 0 8px;
+      }
+      .chain {
+        list-style: none;
+        margin: 0 0 4px;
+        padding: 0;
+      }
+      .chain li {
+        font-family: var(--mono);
+        font-size: 12.5px;
+        color: var(--ink-dim);
+        padding: 6px 0 6px 20px;
+        position: relative;
+        border-left: 1px solid var(--edge);
+        margin-left: 4px;
+      }
+      .chain li::before {
+        content: "";
+        position: absolute;
+        left: -4px;
+        top: 12px;
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--panel);
+        border: 1px solid var(--ink-faint);
+      }
+      .chain li:last-child::before {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 22px;
+      }
+      button {
+        font-family: var(--sans);
+        font-size: 15px;
+        font-weight: 600;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition:
+          transform 0.05s,
+          background 0.15s,
+          opacity 0.15s;
+        letter-spacing: 0.01em;
+      }
+      button:active:not(:disabled) {
+        transform: translateY(1px);
+      }
+      button:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .btn-auth {
+        background: var(--ok);
+        color: #06210d;
+        border-color: var(--ok);
+      }
+      .btn-auth:hover:not(:disabled) {
+        background: #4ad160;
+      }
+      .btn-deny {
+        background: transparent;
+        color: var(--alert);
+        border-color: var(--alert);
+      }
+      .btn-deny:hover:not(:disabled) {
+        background: var(--alert-bg);
+      }
+
+      .log-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--ink-faint);
+        margin: 28px 0 8px;
+      }
+      .log {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+      }
+      .log li {
+        font-family: var(--mono);
+        font-size: 12px;
+        color: var(--ink-dim);
+        padding: 7px 0;
+        border-bottom: 1px solid var(--panel-2);
+        display: flex;
+        gap: 12px;
+      }
+      .log .t {
+        color: var(--ink-faint);
+      }
+      .log .d-auth {
+        color: var(--ok);
+      }
+      .log .d-deny {
+        color: var(--alert);
+      }
+      .log-empty {
+        color: var(--ink-faint);
+        font-size: 12px;
+        font-family: var(--mono);
+        padding: 7px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Guarded Swarms <span>· Supervisor Decision Panel</span></h1>
+      <div class="conn">
+        <span class="dot" id="dot"></span
+        ><span id="conn-text">connecting…</span>
+      </div>
+    </header>
+
+    <main>
+      <div class="state" id="state">Awaiting a confirmed threat</div>
+
+      <div class="card" id="card">
+        <div class="card-empty" id="empty">
+          No confirmed threat. The panel activates when the coordination layer
+          confirms one.
+        </div>
+        <div id="detail" style="display: none">
+          <div class="card-head">
+            <span class="threat-id" id="t-id">—</span>
+            <span class="badge">Confirmed threat</span>
+          </div>
+          <div class="card-body">
+            <div class="row">
+              <div class="field">
+                <div class="label">Classification</div>
+                <div class="value" id="t-label">—</div>
+              </div>
+              <div class="field">
+                <div class="label">Confidence</div>
+                <div class="value" id="t-conf">—</div>
+              </div>
+              <div class="field">
+                <div class="label">Position (ENU)</div>
+                <div class="value" id="t-pos">—</div>
+              </div>
+              <div class="field">
+                <div class="label">Last update</div>
+                <div class="value" id="t-age">—</div>
+              </div>
+            </div>
+            <div class="just-label">Origin chain</div>
+            <ul class="chain" id="chain"></ul>
+          </div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn-auth" id="btn-auth" disabled>
+          Authorise interception
+        </button>
+        <button class="btn-deny" id="btn-deny" disabled>Deny</button>
+      </div>
+
+      <div class="log-label">Decision log</div>
+      <ul class="log" id="log">
+        <li class="log-empty">No decisions yet.</li>
+      </ul>
+    </main>
+
+    <script>
+      (function () {
+        "use strict";
+
+        const WS_URL = "ws://localhost:9090";
+        const SUPERVISOR = "supervisor_luca";
+        const AUTH_TTL_S = 30.0;
+        const THREAT_LABEL = "ConfirmedThreat";
+        const DECISION_CONFIRM_MS = 6000; // show the confirmation this long
+        const HOLD_MS = 20000; // keep the panel armed this long after the last
+        // ConfirmedThreat: the real threat is
+        // intermittent (it appears only while the
+        // intruder is in the EO cone), and the operator
+        // needs a stable decision window, not one that
+        // flickers with every gap in the track.
+
+        const dot = document.getElementById("dot");
+        const connT = document.getElementById("conn-text");
+        const state = document.getElementById("state");
+        const card = document.getElementById("card");
+        const empty = document.getElementById("empty");
+        const detail = document.getElementById("detail");
+        const tId = document.getElementById("t-id");
+        const tLabel = document.getElementById("t-label");
+        const tConf = document.getElementById("t-conf");
+        const tPos = document.getElementById("t-pos");
+        const tAge = document.getElementById("t-age");
+        const chain = document.getElementById("chain");
+        const btnA = document.getElementById("btn-auth");
+        const btnD = document.getElementById("btn-deny");
+        const log = document.getElementById("log");
+
+        let current = null;
+        let logEmpty = true;
+
+        const ros = new ROSLIB.Ros({ url: WS_URL });
+        ros.on("connection", () => {
+          dot.className = "dot up";
+          connT.textContent = "connected";
+        });
+        ros.on("close", () => {
+          dot.className = "dot down";
+          connT.textContent = "disconnected — retrying";
+          setTimeout(() => ros.connect(WS_URL), 2000);
+        });
+        ros.on("error", () => {
+          dot.className = "dot down";
+          connT.textContent = "connection error";
+        });
+
+        // Subscribe to /console/threat, the QoS-clean topic published by
+        // console_bridge_node (ConfirmedThreat only). Subscribing to /interp_tokens
+        // directly does not work through rosbridge: it picks an incompatible QoS on
+        // that already-published topic and silently delivers nothing.
+        const interpSub = new ROSLIB.Topic({
+          ros: ros,
+          name: "/console/threat",
+          messageType: "guarded_swarms_msgs/msg/InterpToken",
+        });
+        const authPub = new ROSLIB.Topic({
+          ros: ros,
+          name: "/supervisor_auth",
+          messageType: "guarded_swarms_msgs/msg/SupervisorAuth",
+        });
+
+        interpSub.subscribe((msg) => {
+          if (msg.label !== THREAT_LABEL) return;
+          current = {
+            target_id: msg.target_id,
+            label: msg.label,
+            confidence:
+              typeof msg.confidence === "number" ? msg.confidence : null,
+            pos: msg.position || null,
+            origin: msg.origin || [],
+            ts: Date.now(),
+          };
+          render();
+        });
+
+        let decided_target = null; // target_id we have just decided on
+        let decided_until = 0; // wall-time until which we show the confirmation
+
+        function decide(decision) {
+          if (!current) return;
+          const now = Date.now();
+          const target = current.target_id;
+          // t = 0: the browser does not know the pipeline's clock (which is sim time
+          // under Gazebo). T6 treats a zero-stamped authorisation as "now", so the
+          // decision is validated against a live ConfirmedThreat regardless of the
+          // clock domain. This avoids a real-vs-sim time mismatch.
+          const auth = new ROSLIB.Message({
+            target_id: target,
+            authorised_by: SUPERVISOR,
+            decision: decision,
+            t: { sec: 0, nanosec: 0 },
+            ttl_s: AUTH_TTL_S,
+          });
+          authPub.publish(auth);
+          addLog(target, decision, now);
+
+          // Give the supervisor clear feedback: the decision has been issued. Show a
+          // confirmation banner and lock the buttons briefly so the same decision is
+          // not fired twice by accident. The card then returns to listening.
+          decided_target = target;
+          decided_until = now + DECISION_CONFIRM_MS;
+          showDecided(decision, target);
+        }
+
+        function showDecided(decision, target) {
+          const verb = decision === "authorise" ? "AUTHORISED" : "DENIED";
+          const cls = decision === "authorise" ? "ok" : "alert";
+          state.innerHTML =
+            '<span style="color:var(--' +
+            cls +
+            ')">\u2713 ' +
+            verb +
+            " \u2014 mission " +
+            (decision === "authorise" ? "released" : "refused") +
+            " for " +
+            target +
+            "</span>";
+          btnA.disabled = true;
+          btnD.disabled = true;
+        }
+        btnA.addEventListener("click", () => decide("authorise"));
+        btnD.addEventListener("click", () => decide("deny"));
+
+        function render() {
+          if (!current) {
+            showEmpty();
+            return;
+          }
+          // If we just decided on this target, keep showing the confirmation instead
+          // of re-arming for the same still-incoming ConfirmedThreat stream.
+          if (
+            current.target_id === decided_target &&
+            Date.now() < decided_until
+          ) {
+            return;
+          }
+          empty.style.display = "none";
+          detail.style.display = "block";
+          card.classList.add("armed");
+          state.textContent = "Confirmed threat — decision required";
+
+          tId.textContent = current.target_id || "—";
+          tLabel.textContent = current.label || "—";
+          tConf.textContent =
+            current.confidence !== null
+              ? (current.confidence * 100).toFixed(0) + "%"
+              : "—";
+          if (current.pos) {
+            tPos.textContent = `${current.pos.x.toFixed(1)}, ${current.pos.y.toFixed(1)}, ${current.pos.z.toFixed(1)}`;
+          } else {
+            tPos.textContent = "—";
+          }
+
+          chain.innerHTML = "";
+          const j = current.origin;
+          if (!j || j.length === 0) {
+            const li = document.createElement("li");
+            li.textContent = "(no origin carried)";
+            chain.appendChild(li);
+          } else {
+            j.forEach((entry) => {
+              const li = document.createElement("li");
+              li.textContent = entry;
+              chain.appendChild(li);
+            });
+          }
+          btnA.disabled = false;
+          btnD.disabled = false;
+        }
+
+        function showEmpty() {
+          detail.style.display = "none";
+          empty.style.display = "block";
+          card.classList.remove("armed");
+          state.textContent = "Awaiting a confirmed threat";
+          btnA.disabled = true;
+          btnD.disabled = true;
+          current = null;
+        }
+
+        setInterval(() => {
+          if (!current) return;
+          const age = Date.now() - current.ts;
+          tAge.textContent =
+            age < 1000 ? "just now" : `${(age / 1000).toFixed(1)} s ago`;
+          if (age > HOLD_MS) {
+            // No ConfirmedThreat for the whole hold window: the track is lost. Only
+            // now do we disarm and clear the decision, so the operator is not asked
+            // to act on a threat that has genuinely gone away.
+            showEmpty();
+          } else if (age > 5000) {
+            // Intermittent gap: keep the panel armed and the buttons live, but flag
+            // that the estimate is not fresh, so the operator knows the track is
+            // coasting on the last confirmation.
+            state.textContent =
+              "Confirmed threat — estimate coasting (" +
+              (age / 1000).toFixed(0) +
+              "s since last update)";
+          } else {
+            state.textContent = "Confirmed threat — decision required";
+          }
+        }, 250);
+
+        function addLog(target, decision, ms) {
+          if (logEmpty) {
+            log.innerHTML = "";
+            logEmpty = false;
+          }
+          const li = document.createElement("li");
+          const time = new Date(ms).toLocaleTimeString();
+          const cls = decision === "authorise" ? "d-auth" : "d-deny";
+          const verb = decision === "authorise" ? "AUTHORISED" : "DENIED";
+          li.innerHTML =
+            `<span class="t">${time}</span>` +
+            `<span class="${cls}">${verb}</span>` +
+            `<span>${target}</span>`;
+          log.insertBefore(li, log.firstChild);
+        }
+      })();
+    </script>
+  </body>
+</html>
