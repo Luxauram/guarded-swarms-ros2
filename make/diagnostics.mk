@@ -29,9 +29,11 @@ setup-all: setup-workspace setup-px4
 	@echo ""
 	@echo "System is ready. Quick start:"
 	@echo ""
-	@echo "  Mock demo:  make demo-pipeline"
-	@echo "  UAV demo:   make demo-px4-uav  (see instructions)"
-	@echo "  UGV demo:   make setup-ugv then make demo-px4-rover"
+	@echo "  Coastal case study:  make demo-coastal   (then ./scripts/test_pipeline.sh)"
+	@echo "  Safety board demo:   make demo-safety-board (+ make demo-safety-sensors)"
+	@echo "  Health check:        make check-coastal"
+	@echo ""
+	@echo "  See 'make help' for the full command reference."
 	@echo ""
 
 setup-workspace:
@@ -54,7 +56,7 @@ setup-workspace:
 	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install --event-handlers console_direct+"
 	@echo ""
 	@echo "Building remaining packages..."
-	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL) --packages-select guarded_swarms_coordinator guarded_swarms_safety guarded_swarms_control"
+	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL) --packages-select guarded_swarms_safety guarded_swarms_control guarded_swarms_sensing guarded_swarms_tbcspn guarded_swarms_bringup"
 	@echo ""
 	@echo "Workspace built successfully."
 	@echo ""

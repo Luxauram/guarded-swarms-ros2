@@ -13,58 +13,58 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+#
+# Guarded Swarms - installation script.
+#
+# Installs every dependency and builds the workspace on a fresh Ubuntu 22.04
+# LTS system. Run once:
+#
+#     chmod +x install.sh
+#     ./install.sh
+#
+# Steps:
+#   1. ROS 2 Humble
+#   2. Gazebo Harmonic
+#   3. Micro-XRCE-DDS Agent (the PX4 <-> ROS 2 transport)
+#   4. PX4 dependencies and SITL, pinned to the commit px4_msgs was generated from
+#   5. rosbridge (the supervisor console's WebSocket bridge)
+#   6. The ROS 2 workspace
+#   7. Scenario assets and the generated coastal world
+#   8. ~/.bashrc
 # ==============================================================================
-
-# ==============================================================================
-# @file install.sh
-# Guarded Swarms - Installation Script
-#
-# Installs all dependencies and builds the workspace on Ubuntu 22.04 LTS.
-# Run this script once on a fresh Ubuntu 22.04 system.
-#
-# Usage:
-#   chmod +x install.sh
-#   ./install.sh
-#
-# What this script does:
-#   1. Installs ROS 2 Humble
-#   2. Installs Gazebo Harmonic
-#   3. Installs Micro-XRCE-DDS Agent (PX4 bridge)
-#   4. Installs PX4 dependencies and builds PX4 SITL
-#   5. Installs Python dependencies (web dashboard)
-#   6. Installs Bun (TypeScript compiler for frontend)
-#   7. Builds the ROS 2 workspace
-#   8. Installs scenario assets and generates the coastal world
-#   9. Configures ~/.bashrc
-#
-# ==============================================================================
-
 set -e
+
 # ------------------------------------------------------------------------------
-# Colors
+# Terminal colours for the log helpers.
 # ------------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
+
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 # ------------------------------------------------------------------------------
-# PX4 firmware pin
+# PX4 firmware pin.
 #
-# px4_msgs (submodule, pinned by git) is generated from this exact PX4 commit.
-# Cloning PX4 main instead would produce mismatched uORB message definitions:
-# the uXRCE-DDS bridge then fails silently on some topics and vehicles never
-# move. Do not bump this without regenerating px4_msgs to match.
+# px4_msgs (pinned by git) is generated from this exact PX4 commit. Cloning PX4
+# main instead would produce mismatched uORB message definitions: the uXRCE-DDS
+# bridge then fails silently on some topics and vehicles never move. Do not bump
+# this without regenerating px4_msgs to match.
 # ------------------------------------------------------------------------------
 PX4_COMMIT="091ac918b133d518da8b73e395243ea0e0d087b5"
 PX4_BRANCH="guarded-swarms-pin"
+
+TOTAL_STEPS=8
+
 log()  { echo -e "${BLUE}[install]${NC} $1"; }
 ok()   { echo -e "${GREEN}[ok]${NC} $1"; }
 warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
 fail() { echo -e "${RED}[error]${NC} $1"; exit 1; }
+
 # ------------------------------------------------------------------------------
-# Check Ubuntu 22.04
+# System check: Ubuntu 22.04.
 # ------------------------------------------------------------------------------
 log "Checking system..."
 OS=$(lsb_release -si 2>/dev/null || echo "Unknown")
@@ -76,10 +76,11 @@ if [ "$VER" != "22.04" ]; then
     warn "This script is tested on Ubuntu 22.04. Detected: $VER. Proceeding anyway..."
 fi
 ok "System: Ubuntu $VER"
+
 # ------------------------------------------------------------------------------
-# Step 1: ROS 2 Humble
+# Step 1: ROS 2 Humble.
 # ------------------------------------------------------------------------------
-log "Step 1/9: Installing ROS 2 Humble..."
+log "Step 1/${TOTAL_STEPS}: Installing ROS 2 Humble..."
 if [ -f /opt/ros/humble/setup.bash ]; then
     ok "ROS 2 Humble already installed. Skipping."
 else
@@ -98,10 +99,11 @@ else
         python3-rosdep
     ok "ROS 2 Humble installed."
 fi
+
 # ------------------------------------------------------------------------------
-# Step 2: Gazebo Harmonic
+# Step 2: Gazebo Harmonic.
 # ------------------------------------------------------------------------------
-log "Step 2/9: Installing Gazebo Harmonic..."
+log "Step 2/${TOTAL_STEPS}: Installing Gazebo Harmonic..."
 if command -v gz >/dev/null 2>&1; then
     ok "Gazebo already installed. Skipping."
 else
@@ -114,10 +116,11 @@ else
     sudo apt-get install -y gz-harmonic
     ok "Gazebo Harmonic installed."
 fi
+
 # ------------------------------------------------------------------------------
-# Step 3: Micro-XRCE-DDS Agent
+# Step 3: Micro-XRCE-DDS Agent.
 # ------------------------------------------------------------------------------
-log "Step 3/9: Installing Micro-XRCE-DDS Agent..."
+log "Step 3/${TOTAL_STEPS}: Installing Micro-XRCE-DDS Agent..."
 if command -v MicroXRCEAgent >/dev/null 2>&1; then
     ok "MicroXRCEAgent already installed. Skipping."
 else
@@ -127,16 +130,17 @@ else
     cd Micro-XRCE-DDS-Agent
     mkdir build && cd build
     cmake ..
-    make -j$(nproc)
+    make -j"$(nproc)"
     sudo make install
     sudo ldconfig /usr/local/lib/
     cd "$REPO_DIR"
     ok "MicroXRCEAgent installed."
 fi
+
 # ------------------------------------------------------------------------------
-# Step 4: PX4 dependencies and SITL
+# Step 4: PX4 dependencies and SITL.
 # ------------------------------------------------------------------------------
-log "Step 4/9: Installing PX4 dependencies and building SITL..."
+log "Step 4/${TOTAL_STEPS}: Installing PX4 dependencies and building SITL..."
 sudo apt-get install -y \
     bc \
     libeigen3-dev \
@@ -151,6 +155,7 @@ sudo apt-get install -y \
     libgstreamer-plugins-base1.0-dev \
     xterm \
     expect
+
 PX4_DIR="$HOME/PX4-Autopilot"
 if [ -d "$PX4_DIR" ]; then
     CURRENT_COMMIT=$(git -C "$PX4_DIR" rev-parse HEAD 2>/dev/null || echo "unknown")
@@ -178,6 +183,7 @@ else
     git submodule update --init --recursive
     ok "PX4-Autopilot cloned and pinned."
 fi
+
 cd "$PX4_DIR"
 if [ -f "$PX4_DIR/build/px4_sitl_default/bin/px4" ]; then
     ok "PX4 already built. Skipping."
@@ -190,62 +196,58 @@ else
     ok "PX4 SITL built."
 fi
 cd "$REPO_DIR"
+
 # ------------------------------------------------------------------------------
-# Step 5: Python dependencies
+# Step 5: rosbridge.
+#
+# The supervisor console (console/decision_panel.html) reaches ROS 2 over a
+# WebSocket served by rosbridge. Launch it with the workspace sourced so it
+# knows the custom message types; see scripts/demo_console.sh.
 # ------------------------------------------------------------------------------
-log "Step 5/9: Installing Python dependencies..."
-sudo apt-get install -y python3-pip
-pip3 install \
-    fastapi==0.104.1 \
-    "uvicorn[standard]==0.24.0" \
-    websockets==12.0 \
-    pydantic==2.5.0 \
-    python-multipart==0.0.6
-ok "Python dependencies installed."
+log "Step 5/${TOTAL_STEPS}: Installing rosbridge (supervisor console bridge)..."
+if [ -f /opt/ros/humble/share/rosbridge_server/package.xml ]; then
+    ok "rosbridge already installed. Skipping."
+else
+    sudo apt-get install -y ros-humble-rosbridge-suite
+    ok "rosbridge installed."
+fi
+
 # ------------------------------------------------------------------------------
-# Optional: NVIDIA utilities (skipped on non-NVIDIA systems)
+# Optional: NVIDIA utilities (skipped on non-NVIDIA systems).
 # ------------------------------------------------------------------------------
 log "Checking for NVIDIA GPU..."
 if lspci 2>/dev/null | grep -qi nvidia; then
     log "NVIDIA GPU detected. Installing nvidia-utils..."
     # Try to install the utilities package; non-fatal if it fails
-    # (e.g. driver version mismatch or VM without GPU passthrough)
+    # (e.g. driver version mismatch or VM without GPU passthrough).
     sudo apt-get install -y nvidia-utils-570 2>/dev/null || \
     sudo apt-get install -y nvidia-utils-535 2>/dev/null || \
-    warn "nvidia-utils not installed — nvidia-smi will not be available. This is non-fatal."
+    warn "nvidia-utils not installed - nvidia-smi will not be available. This is non-fatal."
 else
     warn "No NVIDIA GPU detected (VM or unsupported hardware). Skipping nvidia-utils."
     warn "Gazebo lidar rendering requires a physical NVIDIA GPU."
 fi
+
 # ------------------------------------------------------------------------------
-# Step 6: Bun (TypeScript compiler)
+# Step 6: Build the ROS 2 workspace.
+#
+# Messages first (everything else depends on them), then the rest.
 # ------------------------------------------------------------------------------
-log "Step 6/9: Installing Bun..."
-if command -v bun >/dev/null 2>&1; then
-    ok "Bun already installed. Skipping."
-else
-    curl -fsSL https://bun.sh/install | bash
-    export BUN_INSTALL="$HOME/.bun"
-    export PATH="$BUN_INSTALL/bin:$PATH"
-    ok "Bun installed."
-fi
-# ------------------------------------------------------------------------------
-# Step 7: Build ROS 2 workspace
-# ------------------------------------------------------------------------------
-log "Step 7/9: Building ROS 2 workspace..."
+log "Step 6/${TOTAL_STEPS}: Building the ROS 2 workspace..."
 cd "$REPO_DIR"
 git submodule update --init --recursive
 source /opt/ros/humble/setup.bash
+
 log "Building messages and px4_msgs first..."
 colcon build \
     --packages-select guarded_swarms_msgs px4_msgs \
     --symlink-install \
     --event-handlers console_direct+
 source "$REPO_DIR/install/setup.bash"
-log "Building remaining packages..."
+
+log "Building the remaining packages..."
 colcon build \
     --packages-select \
-        guarded_swarms_coordinator \
         guarded_swarms_safety \
         guarded_swarms_control \
         guarded_swarms_sensing \
@@ -254,28 +256,30 @@ colcon build \
     --symlink-install \
     --event-handlers console_direct+
 ok "ROS 2 workspace built."
+
 # ------------------------------------------------------------------------------
-# Step 8: Scenario assets and coastal world
+# Step 7: Scenario assets and coastal world.
 #
-# Installs the rover airframe/model and the world assets into the (pinned) PX4
-# tree, then generates the coastal world. This is what makes a fresh clone
-# demo-ready: without it, `make demo-coastal` has no rover airframe and no
-# coastal.sdf to load.
+# Installs the rover airframe/model and world assets into the (pinned) PX4 tree,
+# then generates the coastal world. This is what makes a fresh clone demo-ready:
+# without it, `make demo-coastal` has no rover airframe and no coastal.sdf to
+# load.
 # ------------------------------------------------------------------------------
-log "Step 8/9: Installing scenario assets and generating the coastal world..."
+log "Step 7/${TOTAL_STEPS}: Installing scenario assets and generating the coastal world..."
 source "$REPO_DIR/install/setup.bash"
 if make -C "$REPO_DIR" setup-ugv setup-worlds gen-coastal; then
     ok "Scenario assets installed and coastal world generated."
 else
     warn "Asset setup did not complete cleanly. You can re-run it later with:"
     warn "    make setup-ugv setup-worlds gen-coastal"
-    warn "This is non-fatal for the mock demos, but demo-coastal needs it."
+    warn "This is non-fatal for the software-only demos, but demo-coastal needs it."
 fi
 cd "$REPO_DIR"
+
 # ------------------------------------------------------------------------------
-# Step 9: Configure ~/.bashrc
+# Step 8: Configure ~/.bashrc.
 # ------------------------------------------------------------------------------
-log "Step 9/9: Configuring ~/.bashrc..."
+log "Step 8/${TOTAL_STEPS}: Configuring ~/.bashrc..."
 BASHRC="$HOME/.bashrc"
 add_to_bashrc() {
     local line="$1"
@@ -285,17 +289,17 @@ add_to_bashrc() {
 }
 add_to_bashrc "source /opt/ros/humble/setup.bash"
 add_to_bashrc "source $REPO_DIR/install/setup.bash"
-add_to_bashrc 'export BUN_INSTALL="$HOME/.bun"'
-add_to_bashrc 'export PATH="$BUN_INSTALL/bin:$HOME/.local/bin:$PATH"'
 ok "~/.bashrc configured."
+
 # ------------------------------------------------------------------------------
-# Make all utility scripts executable
+# Make the utility scripts executable.
 # ------------------------------------------------------------------------------
 log "Configuring scripts..."
 chmod +x "$REPO_DIR/scripts/"*.sh 2>/dev/null || true
 ok "Scripts configured."
+
 # ------------------------------------------------------------------------------
-# Done
+# Done.
 # ------------------------------------------------------------------------------
 echo ""
 echo -e "${GREEN}============================================================${NC}"
@@ -310,8 +314,7 @@ echo "    make demo-coastal            # terminal 1: the world (needs a GPU)"
 echo "    ./scripts/test_pipeline.sh   # terminal 2: intruder, sensing, TB-CSPN,"
 echo "                                 #             auto-authorise, report"
 echo ""
-echo "  Software-only demos (no PX4 / no Gazebo):"
-echo "    ros2 launch guarded_swarms_bringup mock_pipeline.launch.py"
+echo "  Software-only safety demos (no PX4 / no Gazebo):"
 echo "    make demo-safety-board       # + make demo-safety-sensors"
 echo ""
 echo "  Health check:  make check-coastal"

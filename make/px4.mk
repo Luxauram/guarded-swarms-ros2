@@ -27,7 +27,7 @@
         px4-gui-uav-urban px4-gui-ugv-urban \
         px4-kill px4-config px4-reset-params \
         setup-ugv setup-worlds gazebo-test gazebo-worlds \
-				gen-coastal check-coastal \
+        gen-coastal check-coastal \
         demo-swarm demo-coastal
 
 # ------------------------------------------------------------------------------
@@ -315,7 +315,11 @@ check-coastal:
 	@bash $(REPO_ROOT)/scripts/check_coastal.sh
 
 # ------------------------------------------------------------------------------
-# Setup: copy Guarded Swarms world files into PX4 worlds directory (run once)
+# Setup: report where the Guarded Swarms worlds are resolved from.
+#
+# Nothing is copied into PX4: worlds are found at run time via
+# GZ_SIM_RESOURCE_PATH (set in scripts/gz_launch.sh). This target just lists
+# the available worlds. Kept for backwards compatibility with older docs.
 # ------------------------------------------------------------------------------
 setup-worlds:
 	@echo "setup-worlds is no longer needed: worlds are resolved from"
@@ -352,7 +356,7 @@ px4-kill:
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
 	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "All processes stopped."
- 
+
 px4-config:
 	@echo "=========================================="
 	@echo "PX4 Offboard Config - copy at pxh> prompt"
@@ -380,11 +384,11 @@ px4-reset-params:
 	@echo "param set COM_RCL_EXCEPT 0"
 	@echo "param save"
 	@echo ""
- 
+
 gazebo-test:
 	@echo "Launching Gazebo standalone with empty world..."
 	@GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) gz sim empty.sdf
- 
+
 gazebo-worlds:
 	@echo "PX4 built-in worlds:"
 	@ls -1 $(PX4_DIR)/Tools/simulation/gz/worlds/ 2>/dev/null || echo "  PX4 not found."
