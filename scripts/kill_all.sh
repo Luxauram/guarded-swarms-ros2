@@ -17,33 +17,76 @@
 
 # ==============================================================================
 # @file kill_all.sh
-# Guarded Swarms - Kill All Processes
+# Guarded Swarms - kill all simulation and ROS 2 processes.
 #
-# Terminates all simulation and ROS2 processes cleanly.
-# Called by: make kill-all
+# Terminates the whole stack cleanly: the PX4 SITL build/run processes, Gazebo,
+# the uXRCE-DDS agent, every Guarded Swarms ROS 2 node, and the shared memory
+# and temporary files left behind.
 #
-# NOTE: kept separate from Makefile because inline pkill commands
-# can accidentally kill the make process itself.
+# Kept as a script (not inline in the Makefile) on purpose: an inline
+# 'pkill make' inside a recipe would also kill the make process running it.
+#
+# Every kill uses '|| true': pkill returns non-zero when it matches no
+# process, which is normal here and must not abort the shutdown. For the same
+# reason this script does NOT use 'set -e'.
+#
+# Node names are matched with 'pkill -f' against the full command line, since
+# ROS 2 executable names exceed pkill's ~15-character process-name limit.
+#
+# Usage:
+#   ./scripts/kill_all.sh
+#   make kill-all
+#
+# @author Luca D'Aurizio
 # ==============================================================================
 
 echo "Shutting down all processes..."
-pkill -9 -f "make.*px4_sitl" 2>/dev/null; true
-pkill -9 -f "cmake.*px4_sitl" 2>/dev/null; true
+
+# PX4 build/run wrappers first, so they do not respawn the simulator.
+pkill -9 -f "make.*px4_sitl" 2>/dev/null || true
+pkill -9 -f "cmake.*px4_sitl" 2>/dev/null || true
 sleep 1
-pkill -9 -x px4 2>/dev/null; true
-pkill -9 -f "gz sim" 2>/dev/null; true
-pkill -9 -f "px4-gz_bri" 2>/dev/null; true
-pkill -9 -f "gz_sim_serv" 2>/dev/null; true
-pkill -9 gzserver 2>/dev/null; true
-pkill -9 gzclient 2>/dev/null; true
-pkill -9 MicroXRCEAgent 2>/dev/null; true
-pkill -9 -f "safety_board" 2>/dev/null; true
-pkill -9 -f "command_brid" 2>/dev/null; true
-pkill -9 -f "coordinator_" 2>/dev/null; true
-pkill -9 -f "agent_node" 2>/dev/null; true
-pkill -9 -f "px4_safety_b" 2>/dev/null; true
-pkill -9 -f "offboard_con" 2>/dev/null; true
-pkill -9 -f "rover_control" 2>/dev/null; true
-pkill -9 -f "parameter_br" 2>/dev/null; true
-rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null; true
+
+# Simulator, Gazebo, and the PX4<->ROS 2 transport.
+pkill -9 -x px4 2>/dev/null || true
+pkill -9 -f "gz sim" 2>/dev/null || true
+pkill -9 -f "px4-gz_bri" 2>/dev/null || true
+pkill -9 -f "gz_sim_serv" 2>/dev/null || true
+pkill -9 gzserver 2>/dev/null || true
+pkill -9 gzclient 2>/dev/null || true
+pkill -9 MicroXRCEAgent 2>/dev/null || true
+
+# Analog safety layer.
+pkill -9 -f "safety_board_node" 2>/dev/null || true
+pkill -9 -f "px4_safety_bridge_node" 2>/dev/null || true
+
+# Sensor consultant agents (upstream of T1).
+pkill -9 -f "radar_agent_node" 2>/dev/null || true
+pkill -9 -f "rf_agent_node" 2>/dev/null || true
+pkill -9 -f "acoustic_agent_node" 2>/dev/null || true
+pkill -9 -f "eo_agent_node" 2>/dev/null || true
+
+# TB-CSPN coordination transitions (T1-T7).
+pkill -9 -f "interpretation_node" 2>/dev/null || true
+pkill -9 -f "candidate_transition_node" 2>/dev/null || true
+pkill -9 -f "mission_transition_node" 2>/dev/null || true
+pkill -9 -f "dispatch_transition_node" 2>/dev/null || true
+
+# Worker agents and the intruder.
+pkill -9 -f "uav_worker_node" 2>/dev/null || true
+pkill -9 -f "ugv_worker_node" 2>/dev/null || true
+pkill -9 -f "rover_control_node" 2>/dev/null || true
+pkill -9 -f "intruder_node" 2>/dev/null || true
+
+# Gazebo <-> ROS 2 topic bridges.
+pkill -9 -f "parameter_bridge" 2>/dev/null || true
+
+# Legacy nodes (superseded architecture; harmless once removed, the match
+# simply finds nothing). Remove these lines together with the legacy code.
+pkill -9 -f "coordinator_node" 2>/dev/null || true
+pkill -9 -f "agent_node" 2>/dev/null || true
+pkill -9 -f "command_bridge_node" 2>/dev/null || true
+pkill -9 -f "offboard_control" 2>/dev/null || true
+
+rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 echo "All processes terminated."

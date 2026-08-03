@@ -16,14 +16,13 @@
 
 # ==============================================================================
 # @file mock.yaml
-# Resilience test configuration for mock pipeline (no PX4, no Gazebo)
-# Use this for fast CI/CD testing without hardware simulation.
+# Resilience test configuration for the mock pipeline (no PX4, no Gazebo).
+# Fast path for CI-style testing without hardware simulation.
 # ==============================================================================
 
 scenario: mock
 description: "Mock pipeline - all 4 agents, no PX4 or Gazebo required"
 
-# All 4 agents
 agents:
   - id: test_agent_A
     priority: 5

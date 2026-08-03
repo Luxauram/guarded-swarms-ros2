@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+# =============================================================================
 # @file aggregate_layer.py
 #
 # Aggregate the Group-2 layer-property metrics across many runs. Companion to
@@ -26,7 +28,6 @@
 #   source install/setup.bash
 #   python3 scripts/metrics/aggregate_layer.py bags/coastal-*/ --json agg_layer.json
 # =============================================================================
-
 import argparse
 import glob
 import json
@@ -47,6 +48,12 @@ except ImportError as e:
 
 
 def mean_std(values):
+    """Compute the mean and population standard deviation of a list.
+
+    @param values  List of numeric values.
+    @return        Tuple (mean, std). Returns (None, None) for an empty list
+                   and (mean, 0.0) for a single value.
+    """
     n = len(values)
     if n == 0:
         return None, None
@@ -58,12 +65,21 @@ def mean_std(values):
 
 
 def aggregate(bag_dirs):
-    """Collect layer metrics across runs into flat lists per quantity."""
-    # Fusion acceptance per join.
-    acc = {"T3": [], "T5": []}
-    # Census counts per label / source.
-    obs_src = {}
-    interp_lab = {}
+    """Collect layer metrics across runs into flat lists per quantity.
+
+    Each bag is read and passed through metrics_layer.compute(); the per-run
+    results are accumulated into lists so that summary statistics can be taken
+    over the whole set of runs.
+
+    @param bag_dirs  Iterable of rosbag2 directory paths to aggregate.
+    @return          Dict with keys n (run count), acc (fusion acceptance per
+                     join), obs_src / interp_lab (census counts per source /
+                     label), obs_rate / interp_rate, quiesce (gaps), and
+                     bounded_true (count of bounded runs).
+    """
+    acc = {"T3": [], "T5": []}                 # fusion acceptance per join
+    obs_src = {}                               # census counts per source
+    interp_lab = {}                            # census counts per label
     obs_rate, interp_rate = [], []
     quiesce = []
     bounded_true = 0
@@ -97,12 +113,16 @@ def aggregate(bag_dirs):
 
 
 def print_report(a):
+    """Print the aggregated layer metrics as a human-readable report.
+
+    @param a  Aggregate dict produced by aggregate().
+    @return   None.
+    """
     n = a["n"]
     print()
     print("=" * 70)
     print("  Layer-property metrics, aggregated over {} run(s)".format(n))
     print("=" * 70)
-
     print("  4. fusion acceptance (mean +/- std)")
     for join in ("T3", "T5"):
         vals = a["acc"][join]
@@ -114,7 +134,6 @@ def print_report(a):
         else:
             print("     {}:  n/a".format(join))
     print()
-
     print("  5. token census (mean +/- std per run)")
     print("     observations by source:")
     for s in sorted(a["obs_src"]):
@@ -131,7 +150,6 @@ def print_report(a):
         m, sd = mean_std(a["interp_rate"])
         print("     interp rate: {:5.2f} +/- {:4.2f} Hz".format(m, sd))
     print()
-
     print("  6. bounded execution")
     if a["quiesce"]:
         m, sd = mean_std(a["quiesce"])
@@ -143,17 +161,31 @@ def print_report(a):
 
 
 def build_json(a):
+    """Convert the aggregate dict into a JSON-serialisable summary.
+
+    Each quantity is reduced to a mean/std/min/max/n record via the local ms()
+    helper.
+
+    @param a  Aggregate dict produced by aggregate().
+    @return   Dict ready for json.dump, keyed by metric name.
+    """
     def ms(vals):
+        """Reduce a list to a summary-statistics record.
+
+        @param vals  List of numeric values.
+        @return      Dict with mean, std, min, max, and n.
+        """
         m, sd = mean_std(vals)
         return {"mean": m, "std": sd,
                 "min": (min(vals) if vals else None),
                 "max": (max(vals) if vals else None),
                 "n": len(vals)}
+
     return {
         "n_runs": a["n"],
         "fusion_acceptance": {j: ms(a["acc"][j]) for j in ("T3", "T5")},
         "obs_by_source": {s: ms(v) for s, v in a["obs_src"].items()},
-        "interp_by_label": {l: ms(v) for l, v in a["interp_lab"].items()},
+        "interp_by_label": {lab: ms(v) for lab, v in a["interp_lab"].items()},
         "obs_rate_hz": ms(a["obs_rate"]),
         "interp_rate_hz": ms(a["interp_rate"]),
         "quiesce_gap_s": ms(a["quiesce"]),
@@ -162,6 +194,14 @@ def build_json(a):
 
 
 def main():
+    """Parse arguments, aggregate the matching bags, and report.
+
+    Resolves the bag arguments (globs or paths), keeps only directories that
+    contain a .db3, deduplicates them, prints the report, and optionally writes
+    the aggregate as JSON.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(
         description="Aggregate Group-2 layer metrics across runs.")
     ap.add_argument("bags", nargs="+", help="bag directories or globs")
@@ -174,12 +214,14 @@ def main():
         for m in matches:
             if glob.glob(os.path.join(m, "*.db3")):
                 resolved.append(m)
+
     seen, bag_dirs = set(), []
     for b in resolved:
         k = os.path.normpath(b)
         if k not in seen:
             seen.add(k)
             bag_dirs.append(b)
+
     if not bag_dirs:
         sys.stderr.write("error: no bags with a .db3 matched.\n")
         sys.exit(1)

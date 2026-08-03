@@ -16,13 +16,14 @@
 
 # ==============================================================================
 # @file ugv_r2.yaml
-# Resilience test configuration for UGV Urban Scenario (R2 from paper)
+# Resilience test configuration for the UGV urban scenario (R2 from the paper):
+# agents C+D, digital coordination plus analog safety. The altitude envelope is
+# disabled, since a ground rover has no meaningful altitude bound.
 # ==============================================================================
 
 scenario: ugv_r2
 description: "UGV Urban Scenario - Agents C+D, digital coordination + analog safety"
 
-# Agents involved in this scenario
 agents:
   - id: test_agent_A
     priority: 9
@@ -33,21 +34,18 @@ agents:
     zone_center: [600.0, 600.0, 0.0]
     zone_size: 5.0
 
-# Coordinator settings
 coordinator:
   id: coordinator_R2
   arbitration_mode: priority
   concurrency_window_ms: 300
 
-# Safety board settings (altitude disabled for ground rover)
 safety:
   staleness_timeout_s: 5.0
   min_proximity_m: 1.5
-  min_altitude_m: -1.0 # disabled for UGV
-  max_altitude_m: 999.0 # disabled for UGV
+  min_altitude_m: -1.0 # disabled for the UGV (ground level)
+  max_altitude_m: 999.0 # disabled for the UGV (ground level)
   min_battery_pct: 15.0
 
-# ROS2 topics
 topics:
   geometry_tokens: /geometry_tokens
   auth_tokens: /auth_tokens
@@ -58,7 +56,6 @@ topics:
   altitude: /drone/altitude
   battery: /drone/battery
 
-# Test timeouts
 timeouts:
   response_ms: 1000
   safety_reaction_s: 8.0

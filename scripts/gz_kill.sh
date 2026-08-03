@@ -18,11 +18,16 @@
 # ==============================================================================
 # @file gz_kill.sh
 #
-# Guarded Swarms - Gazebo + PX4 Process Cleanup
+# Guarded Swarms - Gazebo + PX4 process cleanup.
 #
-# Terminates all Gazebo and PX4 SITL processes and cleans up shared
-# memory and temporary files. Called before launching a new Gazebo
-# session to ensure a clean state.
+# Terminates all Gazebo and PX4 SITL processes and clears the shared memory
+# and temporary files they leave behind. Run before launching a new Gazebo
+# session to guarantee a clean slate; a stale gzserver or leftover parameter
+# file is a common cause of a simulation that starts but never arms.
+#
+# Every kill is followed by '|| true': pkill returns non-zero when it matches
+# no process, which is the normal case here (nothing to kill), and must not
+# abort the cleanup. For the same reason this script does NOT use 'set -e'.
 #
 # Usage:
 #   ./scripts/gz_kill.sh
@@ -31,12 +36,19 @@
 # @author Luca D'Aurizio
 # ==============================================================================
 
-pkill -9 -x px4 2>/dev/null; true
-pkill -9 -f "gz sim --verbose" 2>/dev/null; true
-pkill -9 -f "px4-gz_bri" 2>/dev/null; true
-pkill -9 -f "gz_sim_serv" 2>/dev/null; true
-pkill -9 gzserver 2>/dev/null; true
-pkill -9 gzclient 2>/dev/null; true
+PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
+
+# Terminate the simulator and every helper process it spawns.
+pkill -9 -x px4 2>/dev/null || true
+pkill -9 -f "gz sim --verbose" 2>/dev/null || true
+pkill -9 -f "px4-gz_bri" 2>/dev/null || true
+pkill -9 -f "gz_sim_serv" 2>/dev/null || true
+pkill -9 gzserver 2>/dev/null || true
+pkill -9 gzclient 2>/dev/null || true
+
+# Give the processes time to release their handles before we delete the
+# shared-memory segments and parameter files they were using.
 sleep 3
-rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null; true
-find ~/PX4-Autopilot/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null; true
+
+rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
+find "$PX4_DIR/build/px4_sitl_default" -name 'parameters*.bson' -delete 2>/dev/null || true

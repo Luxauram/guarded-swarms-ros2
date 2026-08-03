@@ -20,7 +20,7 @@
 # Single point of truth for the Gazebo environment.
 #
 # Exports the Guarded Swarms asset paths FIRST, then sources PX4's generated
-# gz_env.sh, which appends its own models/worlds and — critically — sets
+# gz_env.sh, which appends its own models/worlds and - critically - sets
 # GZ_SIM_SYSTEM_PLUGIN_PATH and GZ_SIM_SERVER_CONFIG_PATH. Without the latter
 # Gazebo loads no PX4 sensor systems and every preflight check fails
 # (accel/gyro/baro/mag "missing").
@@ -46,14 +46,17 @@ if [ ! -f "$GZ_ENV" ]; then
     exit 1
 fi
 
-# Guarded Swarms assets first — they shadow PX4's stock ones.
+# Guarded Swarms assets first - they shadow PX4's stock ones.
 export GZ_SIM_RESOURCE_PATH="$REPO_ROOT/src/guarded_swarms_gz/models:$REPO_ROOT/src/guarded_swarms_gz/worlds"
 
 # PX4 env: appends its models/worlds, sets plugin path + server config.
 # shellcheck disable=SC1090
 source "$GZ_ENV"
 
-# NVIDIA offload (harmless on non-NVIDIA systems)
+# NVIDIA PRIME render offload, so Gazebo uses the discrete GPU (required for
+# lidar rendering). Harmless on non-NVIDIA systems: the variables are simply
+# ignored. MESA_GL_VERSION_OVERRIDE forces an OpenGL 4.5 context, which Gazebo
+# Harmonic's renderer needs on some Mesa/driver combinations.
 export __NV_PRIME_RENDER_OFFLOAD=1
 export __GLX_VENDOR_LIBRARY_NAME=nvidia
 export MESA_GL_VERSION_OVERRIDE=4.5

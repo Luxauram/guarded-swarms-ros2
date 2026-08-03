@@ -1,102 +1,92 @@
 #!/usr/bin/env python3
-"""
-Copyright 2026 Luca D'Aurizio
+# ==============================================================================
+# Copyright 2026 Luca D'Aurizio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+"""Resilience test: sensor spike / transient fault.
 
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-  http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
-@file test_sensor_spike.py
-
-Resilience test: Sensor spike / transient fault.
-
-Verifies that the analog safety board correctly reacts to a brief
-sensor violation (proximity spike) and then recovers when the
-anomaly clears.
-
-Scalable: configure thresholds and topics via YAML.
-
-@author Luca D'Aurizio
+Verifies that the analog safety board correctly reacts to a brief sensor
+violation (proximity spike) and then recovers when the anomaly clears.
+Thresholds and topics are configured via YAML.
 """
 
-import sys
 import os
+import sys
+
 import rclpy
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from framework.base_test import BaseResilienceTest, TestSuite
 from framework.reporter import save_report
-
 from std_msgs.msg import Float32
 from sensor_msgs.msg import Range, BatteryState
 
+# Nominal sensor values used to drive the board between violation phases.
+NOMINAL_PROXIMITY_M = 5.0
+NOMINAL_ALTITUDE_M = 10.0
+NOMINAL_BATTERY = 0.8
+NOMINAL_CMD_RAW = 0.6
+
+# Each phase streams this many samples at this interval, so the board sees a
+# sustained condition rather than a single reading.
+SAMPLES_PER_PHASE = 10
+SAMPLE_INTERVAL_S = 0.2
+
 
 class SensorSpikeTest(BaseResilienceTest):
-    """
-    Tests safety board reaction to transient sensor fault.
+    """Test safety board reaction to a transient sensor fault.
 
     Scenario:
-    1. Publish nominal sensor data -> SAFE, cmd passes
-    2. Inject proximity spike (obstacle at 0.5m < threshold 1.5m)
-    3. Assert safety board transitions to UNSAFE -> VETO
-    4. Clear spike (return to nominal proximity)
-    5. Assert recovery to SAFE -> cmd passes again
+    1. Publish nominal sensor data -> SAFE, cmd passes.
+    2. Inject proximity spike (obstacle below threshold).
+    3. Assert safety board transitions to UNSAFE -> VETO.
+    4. Clear spike (return to nominal proximity).
+    5. Assert recovery to SAFE -> cmd passes again.
     """
 
     def __init__(self, config_path: str):
-        """
-        Initialise the Sensor Spike resilience test node.
+        """Initialise the sensor-spike test node.
 
-        This test validates the safety layer response to sudden sensor
-        anomalies (spikes) across multiple input channels, including:
-        - proximity sensing
-        - altitude readings
-        - battery state
-        - raw actuator commands
-
-        The node publishes simulated sensor data and monitors the safety
-        system outputs to verify correct degradation and veto behaviour
-        under abnormal conditions.
+        Validates the safety layer response to sudden sensor anomalies across
+        proximity, altitude, battery and raw actuator command channels. The
+        node publishes simulated sensor data and monitors the safety outputs
+        to verify correct degradation and veto behaviour.
 
         @param config_path  Absolute path to the YAML configuration file
                             defining topics, thresholds, and test parameters.
         """
         super().__init__("test_sensor_spike", config_path)
         self.min_proximity = self.config["safety"]["min_proximity_m"]
-
         self.proximity_pub = self.create_publisher(Range, self.topics["proximity"], 10)
         self.altitude_pub = self.create_publisher(Float32, self.topics["altitude"], 10)
         self.battery_pub = self.create_publisher(BatteryState, self.topics["battery"], 10)
         self.cmd_raw_pub = self.create_publisher(Float32, self.topics["actuator_cmd_raw"], 10)
-
         self.subscribe_capture(self.topics["safety_status"], Float32, reliable=False)
         self.subscribe_capture(self.topics["actuator_cmd_safe"], Float32, reliable=False)
 
-    def _publish_sensors(self, proximity: float, altitude: float = 10.0,
-                         battery: float = 0.8):
-        """
-        Publish a coherent snapshot of simulated sensor inputs.
+    def _publish_sensors(self, proximity: float,
+                         altitude: float = NOMINAL_ALTITUDE_M,
+                         battery: float = NOMINAL_BATTERY):
+        """Publish a coherent snapshot of simulated sensor inputs.
 
-        This helper method injects a synchronized set of sensor readings into
-        the system under test, representing a single timestep of robot state.
+        Injects a synchronised set of readings representing a single timestep
+        of robot state, used to drive safety-layer reactions under controlled,
+        repeatable conditions.
 
-        It is used to simulate environmental conditions and trigger safety
-        layer reactions under controlled and repeatable scenarios.
-
-        @param proximity  Simulated proximity sensor reading in metres.
-                        Lower values represent closer obstacles.
-        @param altitude   Simulated altitude reading in metres.
-                        Defaults to 10.0.
-        @param battery    Simulated battery level in normalized range [0.0, 1.0].
-                        Defaults to 0.8.
+        @param proximity  Proximity reading in metres. Lower is closer.
+        @param altitude   Altitude reading in metres. Defaults to nominal.
+        @param battery    Battery level in [0.0, 1.0]. Defaults to nominal.
         """
         prox = Range()
         prox.range = proximity
@@ -113,40 +103,38 @@ class SensorSpikeTest(BaseResilienceTest):
         self.battery_pub.publish(bat)
 
         cmd = Float32()
-        cmd.data = 0.6
+        cmd.data = NOMINAL_CMD_RAW
         self.cmd_raw_pub.publish(cmd)
 
-    def run(self) -> TestSuite:
+    def _stream_phase(self, proximity: float):
+        """Stream a sustained sensor condition for one phase.
+
+        @param proximity  Proximity value to hold across the phase, in metres.
         """
-        Execute the Sensor Spike resilience scenario.
+        for _ in range(SAMPLES_PER_PHASE):
+            self._publish_sensors(proximity=proximity)
+            self.sleep(SAMPLE_INTERVAL_S)
 
-        This test validates the system's ability to handle transient sensor
-        faults and recover correctly once the anomaly is removed.
+    def run(self) -> TestSuite:
+        """Execute the sensor-spike resilience scenario.
 
-        The scenario is structured in three phases:
-        1. Nominal operation -> system must remain in SAFE state
-        2. Proximity spike -> system must transition to UNSAFE and veto actuation
-        3. Recovery -> system must return to SAFE and re-enable actuation
+        Three phases: nominal operation (must stay SAFE), a proximity spike
+        (must go UNSAFE and veto actuation), and recovery (must return to SAFE
+        and re-enable actuation).
 
-        @return TestSuite containing all assertion results for the scenario
+        @return TestSuite containing all assertion results for the scenario.
         """
         suite = TestSuite(f"sensor_spike_{self.config['scenario']}")
-
         self.get_logger().info("=" * 50)
         self.get_logger().info("Test: Sensor Spike / Transient Fault")
         self.get_logger().info("=" * 50)
-
         self.sleep(self.timeouts["startup_s"])
 
-        # --- Phase 1: Nominal -> SAFE ---
+        # Phase 1: Nominal -> SAFE.
         self.get_logger().info("Phase 1: Nominal sensor data...")
         self.clear_captured(self.topics["safety_status"])
         self.clear_captured(self.topics["actuator_cmd_safe"])
-
-        for _ in range(10):
-            self._publish_sensors(proximity=5.0)  # well above threshold
-            self.sleep(0.2)
-
+        self._stream_phase(NOMINAL_PROXIMITY_M)
         result_safe = self.assert_message_received(
             topic=self.topics["safety_status"],
             timeout_s=3.0,
@@ -155,18 +143,15 @@ class SensorSpikeTest(BaseResilienceTest):
         )
         suite.add(result_safe)
 
-        # --- Phase 2: Proximity spike -> UNSAFE + VETO ---
-        spike_value = self.min_proximity * 0.5  # well below threshold
+        # Phase 2: Proximity spike -> UNSAFE + VETO. The spike value sits well
+        # below the configured threshold so the board must react.
+        spike_value = self.min_proximity * 0.5
         self.get_logger().warn(
             f"Phase 2: Injecting proximity spike ({spike_value}m < {self.min_proximity}m)..."
         )
         self.clear_captured(self.topics["safety_status"])
         self.clear_captured(self.topics["actuator_cmd_safe"])
-
-        for _ in range(10):
-            self._publish_sensors(proximity=spike_value)
-            self.sleep(0.2)
-
+        self._stream_phase(spike_value)
         result_unsafe = self.assert_message_received(
             topic=self.topics["safety_status"],
             timeout_s=3.0,
@@ -174,7 +159,6 @@ class SensorSpikeTest(BaseResilienceTest):
             description=f"UNSAFE during proximity spike ({spike_value}m)",
         )
         suite.add(result_unsafe)
-
         result_veto = self.assert_message_received(
             topic=self.topics["actuator_cmd_safe"],
             timeout_s=3.0,
@@ -183,15 +167,11 @@ class SensorSpikeTest(BaseResilienceTest):
         )
         suite.add(result_veto)
 
-        # --- Phase 3: Spike clears -> recovery ---
+        # Phase 3: Spike clears -> recovery.
         self.get_logger().info("Phase 3: Clearing spike, returning to nominal...")
         self.clear_captured(self.topics["safety_status"])
         self.clear_captured(self.topics["actuator_cmd_safe"])
-
-        for _ in range(10):
-            self._publish_sensors(proximity=5.0)
-            self.sleep(0.2)
-
+        self._stream_phase(NOMINAL_PROXIMITY_M)
         result_recovery = self.assert_message_received(
             topic=self.topics["safety_status"],
             timeout_s=3.0,
@@ -199,7 +179,6 @@ class SensorSpikeTest(BaseResilienceTest):
             description="Recovery to SAFE after spike clears",
         )
         suite.add(result_recovery)
-
         result_pass = self.assert_message_received(
             topic=self.topics["actuator_cmd_safe"],
             timeout_s=3.0,
@@ -213,16 +192,11 @@ class SensorSpikeTest(BaseResilienceTest):
 
 
 def main():
-    """
-    Entry point for the Sensor Spike resilience test.
+    """Entry point for the sensor-spike resilience test.
 
-    This script initialises ROS2, loads the test configuration,
-    executes a multi-sensor spike scenario, exports the results,
-    and performs safe shutdown of all ROS2 resources.
-
-    Exit code semantics:
-    - 0 -> all assertions passed (system correctly handled sensor spikes)
-    - 1 -> one or more assertions failed
+    Initialises ROS 2, loads the configuration, runs the multi-phase spike
+    scenario, exports the results, and shuts down. Exit code is 0 if all
+    assertions passed, 1 otherwise.
     """
     rclpy.init()
     config = os.path.join(

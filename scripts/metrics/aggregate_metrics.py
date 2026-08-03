@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+# =============================================================================
 # @file aggregate_metrics.py
 #
 # Aggregate chain-latency metrics across MANY recorded runs.
@@ -40,7 +42,6 @@
 # the runs where it is defined, and the contributing-run count is shown so a
 # partial run never silently biases a mean.
 # =============================================================================
-
 import argparse
 import glob
 import json
@@ -58,7 +59,6 @@ except ImportError as e:
         "Keep aggregate_metrics.py next to metrics_chain.py.\n".format(e))
     sys.exit(2)
 
-
 # The latency fields we aggregate, in report order, with human labels.
 METRICS = [
     ("end_to_end_s",                  "end-to-end: ObsToken -> Mission"),
@@ -73,8 +73,7 @@ METRICS = [
 
 
 def mean_std(values):
-    """
-    Sample mean and (population) standard deviation of a list of floats.
+    """Sample mean and (population) standard deviation of a list of floats.
 
     @param values  Non-empty list of numbers.
     @return        (mean, std). std is 0.0 for a single sample.
@@ -88,11 +87,10 @@ def mean_std(values):
 
 
 def aggregate(bag_dirs):
-    """
-    Compute per-run metrics for every bag and collect them per metric.
+    """Compute per-run metrics for every bag and collect them per metric.
 
     @param bag_dirs  List of resolved bag directories.
-    @return          (per_metric_values, per_run_results)
+    @return          (per_metric_values, per_run_results).
                      per_metric_values: field -> list of values (only where
                      the metric was defined in that run).
                      per_run_results: list of ChainMetrics (for reference).
@@ -111,13 +109,18 @@ def aggregate(bag_dirs):
 
 
 def print_report(per_metric, per_run, n_bags):
-    """Print the aggregate table."""
+    """Print the aggregate latency table to stdout.
+
+    @param per_metric  Field -> list of contributing values, from aggregate().
+    @param per_run     List of per-run ChainMetrics, from aggregate().
+    @param n_bags      Total number of runs aggregated.
+    @return            None.
+    """
     print()
     print("=" * 74)
     print("  Chain-latency metrics, aggregated over {} run(s)   "
           "[sim time, seconds]".format(n_bags))
     print("=" * 74)
-
     # How many runs actually formed a mission (completed the chain).
     completed = sum(1 for r in per_run if r.t_first_mission is not None)
     print("  runs that completed the chain (mission formed): {}/{}".format(
@@ -143,7 +146,14 @@ def print_report(per_metric, per_run, n_bags):
 
 
 def build_json(per_metric, per_run, n_bags):
-    """Assemble a JSON-serialisable summary for the dashboard / archiving."""
+    """Assemble a JSON-serialisable summary for the dashboard / archiving.
+
+    @param per_metric  Field -> list of contributing values, from aggregate().
+    @param per_run     List of per-run ChainMetrics, from aggregate().
+    @param n_bags      Total number of runs aggregated.
+    @return            Dict ready for json.dump, with per-metric mean/std/min/
+                       max/n and the list of contributing bags.
+    """
     completed = sum(1 for r in per_run if r.t_first_mission is not None)
     out = {
         "n_runs": n_bags,
@@ -170,6 +180,14 @@ def build_json(per_metric, per_run, n_bags):
 
 
 def main():
+    """Parse arguments, aggregate the matching bags, and report.
+
+    Expands globs, resolves each argument to a bag directory containing a .db3,
+    deduplicates while preserving order, prints the report, and optionally
+    writes the aggregate as JSON.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(
         description="Aggregate chain-latency metrics across many runs.")
     ap.add_argument("bags", nargs="+",
@@ -184,6 +202,7 @@ def main():
         for m in matches:
             if glob.glob(os.path.join(m, "*.db3")):
                 resolved.append(m)
+
     # De-duplicate while preserving order.
     seen = set()
     bag_dirs = []
@@ -199,7 +218,6 @@ def main():
 
     per_metric, per_run = aggregate(bag_dirs)
     print_report(per_metric, per_run, len(bag_dirs))
-
     if args.json:
         with open(args.json, "w") as f:
             json.dump(build_json(per_metric, per_run, len(bag_dirs)), f, indent=2)

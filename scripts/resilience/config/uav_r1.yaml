@@ -16,13 +16,13 @@
 
 # ==============================================================================
 # @file uav_r1.yaml
-# Resilience test configuration for UAV Urban Scenario (R1 from paper)
+# Resilience test configuration for the UAV urban scenario (R1 from the paper):
+# agents A+B, digital coordination plus analog safety.
 # ==============================================================================
 
 scenario: uav_r1
 description: "UAV Urban Scenario - Agents A+B, digital coordination + analog safety"
 
-# Agents involved in this scenario
 agents:
   - id: test_agent_A
     priority: 9
@@ -33,13 +33,11 @@ agents:
     zone_center: [600.0, 600.0, 50.0]
     zone_size: 5.0
 
-# Coordinator settings
 coordinator:
   id: coordinator_R1
   arbitration_mode: priority
   concurrency_window_ms: 300
 
-# Safety board settings
 safety:
   staleness_timeout_s: 5.0
   min_proximity_m: 1.5
@@ -47,7 +45,6 @@ safety:
   max_altitude_m: 50.0
   min_battery_pct: 15.0
 
-# ROS2 topics
 topics:
   geometry_tokens: /geometry_tokens
   auth_tokens: /auth_tokens
@@ -58,8 +55,7 @@ topics:
   altitude: /drone/altitude
   battery: /drone/battery
 
-# Test timeouts
 timeouts:
-  response_ms: 1000 # max time to wait for coordinator response
-  safety_reaction_s: 8.0 # max time to wait for safety board reaction
-  startup_s: 3.0 # time to wait for nodes to initialize
+  response_ms: 1000 # max time to wait for a coordinator response
+  safety_reaction_s: 8.0 # max time to wait for a safety board reaction
+  startup_s: 3.0 # time to wait for nodes to initialise

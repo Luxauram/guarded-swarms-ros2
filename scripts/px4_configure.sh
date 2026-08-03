@@ -31,7 +31,7 @@
 # since offboard control is commanded from ROS 2 with no RC and no GCS.
 #
 # The UGV needs no parameters: PX4 defaults are correct for it. In particular
-# never set SYS_HAS_MAG 0 on the rover — without a magnetometer its EKF never
+# never set SYS_HAS_MAG 0 on the rover - without a magnetometer its EKF never
 # converges, local position stays invalid, and failsafe disarms it immediately.
 # ==============================================================================
 set -e
@@ -55,7 +55,7 @@ cd "$BUILD_DIR"
 # must come before the sub-command. There is no -i flag and the working
 # directory is irrelevant: without --instance every client talks to instance 0,
 # so a multi-vehicle setup silently configures the wrong vehicle.
-param() { ./bin/px4-param --instance "$INSTANCE" "$@"; } 
+param() { ./bin/px4-param --instance "$INSTANCE" "$@"; }
 
 case "$VEHICLE" in
     uav)
@@ -70,16 +70,16 @@ case "$VEHICLE" in
         # not an endurance test.
         param set COM_LOW_BAT_ACT 0
         param save
-                ;;
+        ;;
     ugv)
         echo "[px4_configure] instance $INSTANCE: UGV parameters"
         param set COM_LOW_BAT_ACT 0
         param save
-                ;;
+        ;;
     *)
         echo "ERROR: unknown vehicle type '$VEHICLE' (expected uav or ugv)"
         exit 1
-                ;;
+        ;;
 esac
 
 if [ "$INSTANCE" != "0" ]; then

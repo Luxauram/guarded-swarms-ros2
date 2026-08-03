@@ -1,5 +1,21 @@
 #!/usr/bin/env bash
-# =============================================================================
+# ==============================================================================
+# Copyright 2026 Luca D'Aurizio
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# ==============================================================================
 # test_pipeline.sh - one-command end-to-end test of the Guarded Swarms pipeline
 #
 # Launches the intruder, the sensing layer and the TB-CSPN coordination layer
@@ -10,19 +26,19 @@
 # It does NOT launch the scenario itself (that needs the Gazebo GUI and its own
 # terminal). Start the scenario first:
 #
-#     make demo-coastal        # terminal 1, leave running
+#     make demo-coastal            # terminal 1, leave running
 #     ./scripts/test_pipeline.sh   # terminal 2, does everything else
 #
 # Everything this script starts is torn down on exit, so a re-run is clean.
-# =============================================================================
+# ==============================================================================
 set -o pipefail
-
 cd "$(dirname "$0")/.." || exit 1
 source install/setup.bash
 
 # --- tunables ---------------------------------------------------------------
 INTRUDER_DELAY="${INTRUDER_DELAY:-8.0}"    # s before the intruder moves
 INTRUDER_SPEED="${INTRUDER_SPEED:-1.5}"    # m/s, slow = wide detection window
+
 # Attack vector: ingress geometry of the intruder, chosen from the sensor
 # coverage map. "frontal" is the well-covered sea front; "east-deep" and "rear"
 # cross the sparse zones so the detection modality richness degrades. Used by
@@ -48,57 +64,62 @@ case "$ATTACK_VECTOR" in
   # sensor models, so the Group 4 detection metrics are untouched.
   *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear|demo)"; exit 1 ;;
 esac
-                                           # (slow enough that all sensor
-                                           # modalities coincide in T5's fusion
-                                           # window even under bag-record load)
+
 AUTH_TARGET="${AUTH_TARGET:-intruder}"
 SUPERVISOR="${SUPERVISOR:-supervisor_luca}"
-export EO_DELAY_S="${EO_DELAY_S:-0}"       # seconds to delay EO delivery;
-                                           # >threat TTL reproduces the stale-EO
-                                           # counterfactual (C2) of the paper.
-RADAR_ENABLED="${RADAR_ENABLED:-true}"     # per-modality enables for the
-RF_ENABLED="${RF_ENABLED:-true}"           # loss-of-modality metric (Group 4b):
-ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"  # drop one and measure the degrade.
-EO_ENABLED="${EO_ENABLED:-true}"          # set false to reproduce the
-                                           # "EO confirmation unavailable in
-                                           # the fusion window" counterfactual
-                                           # (C2): CandidateTarget forms but
-                                           # is never promoted to
-                                           # ConfirmedThreat.
-export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"   # T2's emitted label; set to
-                                           # LikelyCivilianTraffic to reproduce
-                                           # the conflict counterfactual (C3)
-EXPECT_THREAT="${EXPECT_THREAT:-yes}"      # yes | no. no = do not wait for a
-                                           # ConfirmedThreat (it must NOT come,
-                                           # as in the C3 conflict run); instead
-                                           # let the pipeline run for OBSERVE_S
-                                           # and just record.
-OBSERVE_S="${OBSERVE_S:-90}"               # seconds to let a no-threat run breathe
-DECISION="${DECISION:-authorise}"        # authorise | deny
-MANUAL_AUTH="${MANUAL_AUTH:-0}"          # 1 = wait for the supervisor to
-                                         # authorise from the console/browser
-                                         # instead of publishing it automatically
-                                           # deny reproduces the "authorisation
-                                           # withheld" counterfactual (Sec 5.3):
-                                           # the threat forms but no mission is
-                                           # released.
-THREAT_TIMEOUT="${THREAT_TIMEOUT:-30}"     # s to wait for a ConfirmedThreat
-                                           # (raised: a slower intruder takes
-                                           # longer to reach full coverage)
+
+# Seconds to delay EO delivery; a value above the threat TTL reproduces the
+# stale-EO counterfactual (C2) of the paper.
+export EO_DELAY_S="${EO_DELAY_S:-0}"
+
+# Per-modality enables for the loss-of-modality metric (Group 4b): drop one and
+# measure the degrade. Setting EO_ENABLED=false reproduces the "EO confirmation
+# unavailable in the fusion window" counterfactual (C2): CandidateTarget forms
+# but is never promoted to ConfirmedThreat.
+RADAR_ENABLED="${RADAR_ENABLED:-true}"
+RF_ENABLED="${RF_ENABLED:-true}"
+ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
+EO_ENABLED="${EO_ENABLED:-true}"
+
+# T2's emitted label; set to LikelyCivilianTraffic to reproduce the conflict
+# counterfactual (C3).
+export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
+
+# yes | no. no = do not wait for a ConfirmedThreat (it must NOT come, as in the
+# C3 conflict run); instead let the pipeline run for OBSERVE_S and just record.
+EXPECT_THREAT="${EXPECT_THREAT:-yes}"
+OBSERVE_S="${OBSERVE_S:-90}"
+
+# authorise | deny. deny reproduces the "authorisation withheld" counterfactual
+# (Sec 5.3): the threat forms but no mission is released.
+DECISION="${DECISION:-authorise}"
+
+# 1 = wait for the supervisor to authorise from the console/browser instead of
+# publishing it automatically.
+MANUAL_AUTH="${MANUAL_AUTH:-0}"
+
+# s to wait for a ConfirmedThreat (a slower intruder takes longer to reach full
+# coverage).
+THREAT_TIMEOUT="${THREAT_TIMEOUT:-30}"
+
+# Seconds to let the vehicles react after an automatic authorisation.
+REACT_S="${REACT_S:-10}"
 
 PIDS=()
+
+# Tear down everything this script started, leaving a clean slate for a re-run.
+#
+# Killing a `ros2 launch` process does NOT reliably kill the nodes it spawned:
+# they are reparented and survive as orphans, which then run alongside the next
+# launch and produce a duplicated sensing chain (doubled observation counts,
+# overlapping timestamps). Explicitly sweep the nodes each launch starts. The
+# names are specific to this pipeline; nothing else in the workspace shares them.
 cleanup() {
   echo
   echo "[test] tearing down..."
   for pid in "${PIDS[@]}"; do
     kill "$pid" 2>/dev/null
   done
-  # Killing a `ros2 launch` process does NOT reliably kill the nodes it spawned:
-  # they are reparented and survive as orphans, which then run alongside the
-  # next launch and produce a duplicated sensing chain (doubled observation
-  # counts, overlapping timestamps). Explicitly sweep the nodes each launch
-  # starts, so every run ends from a clean slate. Names are specific to this
-  # pipeline; nothing else in the workspace shares them.
   for n in radar_agent_node rf_agent_node acoustic_agent_node eo_agent_node \
            interpretation_node candidate_transition_node \
            mission_transition_node dispatch_transition_node \
@@ -173,14 +194,12 @@ echo "[test] waiting for a ConfirmedThreat (up to ${THREAT_TIMEOUT}s)..."
 deadline=$(( SECONDS + THREAT_TIMEOUT ))
 got_threat=0
 while (( SECONDS < deadline )); do
-  # one line off /interp_tokens, non-blocking-ish
   line=$(timeout 3 ros2 topic echo /interp_tokens --field label --once 2>/dev/null)
   if [[ "$line" == *ConfirmedThreat* ]]; then
     got_threat=1
     break
   fi
 done
-
 if (( got_threat == 0 )); then
   echo "[test] FAIL: no ConfirmedThreat within ${THREAT_TIMEOUT}s."
   echo "[test] check /tmp/gs_sensing.log and /tmp/gs_tbcspn.log"
@@ -189,6 +208,8 @@ fi
 echo "[test] ConfirmedThreat is up."
 
 # --- record positions, authorise, record again -----------------------------
+
+# Ground-truth pose "x,y,z" of a Gazebo model, or empty if not found.
 pose() { gz model -m "$1" -p 2>/dev/null | grep -A1 Pose | tail -1 | tr -d ' []'; }
 
 before_uav0=$(pose x500_lidar_front_0)
@@ -197,25 +218,20 @@ before_ugv=$(pose r1_rover_2)
 
 if [ "$MANUAL_AUTH" = "1" ]; then
   # Manual mode: the supervisor authorises from the console/browser. The script
-  # does not publish the authorisation. Instead it follows the TB-CSPN log in
-  # real time and prints every mission release the instant it appears, so the
-  # moment you press Authorise in the panel you see the swarm act here -- no
-  # blind wait, no fragile before/after counting. Following the log with tail -f
-  # is immune to the QoS/DDS quirks that make `ros2 topic echo` unreliable from
-  # a second process, and it catches a release whenever it happens, even if you
-  # authorise while the threat is still forming.
-  #
-  # The intruder keeps holding station in the EO cone, so ConfirmedThreat keeps
-  # streaming and the panel stays armed until you decide. Press Ctrl-C when done.
+  # does not publish the authorisation. Instead it follows the release log in
+  # real time and prints every mission the instant it appears, so the moment you
+  # press Authorise in the panel you see the swarm act here -- no blind wait, no
+  # fragile before/after counting. Following a file with tail -f is immune to
+  # the QoS/DDS quirks that make `ros2 topic echo` unreliable from a second
+  # process, and it catches a release whenever it happens.
   echo "[test] MANUAL_AUTH: the console is live. Open console/decision_panel.html."
   echo "[test] Press Authorise in the panel; each released mission appears below"
   echo "[test] the instant T6 fires. Ctrl-C to finish."
   echo "[test] ----------------------------------------------------------------"
   # The background watcher started at pipeline launch has been recording every
-  # release to /tmp/gs_missions.log since before the ConfirmedThreat even
-  # formed. Show anything already captured (a mission authorised while the
-  # threat was forming is not lost), then follow the file for new ones. This is
-  # what makes the feedback immediate regardless of WHEN you clicked Authorise.
+  # release since before the ConfirmedThreat even formed. Show anything already
+  # captured (a mission authorised while the threat was forming is not lost),
+  # then follow the file for new ones.
   if [ -s /tmp/gs_missions.log ]; then
     while IFS= read -r rec; do
       echo "[swarm] mission released: ${rec#* }  (authorised from the console)"
@@ -225,33 +241,29 @@ if [ "$MANUAL_AUTH" = "1" ]; then
     while IFS= read -r rec; do
       echo "[swarm] mission released: ${rec#* }  (authorised from the console)"
     done
-  # tail -f runs until the user Ctrl-C's; the trap tears everything down.
 else
-
   echo "[test] supervisor decision '${DECISION}' for '${AUTH_TARGET}' as '${SUPERVISOR}'..."
-  # Publish the authorisation repeatedly for ~2s rather than with --once.
+  # Publish the authorisation as a short repeated burst rather than with --once.
   # A single --once publisher is created and destroyed immediately; with RELIABLE
   # QoS the DDS handshake with T6's subscription may not complete in time and the
-  # message is lost. Publishing at 5 Hz for 2s guarantees delivery. T6 releases
-  # the mission once and ignores repeats for the same live threat.
-  # Publish with transient_local durability, matching T6's subscription, so the
-  # authorisation is delivered even if T6's DDS handshake is not yet complete when
-  # we publish. A short repeated burst on top removes any residual timing gap.
+  # message is lost. transient_local durability matches T6's subscription so a
+  # late-joining handshake still receives it, and the 5 Hz burst removes any
+  # residual timing gap. T6 releases the mission once and ignores repeats for the
+  # same live threat.
   ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
     /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
     "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: '${DECISION}', ttl_s: 15.0}" \
     >/dev/null 2>&1
-
-  echo "[test] letting the vehicles react (10s)..."
-  sleep 10
+  echo "[test] letting the vehicles react (${REACT_S}s)..."
+  sleep "${REACT_S}"
 fi
 
 after_uav0=$(pose x500_lidar_front_0)
 after_uav1=$(pose x500_lidar_front_1)
 after_ugv=$(pose r1_rover_2)
 
+# Report whether a vehicle's pose changed between the before/after snapshots.
 moved() {
-  # args: label before after  -> prints MOVED/still and the two poses
   local label="$1" b="$2" a="$3"
   if [[ "$b" == "$a" ]]; then
     echo "  $label: still   $a"
@@ -270,5 +282,4 @@ echo "[test] dispatch log:"
 grep -h "Dispatched\|RELEASED\|locked on\|observing from" /tmp/gs_tbcspn.log 2>/dev/null | tail -5
 echo
 echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
-# keep the launches alive until the user is done looking
 wait

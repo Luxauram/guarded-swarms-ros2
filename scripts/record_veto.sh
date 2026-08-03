@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-#
+# ==============================================================================
 # Copyright 2026 Luca D'Aurizio
-# Licensed under the Apache License, Version 2.0 (the "License").
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# ==============================================================================
 # record_veto.sh - exercise the analog Safety Board in isolation and record a
 # bag for the Group 6 (veto) metrics.
 #
@@ -24,7 +37,7 @@
 #                             just its status flag
 #
 # Usage:  ./scripts/record_veto.sh [tag]
-#
+# ==============================================================================
 set -o pipefail
 
 TAG="${1:-veto}"
@@ -52,7 +65,6 @@ PIDS=()
 cleanup() {
   echo "[veto] tearing down..."
   for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null; done
-  # the raw-command publisher is a ros2 topic pub child; make sure it goes too
   pkill -f "actuator_cmd_raw" 2>/dev/null
   pkill -f "mock_sensor_publisher" 2>/dev/null
   pkill -f "safety_board_node" 2>/dev/null
@@ -72,13 +84,12 @@ ros2 bag record -o "${BAG}" "${TOPICS[@]}" >/tmp/gs_veto_bag.log 2>&1 &
 PIDS+=($!)
 sleep 2
 
-echo "[veto] launching the safety board (rover tuning: altitude disabled)..."
-# Rover tuning: an UGV lives at ground level, so the altitude envelope is opened
-# up (as in demo-safety-board-rover) to leave proximity/attitude/battery as the
-# meaningful vetoes on the ground. The mock still drives altitude=60 in its
-# altitude scenario, which with the default 50 m cap would also trip; keeping
-# the default cap here lets that scenario fire too, so we KEEP defaults to
-# exercise all five. (Override with SAFETY_ARGS if you want rover tuning.)
+echo "[veto] launching the safety board..."
+# The mock drives altitude=60 in its altitude scenario, which trips the default
+# 50 m cap, so the default tuning here exercises all five veto types. Override
+# with SAFETY_ARGS for rover tuning (altitude envelope opened, as in
+# demo-safety-board-rover), leaving proximity/attitude/battery as the ground
+# vetoes.
 ros2 run guarded_swarms_safety safety_board_node ${SAFETY_ARGS:-} \
   >/tmp/gs_veto_board.log 2>&1 &
 PIDS+=($!)
@@ -99,6 +110,5 @@ echo "[veto] running for ${DURATION_S}s (watch /tmp/gs_veto_board.log for VETO l
 sleep "${DURATION_S}"
 
 echo "[veto] stopping..."
-# cleanup() runs on EXIT
 echo "[veto] bag saved to ${BAG}"
 echo "[veto] inspect with:  ros2 bag info ${BAG}"

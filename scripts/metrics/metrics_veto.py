@@ -1,42 +1,58 @@
 #!/usr/bin/env python3
+# =============================================================================
 # Copyright 2026 Luca D'Aurizio
-# Licensed under the Apache License, Version 2.0 (the "License").
-"""Group 6 metrics: the analog Safety Board (the veto).
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
 
-The IEEE paper's Virtual Safety Board is an ANALOG enforcement layer that runs
-independently of the digital coordination system and clamps or vetoes actuator
-commands from raw sensor readings alone, before they reach the ESCs. This module
-measures, offline from a bag recorded by scripts/record_veto.sh, the properties
-that matter for that safety guarantee:
-
-  1. Reaction time     -- for each hazard, the delay between the sensor crossing
-                          its threshold and the board's first veto response
-                          (safety_status -> 0, and actuator_cmd_safe -> 0).
-  2. Interventions     -- how many distinct veto episodes occurred, and the
-                          cause of each (proximity / attitude / battery /
-                          altitude), inferred from which sensor was out of
-                          bounds at the time.
-  3. Envelope coverage -- whether every constraint the board enforces actually
-                          fired at least once, i.e. the full safety envelope was
-                          exercised.
-  4. Isolation         -- the board produced these vetoes with NO digital layer
-                          present: the recording contains only sensor and
-                          actuator topics, no TB-CSPN tokens. Structural proof of
-                          the paper's independence claim.
-
-Thresholds mirror the board's defaults (safety_board_node.hpp). Override on the
-command line if a run used non-default parameters.
-
-Usage:
-    python3 scripts/metrics/metrics_veto.py bags/veto-YYYYMMDD-HHMMSS
-"""
+# =============================================================================
+# @file metrics_veto.py
+#
+# Group 6 metrics: the analog Safety Board (the veto).
+#
+# The IEEE paper's Virtual Safety Board is an ANALOG enforcement layer that runs
+# independently of the digital coordination system and clamps or vetoes actuator
+# commands from raw sensor readings alone, before they reach the ESCs. This
+# module measures, offline from a bag recorded by scripts/record_veto.sh, the
+# properties that matter for that safety guarantee:
+#   1. Reaction time     -- for each hazard, the delay between the sensor
+#                          crossing its threshold and the board's first veto
+#                          response (safety_status -> 0, actuator_cmd_safe -> 0).
+#   2. Interventions     -- how many distinct veto episodes occurred, and the
+#                          cause of each (proximity / attitude / battery /
+#                          altitude), inferred from which sensor was out of
+#                          bounds at the time.
+#   3. Envelope coverage -- whether every constraint the board enforces actually
+#                          fired at least once, i.e. the full safety envelope was
+#                          exercised.
+#   4. Isolation         -- the board produced these vetoes with NO digital
+#                          layer present: the recording contains only sensor and
+#                          actuator topics, no TB-CSPN tokens. Structural proof
+#                          of the paper's independence claim.
+#
+# Thresholds mirror the board's defaults (safety_board_node.hpp). Override on
+# the command line if a run used non-default parameters.
+#
+# USAGE
+#   python3 scripts/metrics/metrics_veto.py bags/veto-YYYYMMDD-HHMMSS
+# =============================================================================
 import os
 import sys
+import math
 import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from metrics_chain import read_bag, resolve_bag, stamp_to_s  # noqa: E402
-
 
 # Board defaults, from safety_board_node.hpp. A hazard is present when a sensor
 # is on the unsafe side of its threshold.
@@ -47,10 +63,21 @@ MIN_BATTERY_PCT = 15.0
 MIN_ALTITUDE_M = 0.3
 MAX_ALTITUDE_M = 50.0
 
+# Analysis tuning.
+SAMPLE_DT_S = 0.1          # episode sampling grid, matches the 10 Hz status rate
+ONSET_LOOKBACK_S = 12.0    # how far back to search for a hazard's first onset
+MIN_EPISODE_S = 0.4        # drop shorter unknown-cause blips as startup noise
+STATUS_UNSAFE = 0.5        # safety_status below this is treated as unsafe
+CMD_ACTIVE = 0.01          # raw command above this counts as a live "go"
+CMD_ZERO = 1e-3            # safe command below this counts as clamped to zero
+
 
 def _quat_to_pitch_roll(q):
-    """Same conversion the board uses (ZYX, yaw ignored)."""
-    import math
+    """Convert a quaternion to pitch/roll the way the board does (ZYX, no yaw).
+
+    @param q  A quaternion message with .w, .x, .y, .z.
+    @return   Tuple (pitch_deg, roll_deg).
+    """
     sinr_cosp = 2.0 * (q.w * q.x + q.y * q.z)
     cosr_cosp = 1.0 - 2.0 * (q.x * q.x + q.y * q.y)
     roll = math.degrees(math.atan2(sinr_cosp, cosr_cosp))
@@ -61,7 +88,13 @@ def _quat_to_pitch_roll(q):
 
 
 def _series(bag, topic, field_fn):
-    """Return a time-sorted list of (t_seconds, value) for a topic."""
+    """Return a time-sorted list of (t_seconds, value) for a topic.
+
+    @param bag       The read_bag() output.
+    @param topic     Topic name to extract.
+    @param field_fn  Callable(msg) -> value, applied to each message.
+    @return          List of (recv_seconds, value), sorted by time.
+    """
     out = []
     for recv, m in bag.get(topic, []):
         try:
@@ -73,7 +106,12 @@ def _series(bag, topic, field_fn):
 
 
 def _value_at(series, t):
-    """Last value in series at or before time t (None if none yet)."""
+    """Return the last value in a series at or before time t.
+
+    @param series  List of (t_seconds, value), sorted by time.
+    @param t       Query time in seconds.
+    @return        The most recent value at or before t, or None if none yet.
+    """
     val = None
     for ts, v in series:
         if ts <= t:
@@ -84,6 +122,16 @@ def _value_at(series, t):
 
 
 def analyse(bag_path):
+    """Verify the analog Safety Board from a recorded veto bag.
+
+    Reconstructs the board's status, command clamping, veto episodes (segmented
+    by cause), per-episode reaction time, envelope coverage, and isolation from
+    the digital layer, and prints a verdict. All series are on wall time, since
+    the board runs on the system clock in isolation (no use_sim_time).
+
+    @param bag_path  Path to a bag recorded by record_veto.sh.
+    @return          None.
+    """
     bag = read_bag(bag_path)
     name = os.path.basename(bag_path.rstrip("/"))
 
@@ -102,17 +150,23 @@ def analyse(bag_path):
     if not status:
         print(f"  no /safety_status in {name}; did the board run?")
         return
-
     t0 = status[0][0]
     t_end = status[-1][0]
 
     def rel(t):
+        """Express an absolute time relative to the first status sample.
+
+        @param t  Absolute time in seconds.
+        @return   Seconds since the run started.
+        """
         return t - t0
 
-    # ----- classify the hazard present at any instant -----
-    # Mirrors the board's OR-logic evaluation order, returning the primary cause
-    # (the one the board would report) plus the full set present.
     def cause_at(t):
+        """List the hazards present at time t, in the board's evaluation order.
+
+        @param t  Query time in seconds.
+        @return   List of cause strings present at t (possibly empty).
+        """
         causes = []
         p = _value_at(prox, t)
         if p is not None and p < MIN_PROXIMITY_M:
@@ -130,21 +184,19 @@ def analyse(bag_path):
             causes.append("altitude")
         return causes
 
-    # ----- veto episodes segmented BY CAUSE, not merely by status continuity --
+    # Veto episodes segmented BY CAUSE, not merely by status continuity.
     # Back-to-back hazard scenarios (proximity -> attitude -> battery ->
     # altitude) keep safety_status at 0 the whole time, so a status-only
     # segmentation would merge them into one episode. Instead we sample the
     # active cause on a fine grid and start a new episode whenever the primary
     # cause changes while the board is unsafe.
-    DT = 0.1  # sampling grid, matches the 10 Hz status rate
-    episodes = []  # each: [start, end, cause_string]
+    episodes = []  # each: (start, end, cause_string)
     cur = None
     t = t0
     while t <= t_end:
         st = _value_at(status, t)
-        unsafe = (st is not None and st < 0.5)
+        unsafe = (st is not None and st < STATUS_UNSAFE)
         causes = cause_at(t) if unsafe else []
-        # primary cause = first present, in the board's evaluation order
         primary = causes[0] if causes else ("unknown" if unsafe else None)
         if primary is None:
             if cur is not None:
@@ -158,16 +210,20 @@ def analyse(bag_path):
             else:
                 episodes.append(tuple(cur))
                 cur = [t, t, primary]
-        t += DT
+        t += SAMPLE_DT_S
     if cur is not None:
         episodes.append(tuple(cur))
 
-    # ----- reaction time per episode -----
-    # For each episode, find when the causing hazard first became true, and
-    # measure the delay to the episode's start (first status==0).
     def hazard_onset_before(episode_start, cause):
-        """Walk the relevant sensor series back to the first sample that was
-        already unsafe in the run-up to this episode."""
+        """Find when the causing hazard first became true before an episode.
+
+        Walks the relevant sensor series to the first sample that was already
+        unsafe within ONSET_LOOKBACK_S before the episode start.
+
+        @param episode_start  Episode start time in seconds.
+        @param cause          Cause string (proximity/attitude/battery/altitude).
+        @return               Onset time in seconds, or None if not found.
+        """
         series_map = {
             "proximity": (prox, lambda v: v < MIN_PROXIMITY_M),
             "battery": (batt, lambda v: v < MIN_BATTERY_PCT),
@@ -180,12 +236,11 @@ def analyse(bag_path):
             s, unsafe = series_map[cause]
         else:
             return None
-        # first unsafe sample within 12 s before the episode start
         onset = None
         for ts, v in s:
             if ts > episode_start:
                 break
-            if ts >= episode_start - 12.0 and unsafe(v):
+            if ts >= episode_start - ONSET_LOOKBACK_S and unsafe(v):
                 onset = ts
                 break
         return onset
@@ -195,7 +250,7 @@ def analyse(bag_path):
     print(f"  bag:      {name}")
     print("=" * 66)
 
-    # isolation: what topics are in the bag? no digital-layer topics allowed.
+    # Isolation: what topics are in the bag? No digital-layer topics allowed.
     digital = [t for t in bag.keys()
                if any(k in t for k in ("interp_tokens", "mission_tokens",
                                        "obs_tokens", "supervisor_auth",
@@ -207,15 +262,15 @@ def analyse(bag_path):
           f"{'yes' if not digital else 'NO'}")
     print("-" * 66)
 
-    # command clamping: while unsafe, is safe forced to 0 though raw > 0?
+    # Command clamping: while unsafe, is safe forced to 0 though raw > 0?
     clamped = 0
     checked = 0
     for ts, sv in safe_cmd:
         st = _value_at(status, ts)
         rv = _value_at(raw_cmd, ts)
-        if st is not None and st < 0.5 and rv is not None and rv > 0.01:
+        if st is not None and st < STATUS_UNSAFE and rv is not None and rv > CMD_ACTIVE:
             checked += 1
-            if abs(sv) < 1e-3:
+            if abs(sv) < CMD_ZERO:
                 clamped += 1
     print("  command clamping (while unsafe, raw>0):")
     if checked:
@@ -225,17 +280,15 @@ def analyse(bag_path):
         print("    no unsafe+raw>0 samples (was a raw stream present?)")
     print("-" * 66)
 
-    # episodes + causes + reaction
-    # Drop sub-threshold transient blips (< 0.4 s): startup noise before the
-    # first sensor messages land, not real hazards.
-    episodes = [e for e in episodes if (e[1] - e[0]) >= 0.4 or e[2] != "unknown"]
+    # Drop sub-threshold transient blips: startup noise before the first sensor
+    # messages land, not real hazards.
+    episodes = [e for e in episodes
+                if (e[1] - e[0]) >= MIN_EPISODE_S or e[2] != "unknown"]
     print(f"  veto episodes: {len(episodes)}")
     causes_seen = set()
     for k, (a, b, cause) in enumerate(episodes):
         if cause != "unknown":
             causes_seen.add(cause)
-        # reaction: delay from the hazard first becoming true to this episode's
-        # first unsafe sample.
         rt = None
         if cause != "unknown":
             onset = hazard_onset_before(a, cause)
@@ -246,26 +299,31 @@ def analyse(bag_path):
               f"dur={b-a:4.1f}s  cause={cause:20s} reaction={rt_str}")
     print("-" * 66)
 
-    # envelope coverage
+    # Envelope coverage.
     enforced = ["proximity", "attitude", "battery", "altitude"]
     print("  envelope coverage (which vetoes fired):")
     for c in enforced:
         print(f"    {c:12s}: {'FIRED' if c in causes_seen else 'not seen'}")
     covered = sum(1 for c in enforced if c in causes_seen)
     print("-" * 66)
+
     ok_iso = not digital
     ok_clamp = (checked > 0 and clamped == checked)
-    ok_cov = (covered == 4)  # every constraint the board enforces fired
+    ok_cov = (covered == len(enforced))  # every enforced constraint fired
     verdict = ok_iso and ok_clamp and ok_cov
     print(f"  isolation upheld:   {'PASS' if ok_iso else 'FAIL'}")
     print(f"  clamping upheld:    {'PASS' if ok_clamp else 'FAIL'}")
-    print(f"  envelope exercised: {covered}/4 constraints")
+    print(f"  envelope exercised: {covered}/{len(enforced)} constraints")
     print("=" * 66)
     print(f"  veto verification: {'PASS' if verdict else 'REVIEW'}")
     print("=" * 66)
 
 
 def main():
+    """Parse arguments and verify the veto board from one bag.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(description="Group 6 veto metrics")
     ap.add_argument("bag", help="path to a bag from record_veto.sh")
     args = ap.parse_args()

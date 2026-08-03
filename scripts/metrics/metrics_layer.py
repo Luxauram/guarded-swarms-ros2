@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+# =============================================================================
 # @file metrics_layer.py
 #
 # Offline layer-property metrics (Group 2) for the Guarded Swarms coastal
@@ -39,7 +41,6 @@
 #   python3 scripts/metrics/metrics_layer.py bags/coastal-YYYYMMDD-HHMMSS/
 #   python3 scripts/metrics/metrics_layer.py bags/coastal-*/ --json layer.json
 # =============================================================================
-
 import argparse
 import glob
 import json
@@ -58,7 +59,6 @@ except ImportError as e:
         "workspace first.\n".format(e))
     sys.exit(2)
 
-
 # The chain's structure, so the fusion metric knows each join's inputs/output.
 # T3: PossibleUAV + LikelyDroneLink -> CandidateTarget
 # T5: CandidateTarget + ConfirmedAerialObject -> ConfirmedThreat
@@ -74,32 +74,38 @@ FIRST_LEVEL = {
     "ConfirmedAerialObject": "eo",
 }
 
+# Bounded-execution sanity bound: the chain must stop producing within a few
+# TTLs of the last observation. ~15 s = threat TTL 10 s plus margin. This is a
+# sanity bound, not a formal proof; state it as such in the thesis.
+QUIESCE_BOUND_S = 15.0
+
 
 @dataclass
 class LayerMetrics:
+    """All Group-2 layer-property figures for one run."""
     bag: str = ""
     target_id: str = ""
-
     # 4. Fusion acceptance, per join.
     fusion: dict = field(default_factory=dict)
-
     # 5. Census.
     obs_by_source: dict = field(default_factory=dict)
     interp_by_label: dict = field(default_factory=dict)
     obs_rate_hz: Optional[float] = None
     interp_rate_hz: Optional[float] = None
-
     # 6. Bounded execution.
     last_obs_t: Optional[float] = None
     last_interp_t: Optional[float] = None
     quiesce_gap_s: Optional[float] = None   # last_interp - last_obs
     bounded: Optional[bool] = None
-
     notes: list = field(default_factory=list)
 
 
 def pick_target(data: dict) -> Optional[str]:
-    """Busiest target_id among the observations."""
+    """Choose the busiest target_id among the observations.
+
+    @param data  The read_bag() output.
+    @return      A target_id string, or None if there are no observations.
+    """
     counts = {}
     for _, m in data.get("/obs_tokens", []):
         tid = getattr(m, "target_id", "")
@@ -109,11 +115,15 @@ def pick_target(data: dict) -> Optional[str]:
 
 
 def compute(data: dict, bag_dir: str) -> LayerMetrics:
-    r = LayerMetrics(bag=os.path.basename(os.path.normpath(bag_dir)))
+    """Compute all Group-2 layer-property metrics from a read bag.
 
+    @param data     read_bag() output.
+    @param bag_dir  bag path, stored in the result for reference.
+    @return         A populated LayerMetrics.
+    """
+    r = LayerMetrics(bag=os.path.basename(os.path.normpath(bag_dir)))
     obs = data.get("/obs_tokens", [])
     interp = data.get("/interp_tokens", [])
-
     target = pick_target(data)
     if target is None:
         r.notes.append("no observations with a target_id; nothing to measure")
@@ -131,7 +141,7 @@ def compute(data: dict, bag_dir: str) -> LayerMetrics:
         lab = getattr(m, "label", "?")
         r.interp_by_label[lab] = r.interp_by_label.get(lab, 0) + 1
 
-    # production rates over the active span (first to last token, sim time)
+    # Production rates over the active span (first to last token, sim time).
     if len(obs_t) >= 2:
         span = max(t for t, _ in obs_t) - min(t for t, _ in obs_t)
         r.obs_rate_hz = (len(obs_t) - 1) / span if span > 0 else None
@@ -173,35 +183,46 @@ def compute(data: dict, bag_dir: str) -> LayerMetrics:
         r.last_interp_t = max(t for t, _ in interp_t)
     if r.last_obs_t is not None and r.last_interp_t is not None:
         r.quiesce_gap_s = r.last_interp_t - r.last_obs_t
-        # Bounded if the chain stopped producing within a few TTLs (~15 s here:
-        # threat TTL 10 s plus margin) of the last observation. This is a
-        # sanity bound, not a formal proof; state it as such in the thesis.
-        r.bounded = r.quiesce_gap_s <= 15.0
+        r.bounded = r.quiesce_gap_s <= QUIESCE_BOUND_S
         if not r.bounded:
             r.notes.append(
                 "interp production continued {:.1f}s after the last "
-                "observation (> 15s): inspect whether a token kept re-firing"
-                .format(r.quiesce_gap_s))
-
+                "observation (> {:.0f}s): inspect whether a token kept "
+                "re-firing".format(r.quiesce_gap_s, QUIESCE_BOUND_S))
     return r
 
 
 def fmt_pct(v: Optional[float]) -> str:
+    """Format a fraction as a percentage, or n/a when None.
+
+    @param v  Fraction in [0, 1], or None.
+    @return   "{:5.1f}%" string, or an "n/a" placeholder.
+    """
     return "   n/a" if v is None else "{:5.1f}%".format(v * 100.0)
 
 
 def fmt_f(v: Optional[float], unit="") -> str:
+    """Format a float with an optional unit, or n/a when None.
+
+    @param v     Value, or None.
+    @param unit  Unit suffix appended after the number.
+    @return      "{:.2f}<unit>" string, or "n/a".
+    """
     return "n/a" if v is None else "{:.2f}{}".format(v, unit)
 
 
 def print_report(r: LayerMetrics):
+    """Print a human-readable table of the layer metrics for one run.
+
+    @param r  Populated LayerMetrics from compute().
+    @return   None.
+    """
     print()
     print("=" * 66)
     print("  Layer-property metrics (Group 2)")
     print("  bag:    {}".format(r.bag))
     print("  target: {}".format(r.target_id or "(none)"))
     print("=" * 66)
-
     print("  4. fusion acceptance (time-windowed join)")
     for name, f in r.fusion.items():
         print("     {}: {} + {} -> {}".format(
@@ -211,7 +232,6 @@ def print_report(r: LayerMetrics):
                   f["input_a"], f["count_a"], f["input_b"], f["count_b"],
                   f["fusions"], fmt_pct(f["acceptance"])))
     print()
-
     print("  5. token census")
     print("     observations by source:")
     for s, c in sorted(r.obs_by_source.items()):
@@ -222,7 +242,6 @@ def print_report(r: LayerMetrics):
     print("     production rate:  obs {}   interp {}".format(
         fmt_f(r.obs_rate_hz, " Hz"), fmt_f(r.interp_rate_hz, " Hz")))
     print()
-
     print("  6. bounded execution")
     print("     last observation (sim t):   {}".format(fmt_f(r.last_obs_t, " s")))
     print("     last interpretation (sim t):{}".format(fmt_f(r.last_interp_t, " s")))
@@ -230,7 +249,6 @@ def print_report(r: LayerMetrics):
         fmt_f(r.quiesce_gap_s, " s")))
     print("     bounded:                    {}".format(
         "yes" if r.bounded else ("no" if r.bounded is not None else "n/a")))
-
     if r.notes:
         print("-" * 66)
         print("  notes:")
@@ -241,17 +259,19 @@ def print_report(r: LayerMetrics):
 
 
 def main():
+    """Parse arguments, compute the layer metrics for one bag, and report.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(
         description="Offline layer-property metrics (Group 2).")
     ap.add_argument("bag", help="bag directory or glob (bags/coastal-*/)")
     ap.add_argument("--json", help="also write the metrics as JSON")
     args = ap.parse_args()
-
     bag_dir = resolve_bag(args.bag)
     data = read_bag(bag_dir)
     result = compute(data, bag_dir)
     print_report(result)
-
     if args.json:
         with open(args.json, "w") as f:
             json.dump(asdict(result), f, indent=2)

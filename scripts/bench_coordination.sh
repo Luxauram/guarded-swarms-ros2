@@ -1,8 +1,21 @@
 #!/usr/bin/env bash
-#
+# ==============================================================================
 # Copyright 2026 Luca D'Aurizio
-# Licensed under the Apache License, Version 2.0 (the "License").
 #
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# ==============================================================================
+
+# ==============================================================================
 # bench_coordination.sh - Group 5: coordination overhead vs swarm size.
 #
 # The IET paper states that TB-CSPN has "sub-linear coordination overhead as
@@ -35,7 +48,7 @@
 # Usage:
 #   ./scripts/bench_coordination.sh            # N = 1 2 4 8 16, 10 missions
 #   MISSIONS=20 SIZES="1 2 4 8" ./scripts/bench_coordination.sh
-#
+# ==============================================================================
 set -o pipefail
 
 # awk formats numbers per the locale. Under it_IT the decimal separator is a
@@ -48,11 +61,28 @@ export LC_ALL=C
 SIZES="${SIZES:-1 2 4 8 16}"
 MISSIONS="${MISSIONS:-10}"
 OUTDIR="${OUTDIR:-bags/coord}"
+
+# Fleet geometry: vehicles are placed on a line so nearest_uav sees distinct
+# distances. Spawn i sits at x = i*SPAWN_STEP_M + SPAWN_X0_M, y = SPAWN_Y_M.
+SPAWN_STEP_M=20         # spacing between consecutive UAV spawns along x
+SPAWN_X0_M=-40          # x of the first spawn
+SPAWN_Y_M=-24.0         # y of every spawn (must carry a decimal point)
+
+# Timing.
+DISPATCH_SETTLE_BASE_S=3     # base wait for the dispatch to initialise
+DISPATCH_SETTLE_PER_N=0.1    # extra wait per vehicle (one subscription each)
+BAG_START_S=2               # let rosbag2 open the bag before the node starts
+DRAIN_S=3                   # let the dispatch emit its tasks before closing
+BAG_FLUSH_TRIES=20          # polls of 0.5 s each while the bag finalises
+
 mkdir -p "$OUTDIR"
 
 # Build the fleet parameter arrays for a given size N.
-# system IDs 1..N ; pose topics (placeholder, never subscribed to in isolation);
-# spawns on a line so nearest_uav has distinct distances.
+# Emits "ids|topics|spawns", each an SDF-style list literal. The pose topics are
+# placeholders (never subscribed to when the dispatch runs in isolation). Every
+# spawn value carries a decimal point: ROS2 rejects a parameter list that mixes
+# int and double ("sequence should be of same type"), and awk prints an integer
+# such as -40 without a trailing .0.
 build_fleet_args() {
   local n="$1"
   local ids="[" topics="[" spawns="["
@@ -60,11 +90,9 @@ build_fleet_args() {
     local sysid=$((i+1))
     ids+="$sysid"
     topics+="'/fleet/uav_${i}/pose'"
-    # spawn on a line: x = i*20 - 40, y = -24, z = 0. Force a decimal point
-    # on every value: ROS2 rejects a parameter list that mixes int and double
-    # ("sequence should be of same type"), and awk prints -40 (no .0) for x.
-    local x=$(awk "BEGIN{printf \"%.1f\", $i*20 - 40}")
-    spawns+="${x}, -24.0, 0.0"
+    local x
+    x=$(awk "BEGIN{printf \"%.1f\", $i*$SPAWN_STEP_M + $SPAWN_X0_M}")
+    spawns+="${x}, ${SPAWN_Y_M}, 0.0"
     if [ $i -lt $((n-1)) ]; then ids+=", "; topics+=", "; spawns+=", "; fi
   done
   ids+="]"; topics+="]"; spawns+="]"
@@ -89,47 +117,41 @@ for N in $SIZES; do
   cleanup; sleep 1
 
   IFS='|' read -r IDS TOPICS SPAWNS <<< "$(build_fleet_args "$N")"
-
   BAG="${OUTDIR}/coord-N${N}"
   rm -rf "$BAG"
 
-  # record the coordination topics
   ros2 bag record -o "$BAG" \
     /mission_tokens /vehicle_tasks \
     >/tmp/coord_bag_N${N}.log 2>&1 &
   BAGPID=$!
-  sleep 2
+  sleep "$BAG_START_S"
 
-  # launch the dispatch node with a fleet of size N
   ros2 run guarded_swarms_tbcspn dispatch_transition_node --ros-args \
     -p uav_systems:="${IDS}" \
     -p uav_pose_topics:="${TOPICS}" \
     -p uav_spawns:="${SPAWNS}" \
     -p ugv_system:=$((N+1)) \
     >/tmp/coord_dispatch_N${N}.log 2>&1 &
-  # Larger fleets take longer to initialise (one subscription per vehicle); give
-  # the node a base 3 s plus a little per vehicle before the injector runs. The
-  # injector also waits for the subscription, so this is belt-and-braces.
-  sleep $(awk "BEGIN{printf \"%.1f\", 3 + $N*0.1}")
 
-  # inject MISSIONS mission tokens, each with a distinct target position so
-  # nearest_uav has something to discriminate. Published on /mission_tokens.
+  # Larger fleets take longer to initialise (one subscription per vehicle). The
+  # injector also waits for the subscription, so this base-plus-per-vehicle
+  # settle is belt-and-braces.
+  sleep "$(awk "BEGIN{printf \"%.1f\", $DISPATCH_SETTLE_BASE_S + $N*$DISPATCH_SETTLE_PER_N}")"
+
   python3 scripts/coord_mission_injector.py "${MISSIONS}" \
     >/tmp/coord_inject_N${N}.log 2>&1
-
-  sleep 3   # let the dispatch drain the tasks
+  sleep "$DRAIN_S"
 
   # Close the bag CLEANLY: SIGINT (not kill -9) lets rosbag2 flush and write
   # metadata.yaml. Without this the .db3 is left unfinalised and unreadable
-  # ("disk I/O error", missing metadata). Wait for the process to actually
-  # exit before moving on.
+  # ("disk I/O error", missing metadata). Wait for the process to actually exit
+  # before moving on.
   kill -INT "$BAGPID" 2>/dev/null
-  for _ in $(seq 1 20); do
+  for _ in $(seq 1 "$BAG_FLUSH_TRIES"); do
     kill -0 "$BAGPID" 2>/dev/null || break
     sleep 0.5
   done
 
-  # now stop the dispatch and injector for this N
   pkill -f "dispatch_transition_node" 2>/dev/null
   pkill -f "coord_mission_injector" 2>/dev/null
   sleep 2

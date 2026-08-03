@@ -16,16 +16,16 @@
 
 # ==============================================================================
 # @file swarm_4.yaml
-# Resilience test configuration for 4-agent swarm stress test.
-# All 4 agents compete for overlapping zones simultaneously,
-# exercising the coordinator's concurrency window and arbitration logic.
-# Requires mock pipeline (no PX4 needed).
+# Resilience test configuration for the 4-agent swarm stress test.
+# All four agents compete for overlapping zones simultaneously, exercising the
+# coordinator's concurrency window and arbitration logic. Mock pipeline only
+# (no PX4 needed).
 # ==============================================================================
 
 scenario: swarm_4
 description: "4-agent swarm stress test - all agents competing simultaneously"
 
-# All 4 agents with overlapping zone requests to stress the coordinator
+# Overlapping zone requests, by descending priority, to stress the coordinator.
 agents:
   - id: test_agent_A
     priority: 8
@@ -44,13 +44,11 @@ agents:
     zone_center: [3.0, 3.0, 5.0] # overlaps with all
     zone_size: 10.0
 
-# Coordinator settings
 coordinator:
   id: coordinator_swarm4
   arbitration_mode: priority
   concurrency_window_ms: 300
 
-# Safety board settings
 safety:
   staleness_timeout_s: 5.0
   min_proximity_m: 1.5
@@ -58,7 +56,6 @@ safety:
   max_altitude_m: 50.0
   min_battery_pct: 15.0
 
-# ROS2 topics
 topics:
   geometry_tokens: /geometry_tokens
   auth_tokens: /auth_tokens
@@ -69,7 +66,6 @@ topics:
   altitude: /drone/altitude
   battery: /drone/battery
 
-# Test timeouts
 timeouts:
   response_ms: 1000
   safety_reaction_s: 8.0

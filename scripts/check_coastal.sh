@@ -32,31 +32,39 @@ WORLD="${WORLD:-coastal}"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
 BUILD_DIR="$PX4_DIR/build/px4_sitl_default"
 
+# -----------------------------------------------------------------------------
+# Pass/fail thresholds. Named here so the check criteria are visible and
+# tunable in one place rather than buried as literals in the logic below.
+# -----------------------------------------------------------------------------
+RTF_MIN=0.3            # real-time factor below this means the sim is stalled
+TOPICS_PER_VEHICLE=60  # each PX4 instance publishes ~65 fmu topics; 60 = margin
+AIRBORNE_Z_MIN=2.0     # metres; a UAV above this is considered airborne
+VETO_EPS=0.01          # actuator_cmd_safe below this is a safety veto (~0.0)
+ECHO_TIMEOUT=5         # seconds to wait for a single-shot ros2 topic echo
+
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YEL=$'\033[1;33m'; NC=$'\033[0m'
 FAILURES=0
 
-pass() { echo "  ${GREEN}PASS${NC}  $1"; }
-fail() { echo "  ${RED}FAIL${NC}  $1"; FAILURES=$((FAILURES + 1)); }
-warn() { echo "  ${YEL}WARN${NC}  $1"; }
-head() { echo; echo "== $1 =="; }
+pass()    { echo "  ${GREEN}PASS${NC}  $1"; }
+fail()    { echo "  ${RED}FAIL${NC}  $1"; FAILURES=$((FAILURES + 1)); }
+warn()    { echo "  ${YEL}WARN${NC}  $1"; }
+section() { echo; echo "== $1 =="; }
 
 # Ground truth pose of a Gazebo model: "x y z".
-# Warnings on stderr are discarded; they are harmless gz_frame_id notices.
 model_pose() {
     gz model -m "$1" -p 2>/dev/null \
         | grep -A1 'Pose' | tail -1 | tr -d '[]' | awk '{print $1, $2, $3}'
 }
 
 # -----------------------------------------------------------------------------
-head "Simulation"
+section "Simulation"
 # -----------------------------------------------------------------------------
 RTF=$(gz topic -e -t "/world/$WORLD/stats" -n 1 2>/dev/null \
       | grep real_time_factor | awk '{print $2}')
-
 if [ -z "$RTF" ]; then
     fail "no stats from world '$WORLD' (is Gazebo running?)"
 else
-    if awk "BEGIN{exit !($RTF > 0.3)}"; then
+    if awk "BEGIN{exit !($RTF > $RTF_MIN)}"; then
         pass "real time factor $RTF"
     else
         fail "real time factor $RTF (simulation is stalled)"
@@ -64,12 +72,12 @@ else
 fi
 
 # -----------------------------------------------------------------------------
-head "uXRCE-DDS namespaces"
+section "uXRCE-DDS namespaces"
 # -----------------------------------------------------------------------------
 TOPICS=$(ros2 topic list 2>/dev/null)
 for ns_pattern in '^/fmu' 'px4_1/fmu' 'px4_2/fmu'; do
     n=$(echo "$TOPICS" | grep -c "$ns_pattern")
-    if [ "$n" -ge 60 ]; then
+    if [ "$n" -ge "$TOPICS_PER_VEHICLE" ]; then
         pass "$ns_pattern -> $n topics"
     else
         fail "$ns_pattern -> $n topics (expected ~65)"
@@ -77,26 +85,22 @@ for ns_pattern in '^/fmu' 'px4_1/fmu' 'px4_2/fmu'; do
 done
 
 # -----------------------------------------------------------------------------
-head "Vehicles"
+section "Vehicles"
 # -----------------------------------------------------------------------------
 check_vehicle() {
     local label="$1" instance="$2" model="$3" expect="$4"
-
     local state
     state=$(cd "$BUILD_DIR" && ./bin/px4-commander --instance "$instance" status 2>/dev/null)
-
     if echo "$state" | grep -q "Armed"; then
         pass "$label armed"
     else
         fail "$label NOT armed"
     fi
-
     if echo "$state" | grep -q "in failsafe: no"; then
         pass "$label no failsafe"
     else
         fail "$label IN FAILSAFE"
     fi
-
     local pose z
     pose=$(model_pose "$model")
     if [ -z "$pose" ]; then
@@ -105,41 +109,36 @@ check_vehicle() {
     fi
     z=$(echo "$pose" | awk '{print $3}')
     echo "        pose (x y z): $pose"
-
     if [ "$expect" = "airborne" ]; then
-        if awk "BEGIN{exit !($z > 2.0)}"; then
+        if awk "BEGIN{exit !($z > $AIRBORNE_Z_MIN)}"; then
             pass "$label airborne (z = $z)"
         else
             fail "$label on the ground (z = $z)"
         fi
     fi
 }
-
 check_vehicle "UAV0" 0 "x500_lidar_front_0" airborne
 check_vehicle "UAV1" 1 "x500_lidar_front_1" airborne
 check_vehicle "UGV " 2 "r1_rover_2" ground
 
 # -----------------------------------------------------------------------------
-head "Safety layer"
+section "Safety layer"
 # -----------------------------------------------------------------------------
 for ns in "" "/px4_1" "/px4_2"; do
     label="${ns:-/root}"
-
-    prox=$(timeout 5 ros2 topic echo "$ns/drone/proximity" --once 2>/dev/null \
+    prox=$(timeout "$ECHO_TIMEOUT" ros2 topic echo "$ns/drone/proximity" --once 2>/dev/null \
            | grep -E '^range:' | awk '{print $2}')
-    safe=$(timeout 5 ros2 topic echo "$ns/actuator_cmd_safe" --once 2>/dev/null \
+    safe=$(timeout "$ECHO_TIMEOUT" ros2 topic echo "$ns/actuator_cmd_safe" --once 2>/dev/null \
            | grep -E '^data:' | awk '{print $2}')
-
     if [ -z "$prox" ]; then
         fail "$label proximity not published"
     else
         pass "$label proximity ${prox} m"
     fi
-
     if [ -z "$safe" ]; then
         fail "$label actuator_cmd_safe not published"
     else
-        if awk "BEGIN{exit !($safe < 0.01)}"; then
+        if awk "BEGIN{exit !($safe < $VETO_EPS)}"; then
             warn "$label actuator_cmd_safe ${safe} (VETO active)"
         else
             pass "$label actuator_cmd_safe ${safe}"
@@ -148,7 +147,7 @@ for ns in "" "/px4_1" "/px4_2"; do
 done
 
 # -----------------------------------------------------------------------------
-head "PX4 tree is pristine"
+section "PX4 tree is pristine"
 # -----------------------------------------------------------------------------
 dirty=$(git -C "$PX4_DIR" status --short 2>/dev/null | wc -l)
 if [ "$dirty" -eq 0 ]; then

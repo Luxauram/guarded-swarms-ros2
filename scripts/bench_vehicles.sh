@@ -58,6 +58,14 @@ HEADLESS="${HEADLESS:-1}"
 SETTLE_S="${SETTLE_S:-15}"      # time for an instance to boot and stabilise
 SAMPLES="${SAMPLES:-5}"          # RTF samples averaged per data point
 
+# Fleet geometry: instance i spawns on a line at x = i*SPAWN_STEP_M + SPAWN_X0_M.
+SPAWN_STEP_M=15
+SPAWN_X0_M=-40
+SPAWN_Y_M=-40
+
+GZ_BOOT_S=12         # wait for Gazebo to come up before the first measurement
+RTF_SAMPLE_TIMEOUT_S=10  # per-sample timeout when reading the world stats
+
 RESULTS=()
 
 cleanup() {
@@ -68,14 +76,13 @@ cleanup() {
     bash "$REPO_ROOT/scripts/gz_kill.sh" 2>/dev/null
     sleep 2
 }
-
 trap cleanup EXIT
 
 # Average several RTF samples: a single reading swings by tens of percent.
 measure_rtf() {
     local total=0 n=0 v
     for _ in $(seq 1 "$SAMPLES"); do
-        v=$(timeout 10 gz topic -e -t "/world/$WORLD/stats" -n 1 2>/dev/null \
+        v=$(timeout "$RTF_SAMPLE_TIMEOUT_S" gz topic -e -t "/world/$WORLD/stats" -n 1 2>/dev/null \
             | grep real_time_factor | awk '{print $2}')
         if [ -n "$v" ]; then
             total=$(awk "BEGIN{print $total + $v}")
@@ -100,7 +107,6 @@ echo "  settle    : ${SETTLE_S}s per instance, $SAMPLES RTF samples"
 echo
 
 cleanup
-trap cleanup EXIT
 
 echo "Starting Gazebo..."
 if [ "$HEADLESS" = "1" ]; then
@@ -110,15 +116,14 @@ else
     bash "$REPO_ROOT/scripts/gz_launch.sh" "$WORLD" \
         > /tmp/bench_gz.log 2>&1 &
 fi
-sleep 12
+sleep "$GZ_BOOT_S"
 
 BASE=$(measure_rtf)
 echo "  0 vehicles: RTF $BASE"
 RESULTS+=("0 $BASE")
 
 for i in $(seq 0 $((MAX - 1))); do
-    pose="$((i * 15 - 40)),-40,0"
-
+    pose="$((i * SPAWN_STEP_M + SPAWN_X0_M)),${SPAWN_Y_M},0"
     # stdin redirected from /dev/null: a backgrounded PX4 tries to read its
     # pxh> prompt, receives SIGTTIN and is suspended. A suspended client is
     # still attached to the lockstep, so it stalls Gazebo and the measurement
@@ -132,16 +137,13 @@ for i in $(seq 0 $((MAX - 1))); do
       PX4_GZ_MODEL_POSE="$pose" \
       GZ_SIM_RESOURCE_PATH="$REPO_ROOT/src/guarded_swarms_gz/models" \
       ./bin/px4 -i "$i" > "/tmp/bench_px4_$i.log" 2>&1 < /dev/null & )
-
     sleep "$SETTLE_S"
-
     if ! pgrep -f "bin/px4 -i $i" > /dev/null; then
         echo "  $((i + 1)) vehicles: instance $i FAILED to start"
         echo "                see /tmp/bench_px4_$i.log"
         RESULTS+=("$((i + 1)) failed")
         continue
     fi
-
     rtf=$(measure_rtf)
     echo "  $((i + 1)) vehicles: RTF $rtf"
     RESULTS+=("$((i + 1)) $rtf")

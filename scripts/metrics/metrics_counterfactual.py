@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+# =============================================================================
 # @file metrics_counterfactual.py
 #
 # Offline verification of the three counterfactual trajectories of the IET 2026
@@ -51,7 +53,6 @@
 #   source install/setup.bash
 #   python3 scripts/metrics/metrics_counterfactual.py bags/coastal-DENY-*/
 # =============================================================================
-
 import argparse
 import glob
 import json
@@ -69,6 +70,7 @@ except ImportError as e:
 
 @dataclass
 class CounterfactualResult:
+    """Outcome of verifying one counterfactual trajectory from a bag."""
     bag: str = ""
     target_id: str = ""
     scenario: str = "unknown"     # C1 | C2 | C3 | positive | unknown
@@ -80,7 +82,12 @@ class CounterfactualResult:
 
 
 def label_counts(interp, target):
-    """Count InterpToken labels for a target."""
+    """Count InterpToken labels for a target.
+
+    @param interp  List of (recv_ns, InterpToken) for /interp_tokens.
+    @param target  target_id to match.
+    @return        Dict label -> count for the matching target.
+    """
     c = {}
     for _, m in interp:
         if getattr(m, "target_id", "") != target:
@@ -91,6 +98,11 @@ def label_counts(interp, target):
 
 
 def pick_target(data):
+    """Choose the target to analyse: the one with the most observations.
+
+    @param data  The read_bag() output.
+    @return      A target_id string, or None if there are no observations.
+    """
     counts = {}
     for _, m in data.get("/obs_tokens", []):
         tid = getattr(m, "target_id", "")
@@ -100,8 +112,18 @@ def pick_target(data):
 
 
 def classify_and_check(data, bag_dir):
-    r = CounterfactualResult(bag=os.path.basename(os.path.normpath(bag_dir)))
+    """Infer which counterfactual a bag represents and verify its suppression.
 
+    Classifies the run from its token contents (a conflicting civilian label,
+    a denied authorisation, a stale or absent EO confirmation, or a positive
+    authorised run) and checks that the forbidden output was correctly not
+    produced while its precondition was present.
+
+    @param data     read_bag() output.
+    @param bag_dir  bag path, stored in the result for reference.
+    @return         A populated CounterfactualResult.
+    """
+    r = CounterfactualResult(bag=os.path.basename(os.path.normpath(bag_dir)))
     interp = data.get("/interp_tokens", [])
     missions = data.get("/mission_tokens", [])
     auths = data.get("/supervisor_auth", [])
@@ -142,12 +164,11 @@ def classify_and_check(data, bag_dir):
         "auth_authorise": n_authorise,
     }
 
-    # --- classify ---
-    # C3: a conflicting civilian interpretation is present.
+    # C3: a conflicting civilian interpretation is present. Precondition is the
+    # conflicting label; the forbidden output is a CandidateTarget forming
+    # despite the conflict.
     if n_civilian > 0:
         r.scenario = "C3"
-        # precondition: the conflicting label was emitted; forbidden: a
-        # CandidateTarget forming despite the conflict.
         r.precondition_present = n_civilian > 0
         r.forbidden_present = n_candidate > 0
         r.passed = r.precondition_present and not r.forbidden_present
@@ -156,10 +177,10 @@ def classify_and_check(data, bag_dir):
                         n_civilian, n_candidate))
         return r
 
-    # C1: an authorisation was denied (and none authorised).
+    # C1: an authorisation was denied (and none authorised). Precondition is a
+    # ConfirmedThreat; the forbidden output is a released mission.
     if n_deny > 0 and n_authorise == 0:
         r.scenario = "C1"
-        # precondition: a ConfirmedThreat formed; forbidden: a mission released.
         r.precondition_present = n_confirmed > 0
         r.forbidden_present = n_mission > 0
         r.passed = r.precondition_present and not r.forbidden_present
@@ -215,6 +236,11 @@ def classify_and_check(data, bag_dir):
 
 
 def print_report(r):
+    """Print a human-readable verdict for one counterfactual check.
+
+    @param r  Populated CounterfactualResult from classify_and_check().
+    @return   None.
+    """
     print()
     print("=" * 66)
     print("  Counterfactual verification (Section 5.3)")
@@ -237,6 +263,14 @@ def print_report(r):
 
 
 def main():
+    """Parse arguments, verify the counterfactual in one bag, and report.
+
+    Resolves the bag argument, reads it, classifies and checks the
+    counterfactual, prints the verdict, and optionally writes JSON. Exit code
+    is 0 if the negative guarantee held, 1 otherwise.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(
         description="Verify a Section 5.3 counterfactual from a bag.")
     ap.add_argument("bag", help="bag directory or glob")
@@ -247,12 +281,10 @@ def main():
     data = read_bag(bag_dir)
     result = classify_and_check(data, bag_dir)
     print_report(result)
-
     if args.json:
         with open(args.json, "w") as f:
             json.dump(asdict(result), f, indent=2)
         print("  result written to {}".format(args.json))
-
     sys.exit(0 if result.passed else 1)
 
 

@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+
+# =============================================================================
 # @file metrics_chain.py
 #
 # Offline chain-latency metrics for the Guarded Swarms coastal pipeline.
@@ -51,7 +53,6 @@
 # The result is printed as a table and optionally written as JSON for the
 # dashboard and for aggregating across runs.
 # =============================================================================
-
 import argparse
 import glob
 import json
@@ -80,8 +81,7 @@ except ImportError as e:
 # Time helpers
 # =============================================================================
 def stamp_to_s(stamp) -> float:
-    """
-    Convert a builtin_interfaces/Time (the token's `t` field) to float seconds.
+    """Convert a builtin_interfaces/Time (the token's `t` field) to seconds.
 
     @param stamp  A message with .sec and .nanosec (simulated time).
     @return       Seconds as a float.
@@ -93,8 +93,7 @@ def stamp_to_s(stamp) -> float:
 # Bag reading
 # =============================================================================
 def read_bag(bag_dir: str) -> dict:
-    """
-    Read every message from a rosbag directory, grouped by topic.
+    """Read every message from a rosbag directory, grouped by topic.
 
     Messages are returned with BOTH their bag receive time (for reference) and
     the deserialized message object (whose `t` field carries sim time). Latency
@@ -142,10 +141,8 @@ def read_bag(bag_dir: str) -> dict:
 @dataclass
 class ChainMetrics:
     """All Group-1 latency figures for one run, in seconds (sim time)."""
-
     bag: str = ""
     target_id: str = ""
-
     # Absolute sim-time instants of the first occurrence of each stage.
     t_first_obs: Optional[float] = None
     t_first_candidate: Optional[float] = None
@@ -153,26 +150,21 @@ class ChainMetrics:
     t_first_mission: Optional[float] = None
     t_first_task: Optional[float] = None
     t_auth: Optional[float] = None
-
     # 1. End-to-end.
     end_to_end_s: Optional[float] = None
-
     # 2. Per-transition (waterfall) deltas.
     obs_to_candidate_s: Optional[float] = None
     candidate_to_confirmed_s: Optional[float] = None
     confirmed_to_mission_s: Optional[float] = None
     mission_to_task_s: Optional[float] = None
-
     # 3. Authorisation path.
     auth_to_mission_s: Optional[float] = None
     auth_to_task_s: Optional[float] = None
-
     # 4. The three phases the paper's human-in-the-loop design implies, kept
     #    apart so system speed is not conflated with human decision time.
     system_obs_to_confirmed_s: Optional[float] = None   # automatic
     human_wait_confirmed_to_auth_s: Optional[float] = None  # human
     post_auth_to_task_s: Optional[float] = None         # automatic
-
     # Bookkeeping.
     counts: dict = field(default_factory=dict)
     notes: list = field(default_factory=list)
@@ -182,8 +174,7 @@ class ChainMetrics:
 # Metric computation
 # =============================================================================
 def earliest_by_label(msgs, label: str, target: str) -> Optional[float]:
-    """
-    Sim-time `t` of the earliest InterpToken with a given label for a target.
+    """Sim-time `t` of the earliest InterpToken with a label for a target.
 
     @param msgs    List of (recv_ns, InterpToken) for /interp_tokens.
     @param label   The LABEL_* string to match.
@@ -201,8 +192,7 @@ def earliest_by_label(msgs, label: str, target: str) -> Optional[float]:
 
 
 def pick_target(data: dict) -> Optional[str]:
-    """
-    Choose the target to analyse: the one with the most observations.
+    """Choose the target to analyse: the one with the most observations.
 
     A run normally has a single intruder, but selecting the busiest target_id
     keeps the script correct if several appear.
@@ -221,15 +211,13 @@ def pick_target(data: dict) -> Optional[str]:
 
 
 def compute(data: dict, bag_dir: str) -> ChainMetrics:
-    """
-    Compute all Group-1 metrics from a read bag.
+    """Compute all Group-1 metrics from a read bag.
 
     @param data     read_bag() output.
     @param bag_dir  bag path, stored in the result for reference.
     @return         A populated ChainMetrics.
     """
     r = ChainMetrics(bag=os.path.basename(os.path.normpath(bag_dir)))
-
     obs = data.get("/obs_tokens", [])
     interp = data.get("/interp_tokens", [])
     missions = data.get("/mission_tokens", [])
@@ -371,7 +359,6 @@ def compute(data: dict, bag_dir: str) -> ChainMetrics:
             "confirmed->mission is negative: a mission predates the first "
             "ConfirmedThreat for this target (check target attribution)"
         )
-
     return r
 
 
@@ -379,24 +366,30 @@ def compute(data: dict, bag_dir: str) -> ChainMetrics:
 # Reporting
 # =============================================================================
 def fmt(v: Optional[float]) -> str:
-    """Format a latency in seconds, or a dash when it could not be computed."""
+    """Format a latency in seconds, or a dash when it could not be computed.
+
+    @param v  Latency in seconds, or None.
+    @return   Right-aligned "{:8.3f}" string, or an "n/a" placeholder.
+    """
     return "     n/a" if v is None else "{:8.3f}".format(v)
 
 
 def print_report(r: ChainMetrics):
-    """Print a human-readable table of the metrics for one run."""
+    """Print a human-readable table of the metrics for one run.
+
+    @param r  Populated ChainMetrics from compute().
+    @return   None.
+    """
     print()
     print("=" * 64)
     print("  Chain-latency metrics (Group 1)   [sim time, seconds]")
     print("  bag:    {}".format(r.bag))
     print("  target: {}".format(r.target_id or "(none)"))
     print("=" * 64)
-
     print("  message counts:")
     for k, v in r.counts.items():
         print("    {:18s} {}".format(k, v))
     print("-" * 64)
-
     print("  1. end-to-end")
     print("     first ObsToken -> InterceptMission        {}".format(
         fmt(r.end_to_end_s)))
@@ -425,7 +418,6 @@ def print_report(r: ChainMetrics):
     print("     [system] authorisation -> VehicleTask     {}".format(
         fmt(r.post_auth_to_task_s)))
     print("     the middle line is human decision time, not system latency")
-
     if r.notes:
         print("-" * 64)
         print("  notes:")
@@ -439,8 +431,7 @@ def print_report(r: ChainMetrics):
 # Entry point
 # =============================================================================
 def resolve_bag(path: str) -> str:
-    """
-    Resolve a bag path that may be a glob or a directory.
+    """Resolve a bag path that may be a glob or a directory.
 
     @param path  A directory, or a glob like bags/coastal-*/.
     @return      A concrete bag directory (the most recent match for a glob).
@@ -456,6 +447,13 @@ def resolve_bag(path: str) -> str:
 
 
 def main():
+    """Parse arguments, compute the chain metrics for one bag, and report.
+
+    Resolves the bag argument (directory or glob), reads it, computes the
+    Group-1 metrics, prints the table, and optionally writes them as JSON.
+
+    @return  None.
+    """
     ap = argparse.ArgumentParser(
         description="Offline chain-latency metrics (Group 1) for a Guarded "
                     "Swarms coastal run.")
@@ -467,7 +465,6 @@ def main():
     data = read_bag(bag_dir)
     result = compute(data, bag_dir)
     print_report(result)
-
     if args.json:
         with open(args.json, "w") as f:
             json.dump(asdict(result), f, indent=2)
