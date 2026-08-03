@@ -56,7 +56,7 @@ endef
 # Kills all Gazebo Harmonic processes cleanly before launching a new world.
 # ------------------------------------------------------------------------------
 define GZ_KILL
-	@bash $(REPO_ROOT)/scripts/gz_kill.sh
+	@bash $(REPO_ROOT)/scripts/sim/gz_kill.sh
 endef
 
 # ------------------------------------------------------------------------------
@@ -177,7 +177,7 @@ px4-gui-ugv-urban:
 # ------------------------------------------------------------------------------
 # Multi-vehicle demo - UAV (instance 0) + UGV (instance 1), one Gazebo server
 #
-# Pattern: scripts/gz_launch.sh starts the world once; every PX4 instance
+# Pattern: scripts/sim/gz_launch.sh starts the world once; every PX4 instance
 # attaches to it with PX4_GZ_STANDALONE=1. Scaling to N vehicles means adding
 # instances, not changing the mechanism.
 #
@@ -218,7 +218,7 @@ demo-swarm:
 		make px4_sitl gz_x500_lidar_front 2>&1 | tee /tmp/px4_0.log; bash' &
 	@sleep $(UAV_BOOT_WAIT)
 	@echo "[4/6] Configuring UAV parameters"
-	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
+	@bash $(REPO_ROOT)/scripts/sim/px4_configure.sh 0 uav
 	@echo "[5/6] UGV - instance 1 (MAV_SYS_ID 2) at $(UGV_POSE)"
 	@xterm -title "PX4 UGV - instance 1" -geometry 120x30 -e bash -c ' \
 		cd $(PX4_DIR)/build/px4_sitl_default && \
@@ -272,7 +272,7 @@ demo-coastal:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		make px4_sitl gz_x500_lidar_front 2>&1 | tee /tmp/px4_0.log; bash' &
 	@sleep $(UAV_BOOT_WAIT)
-	@bash $(REPO_ROOT)/scripts/px4_configure.sh 0 uav
+	@bash $(REPO_ROOT)/scripts/sim/px4_configure.sh 0 uav
 	@echo "[4/6] UAV 1 - instance 1 (MAV_SYS_ID 2) at $(UAV1_POSE)"
 	@xterm -title "PX4 UAV1 - instance 1" -geometry 120x30 -e bash -c ' \
 		cd $(PX4_DIR)/build/px4_sitl_default && \
@@ -285,7 +285,7 @@ demo-coastal:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		./bin/px4 -i 1 2>&1 | tee /tmp/px4_1.log; bash' &
 	@sleep 12
-	@bash $(REPO_ROOT)/scripts/px4_configure.sh 1 uav
+	@bash $(REPO_ROOT)/scripts/sim/px4_configure.sh 1 uav
 	@echo "[5/6] UGV - instance 2 (MAV_SYS_ID 3) at $(COASTAL_UGV_POSE)"
 	@xterm -title "PX4 UGV - instance 2" -geometry 120x30 -e bash -c ' \
 		cd $(PX4_DIR)/build/px4_sitl_default && \
@@ -298,7 +298,7 @@ demo-coastal:
 		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
 		./bin/px4 -i 2 2>&1 | tee /tmp/px4_2.log; bash' &
 	@sleep 12
-	@bash $(REPO_ROOT)/scripts/px4_configure.sh 2 ugv
+	@bash $(REPO_ROOT)/scripts/sim/px4_configure.sh 2 ugv
 	@echo "[6/6] ROS 2 coastal pipeline"
 	@bash -c '$(FULL_SOURCE) && ros2 daemon stop && ros2 daemon start' || true
 	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup coastal_pipeline.launch.py'
@@ -308,23 +308,23 @@ demo-coastal:
 # ------------------------------------------------------------------------------
 gen-coastal:
 	@echo "Regenerating $(GS_WORLDS_DIR)/coastal.sdf ..."
-	@python3 $(REPO_ROOT)/scripts/gen_coastal.py
-	@echo "Done. Verify with: bash scripts/gz_launch.sh coastal"
+	@python3 $(REPO_ROOT)/scripts/world/gen_coastal.py
+	@echo "Done. Verify with: bash scripts/sim/gz_launch.sh coastal"
 
 check-coastal:
-	@bash $(REPO_ROOT)/scripts/check_coastal.sh
+	@bash $(REPO_ROOT)/scripts/world/check_coastal.sh
 
 # ------------------------------------------------------------------------------
 # Setup: report where the Guarded Swarms worlds are resolved from.
 #
 # Nothing is copied into PX4: worlds are found at run time via
-# GZ_SIM_RESOURCE_PATH (set in scripts/gz_launch.sh). This target just lists
+# GZ_SIM_RESOURCE_PATH (set in scripts/sim/gz_launch.sh). This target just lists
 # the available worlds. Kept for backwards compatibility with older docs.
 # ------------------------------------------------------------------------------
 setup-worlds:
 	@echo "setup-worlds is no longer needed: worlds are resolved from"
 	@echo "  $(GS_WORLDS_DIR)"
-	@echo "via GZ_SIM_RESOURCE_PATH in scripts/gz_launch.sh."
+	@echo "via GZ_SIM_RESOURCE_PATH in scripts/sim/gz_launch.sh."
 	@ls -1 $(GS_WORLDS_DIR)/*.sdf
 
 # ------------------------------------------------------------------------------

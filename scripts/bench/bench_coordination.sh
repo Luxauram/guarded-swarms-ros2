@@ -46,8 +46,8 @@
 # message overhead per mission is constant in N; that is the sub-linearity.
 #
 # Usage:
-#   ./scripts/bench_coordination.sh            # N = 1 2 4 8 16, 10 missions
-#   MISSIONS=20 SIZES="1 2 4 8" ./scripts/bench_coordination.sh
+#   ./scripts/bench/bench_coordination.sh           # N = 1 2 4 8 16, 10 missions
+#   MISSIONS=20 SIZES="1 2 4 8" ./scripts/bench/bench_coordination.sh
 # ==============================================================================
 set -o pipefail
 
@@ -138,7 +138,7 @@ for N in $SIZES; do
   # settle is belt-and-braces.
   sleep "$(awk "BEGIN{printf \"%.1f\", $DISPATCH_SETTLE_BASE_S + $N*$DISPATCH_SETTLE_PER_N}")"
 
-  python3 scripts/coord_mission_injector.py "${MISSIONS}" \
+  python3 scripts/pipeline/coord_mission_injector.py "${MISSIONS}" \
     >/tmp/coord_inject_N${N}.log 2>&1
   sleep "$DRAIN_S"
 

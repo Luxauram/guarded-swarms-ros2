@@ -73,7 +73,7 @@ cleanup() {
     echo "Cleaning up..."
     pkill -9 -f 'bin/px4 -i' 2>/dev/null
     pkill -9 -x px4 2>/dev/null
-    bash "$REPO_ROOT/scripts/gz_kill.sh" 2>/dev/null
+    bash "$REPO_ROOT/scripts/sim/gz_kill.sh" 2>/dev/null
     sleep 2
 }
 trap cleanup EXIT
@@ -110,10 +110,10 @@ cleanup
 
 echo "Starting Gazebo..."
 if [ "$HEADLESS" = "1" ]; then
-    bash "$REPO_ROOT/scripts/gz_launch.sh" "$WORLD" --headless \
+    bash "$REPO_ROOT/scripts/sim/gz_launch.sh" "$WORLD" --headless \
         > /tmp/bench_gz.log 2>&1 &
 else
-    bash "$REPO_ROOT/scripts/gz_launch.sh" "$WORLD" \
+    bash "$REPO_ROOT/scripts/sim/gz_launch.sh" "$WORLD" \
         > /tmp/bench_gz.log 2>&1 &
 fi
 sleep "$GZ_BOOT_S"

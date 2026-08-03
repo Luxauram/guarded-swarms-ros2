@@ -202,7 +202,7 @@ cd "$REPO_DIR"
 #
 # The supervisor console (console/decision_panel.html) reaches ROS 2 over a
 # WebSocket served by rosbridge. Launch it with the workspace sourced so it
-# knows the custom message types; see scripts/demo_console.sh.
+# knows the custom message types; see scripts/pipeline/demo_console.sh.
 # ------------------------------------------------------------------------------
 log "Step 5/${TOTAL_STEPS}: Installing rosbridge (supervisor console bridge)..."
 if [ -f /opt/ros/humble/share/rosbridge_server/package.xml ]; then
@@ -295,7 +295,7 @@ ok "~/.bashrc configured."
 # Make the utility scripts executable.
 # ------------------------------------------------------------------------------
 log "Configuring scripts..."
-chmod +x "$REPO_DIR/scripts/"*.sh 2>/dev/null || true
+find "$REPO_DIR/scripts" -name "*.sh" -exec chmod +x {} + 2>/dev/null || true
 ok "Scripts configured."
 
 # ------------------------------------------------------------------------------
@@ -311,7 +311,7 @@ echo "    source ~/.bashrc"
 echo ""
 echo "  The coastal case study (2 UAV + 1 UGV, sensing -> action):"
 echo "    make demo-coastal            # terminal 1: the world (needs a GPU)"
-echo "    ./scripts/test_pipeline.sh   # terminal 2: intruder, sensing, TB-CSPN,"
+echo "    ./scripts/pipeline/test_pipeline.sh   # terminal 2: intruder, sensing, TB-CSPN,"
 echo "                                 #             auto-authorise, report"
 echo ""
 echo "  Software-only safety demos (no PX4 / no Gazebo):"

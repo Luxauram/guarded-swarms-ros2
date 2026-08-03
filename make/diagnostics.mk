@@ -29,7 +29,7 @@ setup-all: setup-workspace setup-px4
 	@echo ""
 	@echo "System is ready. Quick start:"
 	@echo ""
-	@echo "  Coastal case study:  make demo-coastal   (then ./scripts/test_pipeline.sh)"
+	@echo "  Coastal case study:  make demo-coastal   (then ./scripts/pipeline/test_pipeline.sh)"
 	@echo "  Safety board demo:   make demo-safety-board (+ make demo-safety-sensors)"
 	@echo "  Health check:        make check-coastal"
 	@echo ""

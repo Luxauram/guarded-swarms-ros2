@@ -36,7 +36,7 @@
 #                             board's veto action (safe -> 0) is observable, not
 #                             just its status flag
 #
-# Usage:  ./scripts/record_veto.sh [tag]
+# Usage:  ./scripts/record/record_veto.sh [tag]
 # ==============================================================================
 set -o pipefail
 

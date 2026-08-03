@@ -31,9 +31,9 @@
 # Output: bags/guarded_swarms_<scenario>_<timestamp>/
 #
 # Usage:
-#   ./scripts/record_demo.sh uav    # record UAV scenario (R1)
-#   ./scripts/record_demo.sh ugv    # record UGV scenario (R2)
-#   ./scripts/record_demo.sh mock   # record mock pipeline (no PX4)
+#   ./scripts/record/record_demo.sh uav    # record UAV scenario (R1)
+#   ./scripts/record/record_demo.sh ugv    # record UGV scenario (R2)
+#   ./scripts/record/record_demo.sh mock   # record mock pipeline (no PX4)
 #
 # The bag can later be replayed with:
 #   ros2 bag play bags/<bag_name>

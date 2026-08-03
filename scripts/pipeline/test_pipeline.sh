@@ -27,7 +27,7 @@
 # terminal). Start the scenario first:
 #
 #     make demo-coastal            # terminal 1, leave running
-#     ./scripts/test_pipeline.sh   # terminal 2, does everything else
+#     ./scripts/pipeline/test_pipeline.sh  # terminal 2, does everything else
 #
 # Everything this script starts is torn down on exit, so a re-run is clean.
 # ==============================================================================

@@ -332,7 +332,7 @@ demo-record-uav:
 	@echo "Prerequisites: make demo-px4-uav-urban already running."
 	@echo "Press Ctrl+C to stop recording."
 	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh uav"
+	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh uav"
  
 demo-record-ugv:
 	@echo "=========================================="
@@ -342,7 +342,7 @@ demo-record-ugv:
 	@echo "Prerequisites: make demo-px4-ugv-urban already running."
 	@echo "Press Ctrl+C to stop recording."
 	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh ugv"
+	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh ugv"
  
 demo-record-mock:
 	@echo "=========================================="
@@ -352,7 +352,7 @@ demo-record-mock:
 	@echo "Prerequisites: mock pipeline already running."
 	@echo "Press Ctrl+C to stop recording."
 	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record_demo.sh mock"
+	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh mock"
  
 demo-replay:
 	@echo "=========================================="

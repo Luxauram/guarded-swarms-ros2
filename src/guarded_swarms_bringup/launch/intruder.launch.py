@@ -31,7 +31,7 @@ than by PX4:
   ROS -> GZ   /model/intruder/cmd_vel     commanded velocity
   GZ  -> ROS  /model/intruder/odometry    ground truth for the consultant agents
 
-Prereq: 'make demo-coastal' (or at least scripts/gz_launch.sh coastal).
+Prereq: 'make demo-coastal' (or at least scripts/sim/gz_launch.sh coastal).
 
 Usage:
   ros2 launch guarded_swarms_bringup intruder.launch.py

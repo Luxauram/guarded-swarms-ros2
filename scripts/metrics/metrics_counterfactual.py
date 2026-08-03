@@ -30,7 +30,7 @@
 #   C1  Authorisation withheld  -> no InterceptMission
 #       A ConfirmedThreat forms, but the supervisor denies (or never issues)
 #       authorisation. T6 cannot fire. The threat persists; no mission.
-#       Reproduce with:  DECISION=deny ./scripts/record_run.sh
+#       Reproduce with:  DECISION=deny ./scripts/record/record_run.sh
 #
 #   C2  Stale EO confirmation   -> no ConfirmedThreat
 #       The EO confirmation arrives after the T5 fusion window has closed, so

@@ -55,11 +55,11 @@ GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models
 # GZ_SIM_RESOURCE_PATH: tells Gazebo where to find our worlds and models
 # without copying anything into the PX4 installation.
 # My assets first, so model:// resolves to the Guarded Swarms versions.
-# Gazebo itself is launched by scripts/gz_launch.sh; this is passed to the PX4
+# Gazebo itself is launched by scripts/sim/gz_launch.sh; this is passed to the PX4
 # process so that it reads MY model.sdf when spawning the vehicle.
 GZ_RESOURCE_PATH := $(GS_GZ_MODELS_DIR):$(GS_WORLDS_DIR)
 
-GZ_LAUNCH        := bash $(REPO_ROOT)/scripts/gz_launch.sh
+GZ_LAUNCH        := bash $(REPO_ROOT)/scripts/sim/gz_launch.sh
 # PX4_GZ_NO_FOLLOW: stops PX4 from putting the GUI camera in FOLLOW mode on
 # the vehicle it spawns. Follow mode disables orbit and pan, so with more than
 # one vehicle the view becomes unusable.

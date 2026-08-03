@@ -30,7 +30,7 @@
 #
 # Usage:
 #     make demo-coastal                 # terminal 1: the scenario (GUI)
-#     ./scripts/record_run.sh [name]    # terminal 2: run + record
+#     ./scripts/record/record_run.sh [name]    # terminal 2: run + record
 #
 # The bag is written to bags/<name>-<timestamp>/. If no name is given, the
 # scenario name "coastal" is used.
@@ -105,6 +105,6 @@ export ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
 export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT AUTH_TARGET SUPERVISOR
 
 echo "[record] scenario: DECISION=${DECISION}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
-./scripts/test_pipeline.sh
+./scripts/pipeline/test_pipeline.sh
 # test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user
 # interrupts it, the trap above stops the bag cleanly.

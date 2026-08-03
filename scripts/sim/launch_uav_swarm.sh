@@ -25,8 +25,8 @@
 # script is a lower-level helper for launching one UAV by hand.
 #
 # Usage:
-#   ./scripts/launch_uav_swarm.sh                       # default resource path
-#   GZ_RESOURCE_PATH=/my/models ./scripts/launch_uav_swarm.sh
+#   ./scripts/sim/launch_uav_swarm.sh                       # default resource path
+#   GZ_RESOURCE_PATH=/my/models ./scripts/sim/launch_uav_swarm.sh
 #
 # Environment:
 #   WORLD             Gazebo world name (default urban_uav).

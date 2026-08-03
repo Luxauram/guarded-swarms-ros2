@@ -25,7 +25,7 @@
 # this script is a lower-level helper for launching one rover by hand.
 #
 # Usage:
-#   INSTANCE=1 UGV_POSE=10,10 ./scripts/launch_ugv_swarm.sh
+#   INSTANCE=1 UGV_POSE=10,10 ./scripts/sim/launch_ugv_swarm.sh
 #
 # Environment:
 #   INSTANCE  PX4 instance index (default 1); sets MAV_SYS_ID = INSTANCE + 1.

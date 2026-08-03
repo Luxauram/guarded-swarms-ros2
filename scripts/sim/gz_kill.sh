@@ -30,7 +30,7 @@
 # abort the cleanup. For the same reason this script does NOT use 'set -e'.
 #
 # Usage:
-#   ./scripts/gz_kill.sh
+#   ./scripts/sim/gz_kill.sh
 #   make px4-kill
 #
 # @author Luca D'Aurizio
