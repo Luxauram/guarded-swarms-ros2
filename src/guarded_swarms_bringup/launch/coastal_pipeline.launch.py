@@ -70,9 +70,7 @@ Monitor:
 """
 
 from launch import LaunchDescription
-from launch.actions import DeclareLaunchArgument, LogInfo
-from launch.conditions import IfCondition
-from launch.substitutions import LaunchConfiguration, PythonExpression
+from launch.actions import LogInfo
 from launch_ros.actions import Node
 
 # =============================================================================
@@ -154,14 +152,6 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
             emulate_tty=True,
             **ns,
         ),
-        Node(
-            package="guarded_swarms_control",
-            executable="command_bridge_node",
-            name="command_bridge_node",
-            output="screen",
-            emulate_tty=True,
-            **ns,
-        ),
     ]
 
     # Altitude bounds are meaningful for an aircraft and not for a rover, so
@@ -218,31 +208,6 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
 def generate_launch_description():
 
     # =========================================================================
-    # Launch Arguments
-    # =========================================================================
-
-    arbitration_mode_arg = DeclareLaunchArgument(
-        "arbitration_mode",
-        default_value="priority",
-        description="Arbitration mode: fcfs | priority | hybrid",
-    )
-    num_agents_arg = DeclareLaunchArgument(
-        "num_agents", default_value="4", description="Number of agents (1-4)"
-    )
-    priority_A_arg = DeclareLaunchArgument(
-        "priority_A", default_value="5", description="Priority for agent_A (0-10)"
-    )
-    priority_B_arg = DeclareLaunchArgument(
-        "priority_B", default_value="5", description="Priority for agent_B (0-10)"
-    )
-    priority_C_arg = DeclareLaunchArgument(
-        "priority_C", default_value="5", description="Priority for agent_C (0-10)"
-    )
-    priority_D_arg = DeclareLaunchArgument(
-        "priority_D", default_value="5", description="Priority for agent_D (0-10)"
-    )
-
-    # =========================================================================
     # Per-vehicle stacks
     # =========================================================================
 
@@ -257,54 +222,10 @@ def generate_launch_description():
                         spawn=UGV_SPAWN)
 
     # =========================================================================
-    # Digital coordination layer, shared by the whole swarm
-    # =========================================================================
-
-    coordinator_node = Node(
-        package="guarded_swarms_coordinator",
-        executable="coordinator_node",
-        name="coordinator_node",
-        output="screen",
-        parameters=[
-            {"coordinator_id": "coordinator_coastal"},
-            {"arbitration_mode": LaunchConfiguration("arbitration_mode")},
-        ],
-        emulate_tty=True,
-    )
-
-    agents = []
-    for letter, minimum in (("A", 1), ("B", 2), ("C", 3), ("D", 4)):
-        node_kwargs = dict(
-            package="guarded_swarms_coordinator",
-            executable="agent_node",
-            name=f"agent_{letter}_node",
-            output="screen",
-            parameters=[
-                {"agent_id": f"agent_{letter}"},
-                {"priority": LaunchConfiguration(f"priority_{letter}")},
-            ],
-            emulate_tty=True,
-        )
-        if minimum > 1:
-            node_kwargs["condition"] = IfCondition(
-                PythonExpression(
-                    ["int('", LaunchConfiguration("num_agents"),
-                     f"') >= {minimum}"]
-                )
-            )
-        agents.append(Node(**node_kwargs))
-
-    # =========================================================================
     # Launch Description
     # =========================================================================
 
     return LaunchDescription([
-        arbitration_mode_arg,
-        num_agents_arg,
-        priority_A_arg,
-        priority_B_arg,
-        priority_C_arg,
-        priority_D_arg,
         LogInfo(msg="============================================================"),
         LogInfo(msg="Guarded Swarms - Coastal Pipeline (2 UAV + 1 UGV)"),
         LogInfo(msg="============================================================"),
