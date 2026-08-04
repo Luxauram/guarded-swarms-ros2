@@ -32,7 +32,7 @@
 # Everything this script starts is torn down on exit, so a re-run is clean.
 # ==============================================================================
 set -o pipefail
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 source install/setup.bash
 
 # --- tunables ---------------------------------------------------------------

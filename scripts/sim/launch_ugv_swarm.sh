@@ -35,7 +35,7 @@
 set -e
 
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 INSTANCE="${INSTANCE:-1}"
 UGV_POSE="${UGV_POSE:-10,10}"

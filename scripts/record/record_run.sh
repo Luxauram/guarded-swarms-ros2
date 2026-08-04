@@ -36,7 +36,7 @@
 # scenario name "coastal" is used.
 # ==============================================================================
 set -o pipefail
-cd "$(dirname "$0")/.." || exit 1
+cd "$(dirname "$0")/../.." || exit 1
 source install/setup.bash
 
 RECORDER_SETTLE_S=2   # let rosbag subscribe before the chain starts producing

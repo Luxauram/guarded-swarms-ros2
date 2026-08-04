@@ -46,7 +46,7 @@ set -u
 # 987 on the next iteration and the running average explodes.
 export LC_ALL=C
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
 BUILD_DIR="$PX4_DIR/build/px4_sitl_default"
 

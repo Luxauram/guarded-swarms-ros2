@@ -36,7 +36,7 @@
 set -e
 
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 WORLD="${WORLD:-urban_uav}"
 GZ_RESOURCE_PATH="${GZ_RESOURCE_PATH:-$REPO_ROOT/src/guarded_swarms_gz/models:$REPO_ROOT/src/guarded_swarms_gz/worlds}"
