@@ -109,6 +109,12 @@ class UavWorkerNode : public rclcpp::Node {
     setpoint_pub_ =
         this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
             "fmu/in/trajectory_setpoint", QUEUE_SIZE);
+    // Proposed-actuation channel into this vehicle's analog Safety Board
+    // (relative topic: stays within the vehicle namespace). The board answers
+    // on actuator_cmd_safe.
+    cmd_raw_pub_ =
+        this->create_publisher<std_msgs::msg::Float32>(
+            "actuator_cmd_raw", QUEUE_SIZE);
     command_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
         "fmu/in/vehicle_command", QUEUE_SIZE);
 
@@ -231,6 +237,15 @@ class UavWorkerNode : public rclcpp::Node {
   }
 
   void control_loop() {
+    // Propose actuation to the analog Safety Board every cycle. The board
+    // gates this against its own sensor envelope and answers on
+    // actuator_cmd_safe (honoured in the veto subscription). Publishing
+    // unconditionally keeps the board's verdict live even while vetoed, so the
+    // board -- not a local timer -- decides when motion may resume.
+    std_msgs::msg::Float32 raw;
+    raw.data = 1.0f;
+    cmd_raw_pub_->publish(raw);
+
     publish_offboard_mode();
     publish_setpoint();
 
@@ -309,6 +324,7 @@ class UavWorkerNode : public rclcpp::Node {
   rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr
       offboard_mode_pub_;
   rclcpp::Publisher<px4_msgs::msg::TrajectorySetpoint>::SharedPtr setpoint_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr command_pub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr status_sub_;
   rclcpp::Subscription<VehicleTask>::SharedPtr task_sub_;

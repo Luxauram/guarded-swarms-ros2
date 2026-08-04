@@ -114,6 +114,11 @@ class UgvWorkerNode : public rclcpp::Node {
         "fmu/in/rover_throttle_setpoint", 10);
     cmd_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
         "fmu/in/vehicle_command", 10);
+    // Proposed-actuation channel into this vehicle's analog Safety Board
+    // (relative topic: stays within the vehicle namespace). The board answers
+    // on actuator_cmd_safe.
+    cmd_raw_pub_ = this->create_publisher<std_msgs::msg::Float32>(
+        "actuator_cmd_raw", 10);
 
     pos_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
         "fmu/out/vehicle_local_position_v1", qos,
@@ -194,6 +199,15 @@ class UgvWorkerNode : public rclcpp::Node {
   }
 
   void control_loop() {
+    // Propose actuation to the analog Safety Board every cycle. The board
+    // gates this against its own sensor envelope and answers on
+    // actuator_cmd_safe (honoured in the veto subscription). Publishing
+    // unconditionally keeps the board's verdict live even while vetoed, so the
+    // board -- not a local timer -- decides when motion may resume.
+    std_msgs::msg::Float32 raw;
+    raw.data = 1.0f;
+    cmd_raw_pub_->publish(raw);
+
     const double elapsed = (this->now() - start_time_).seconds();
 
     if (!armed_) {
@@ -305,6 +319,7 @@ class UgvWorkerNode : public rclcpp::Node {
   rclcpp::Publisher<px4_msgs::msg::RoverPositionSetpoint>::SharedPtr pos_pub_;
   rclcpp::Publisher<px4_msgs::msg::RoverThrottleSetpoint>::SharedPtr throttle_pub_;
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr cmd_pub_;
+  rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr pos_sub_;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
   rclcpp::Subscription<VehicleTask>::SharedPtr task_sub_;
