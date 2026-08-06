@@ -13,6 +13,8 @@
   <depend>geometry_msgs</depend>
   <depend>guarded_swarms_msgs</depend>
   <depend>std_msgs</depend>
+  <!-- px4_msgs: only the EO agent needs it, to read the carrier UAV's
+       position (its camera coverage moves with the drone). -->
   <depend>px4_msgs</depend>
 
   <test_depend>ament_lint_auto</test_depend>

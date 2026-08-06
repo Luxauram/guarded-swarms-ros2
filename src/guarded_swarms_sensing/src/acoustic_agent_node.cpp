@@ -63,6 +63,9 @@
 
 namespace {
 constexpr double kPi = 3.14159265358979323846;
+constexpr int kQueueSize = 10;
+// How much confidence falls off at max range (fraction of the base value).
+constexpr double kConfidenceRangeFalloff = 0.4;
 }
 
 class AcousticAgentNode : public rclcpp::Node {
@@ -109,7 +112,7 @@ class AcousticAgentNode : public rclcpp::Node {
         const size_t idx = i;
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
-                gt_topics[i], 10,
+                gt_topics[i], kQueueSize,
                 [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
@@ -118,7 +121,7 @@ class AcousticAgentNode : public rclcpp::Node {
     }
 
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
-        "/obs_tokens", 10);
+        "/obs_tokens", kQueueSize);
 
     timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / update_rate_hz_),
@@ -136,6 +139,7 @@ class AcousticAgentNode : public rclcpp::Node {
   }
 
  private:
+  /** @brief Scans every target with a valid ground-truth pose. */
   void scan() {
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
       if (pose_valid_[i]) {
@@ -144,6 +148,10 @@ class AcousticAgentNode : public rclcpp::Node {
     }
   }
 
+  /**
+   * @brief Emits a bearing ObsToken if a buoy hears target i.
+   * @param i  Index into target_ids_ / last_pose_.
+   */
   void evaluate_target(size_t i) {
     const auto& p = last_pose_[i].pose.position;
 
@@ -187,7 +195,7 @@ class AcousticAgentNode : public rclcpp::Node {
 
     // Confidence is higher for a closer target.
     const double frac = std::min(1.0, best_range / max_range_m_);
-    tok.confidence = confidence_ * (1.0 - 0.4 * frac);
+    tok.confidence = confidence_ * (1.0 - kConfidenceRangeFalloff * frac);
     tok.t = builtin_interfaces::msg::Time(
         this->now() - rclcpp::Duration::from_seconds(latency_s_));
     tok.ttl_s = ttl_s_;

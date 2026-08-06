@@ -81,6 +81,13 @@ using namespace std::chrono_literals;
 
 namespace {
 constexpr double kPi = 3.14159265358979323846;
+constexpr int kQueueSize = 10;
+// Pre-sized per-target history buffers (velocity from consecutive poses).
+// Caps the number of tracked targets; raise if a wave needs more.
+constexpr size_t kMaxTargets = 64;
+// Ghost placement: minimum range from the radar, and nominal ghost altitude.
+constexpr double kGhostMinRangeM = 20.0;
+constexpr double kGhostAltitudeM = 15.0;
 }
 
 class RadarAgentNode : public rclcpp::Node {
@@ -134,7 +141,7 @@ class RadarAgentNode : public rclcpp::Node {
         const size_t idx = i;
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
-                topics[i], 10,
+                topics[i], kQueueSize,
                 [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
@@ -143,7 +150,7 @@ class RadarAgentNode : public rclcpp::Node {
     }
 
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
-        "/obs_tokens", 10);
+        "/obs_tokens", kQueueSize);
 
     timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / update_rate_hz_),
@@ -165,6 +172,8 @@ class RadarAgentNode : public rclcpp::Node {
   }
 
  private:
+
+  /** @brief Scans every valid target, then rolls for a ghost false alarm. */
   void scan() {
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
       if (pose_valid_[i]) {
@@ -181,6 +190,10 @@ class RadarAgentNode : public rclcpp::Node {
     }
   }
 
+  /**
+   * @brief Emits a track ObsToken if target i is inside radar coverage.
+   * @param i  Index into target_ids_ / last_pose_.
+   */
   void evaluate_target(size_t i) {
     const auto& p = last_pose_[i].pose.position;
 
@@ -240,6 +253,7 @@ class RadarAgentNode : public rclcpp::Node {
     obs_pub_->publish(tok);
   }
 
+  /** @brief Emits a ghost track: a false alarm at a random in-sector point. */
   void emit_ghost() {
     guarded_swarms_msgs::msg::ObsToken tok;
     tok.id = make_id();
@@ -248,7 +262,7 @@ class RadarAgentNode : public rclcpp::Node {
     tok.kind = guarded_swarms_msgs::msg::ObsToken::KIND_TRACK;
 
     // Somewhere plausible inside the sector, at low altitude.
-    std::uniform_real_distribution<double> rng_range(20.0, max_range_m_);
+    std::uniform_real_distribution<double> rng_range(kGhostMinRangeM, max_range_m_);
     std::uniform_real_distribution<double> rng_ang(
         -half_angle_deg_ * kPi / 180.0, half_angle_deg_ * kPi / 180.0);
     const double r = rng_range(rng_);
@@ -256,7 +270,7 @@ class RadarAgentNode : public rclcpp::Node {
     const double gx = pos_x_ + r * std::cos(a);
     const double gy = pos_y_ + r * std::sin(a);
 
-    tok.value = {gx, gy, 15.0, 0.0, 0.0, 0.0};
+    tok.value = {gx, gy, kGhostAltitudeM, 0.0, 0.0, 0.0};
     tok.confidence = confidence_far_;
     tok.t = to_msg(this->now() - rclcpp::Duration::from_seconds(latency_s_));
     tok.ttl_s = ttl_s_;
@@ -265,6 +279,7 @@ class RadarAgentNode : public rclcpp::Node {
     RCLCPP_DEBUG(this->get_logger(), "radar ghost at (%.0f, %.0f)", gx, gy);
   }
 
+  /** @brief Returns a Gaussian position-noise sample (metres). */
   double noise() {
     std::normal_distribution<double> d(0.0, position_noise_m_);
     return d(rng_);
@@ -289,9 +304,9 @@ class RadarAgentNode : public rclcpp::Node {
   std::vector<geometry_msgs::msg::PoseStamped> last_pose_;
   std::vector<bool> pose_valid_;
 
-  std::vector<geometry_msgs::msg::Point> prev_pos_{64};
-  std::vector<rclcpp::Time> prev_time_{64};
-  std::vector<bool> have_prev_{std::vector<bool>(64, false)};
+  std::vector<geometry_msgs::msg::Point> prev_pos_{kMaxTargets};
+  std::vector<rclcpp::Time> prev_time_{kMaxTargets};
+  std::vector<bool> have_prev_{std::vector<bool>(kMaxTargets, false)};
 
   std::vector<rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr>
       gt_subs_;

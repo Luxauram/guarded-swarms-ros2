@@ -63,6 +63,18 @@
 #include <string>
 #include <vector>
 
+namespace {
+constexpr int kQueueSize = 10;
+// RF signature noise: centre-frequency jitter (Hz) and RSSI jitter (dB).
+constexpr double kFreqNoiseHz = 1.0e6;
+constexpr double kRssiNoiseDb = 1.5;
+// Free-space-like path-loss coefficient for the log-distance RSSI model.
+constexpr double kPathLossCoeff = 20.0;
+// Ghost false alarm: nominal received power (dBm) and confidence discount.
+constexpr double kGhostRssiDbm = -90.0;
+constexpr double kGhostConfidenceFactor = 0.5;
+}
+
 class RfAgentNode : public rclcpp::Node {
  public:
   RfAgentNode() : Node("rf_agent_node"), rng_(std::random_device{}()) {
@@ -113,13 +125,13 @@ class RfAgentNode : public rclcpp::Node {
         const size_t idx = i;
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
-                gt_topics[i], 10,
+                gt_topics[i], kQueueSize,
                 [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
                 }));
         tx_subs_.push_back(this->create_subscription<std_msgs::msg::Bool>(
-            tx_topics[i], 10,
+            tx_topics[i], kQueueSize,
             [this, idx](const std_msgs::msg::Bool::SharedPtr m) {
               transmitting_[idx] = m->data;
             }));
@@ -127,7 +139,7 @@ class RfAgentNode : public rclcpp::Node {
     }
 
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
-        "/obs_tokens", 10);
+        "/obs_tokens", kQueueSize);
 
     timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / update_rate_hz_),
@@ -146,6 +158,8 @@ class RfAgentNode : public rclcpp::Node {
   }
 
  private:
+
+  /** @brief Scans every valid target, then rolls for a ghost false alarm. */
   void scan() {
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
       if (pose_valid_[i]) {
@@ -158,6 +172,10 @@ class RfAgentNode : public rclcpp::Node {
     }
   }
 
+  /**
+   * @brief Emits a signature ObsToken if target i is transmitting and in range.
+   * @param i  Index into target_ids_ / last_pose_.
+   */
   void evaluate_target(size_t i) {
     // Silent target: nothing to detect. This is the radio-silence
     // counterfactual.
@@ -181,10 +199,11 @@ class RfAgentNode : public rclcpp::Node {
     // No position: centre frequency, bandwidth, received power. RSSI falls off
     // with range by a simple log model, enough to be range-dependent without
     // pretending to be a propagation study.
-    std::normal_distribution<double> f_noise(0.0, 1.0e6);
-    std::normal_distribution<double> p_noise(0.0, 1.5);
+    std::normal_distribution<double> f_noise(0.0, kFreqNoiseHz);
+    std::normal_distribution<double> p_noise(0.0, kRssiNoiseDb);
     const double rssi =
-        tx_power_dbm_ - 20.0 * std::log10(std::max(range, 1.0)) + p_noise(rng_);
+        tx_power_dbm_ - kPathLossCoeff * std::log10(std::max(range, 1.0)) +
+        p_noise(rng_);
     tok.value = {centre_freq_hz_ + f_noise(rng_), bandwidth_hz_, rssi};
 
     tok.confidence = confidence_;
@@ -194,14 +213,15 @@ class RfAgentNode : public rclcpp::Node {
     obs_pub_->publish(tok);
   }
 
+  /** @brief Emits a ghost signature: a false alarm with no real target. */
   void emit_ghost() {
     guarded_swarms_msgs::msg::ObsToken tok;
     tok.id = "rf-" + std::to_string(seq_++);
     tok.target_id = "";
     tok.source = guarded_swarms_msgs::msg::ObsToken::SOURCE_RF;
     tok.kind = guarded_swarms_msgs::msg::ObsToken::KIND_SIGNATURE;
-    tok.value = {centre_freq_hz_, bandwidth_hz_, -90.0};
-    tok.confidence = confidence_ * 0.5;
+    tok.value = {centre_freq_hz_, bandwidth_hz_, kGhostRssiDbm};
+    tok.confidence = confidence_ * kGhostConfidenceFactor;
     tok.t = builtin_interfaces::msg::Time(
         this->now() - rclcpp::Duration::from_seconds(latency_s_));
     tok.ttl_s = ttl_s_;

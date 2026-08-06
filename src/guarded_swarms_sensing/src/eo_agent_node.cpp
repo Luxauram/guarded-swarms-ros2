@@ -72,6 +72,7 @@
  *
  * @author Luca D'Aurizio
  */
+
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
@@ -82,9 +83,14 @@
 #include <random>
 #include <string>
 #include <vector>
+
 namespace {
 constexpr double kPi = 3.14159265358979323846;
+constexpr int kQueueSize = 10;
+// Period of the timer that drains the delayed-publication queue.
+constexpr int kDrainPeriodMs = 50;
 }
+
 class EoAgentNode : public rclcpp::Node {
  public:
   EoAgentNode() : Node("eo_agent_node"), rng_(std::random_device{}()) {
@@ -152,7 +158,7 @@ class EoAgentNode : public rclcpp::Node {
         const size_t idx = i;
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
-                gt_topics[i], 10,
+                gt_topics[i], kQueueSize,
                 [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
@@ -160,7 +166,7 @@ class EoAgentNode : public rclcpp::Node {
       }
     }
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
-        "/obs_tokens", 10);
+        "/obs_tokens", kQueueSize);
     timer_ = this->create_wall_timer(
         std::chrono::duration<double>(1.0 / update_rate_hz_),
         [this]() { scan(); });
@@ -169,7 +175,8 @@ class EoAgentNode : public rclcpp::Node {
     // happens meanwhile.
     if (emit_delay_s_ > 0.0) {
       drain_timer_ = this->create_wall_timer(
-          std::chrono::milliseconds(50), [this]() { drain_delayed(); });
+          std::chrono::milliseconds(kDrainPeriodMs),
+          [this]() { drain_delayed(); });
     }
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -193,6 +200,8 @@ class EoAgentNode : public rclcpp::Node {
     guarded_swarms_msgs::msg::ObsToken tok;
     rclcpp::Time release_at;  // wall-clock instant to publish
   };
+
+  /** @brief Scans every target with a valid pose, if the carrier pose is known. */
   void scan() {
     if (!uav_valid_) return;  // no carrier pose yet, no camera to point
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
@@ -201,6 +210,11 @@ class EoAgentNode : public rclcpp::Node {
       }
     }
   }
+
+  /**
+   * @brief Emits a visual ObsToken if target i falls inside the camera cone.
+   * @param i  Index into target_ids_ / last_pose_.
+   */
   void evaluate_target(size_t i) {
     const auto& p = last_pose_[i].pose.position;
     // Vector from the camera (at the UAV) to the target.
@@ -244,6 +258,8 @@ class EoAgentNode : public rclcpp::Node {
     }
     obs_pub_->publish(tok);
   }
+
+  /** @brief Publishes any queued observations whose delay has elapsed. */
   void drain_delayed() {
     const rclcpp::Time now = this->now();
     while (!delayed_.empty() && delayed_.front().release_at <= now) {
@@ -251,10 +267,13 @@ class EoAgentNode : public rclcpp::Node {
       delayed_.pop_front();
     }
   }
+
+  /** @brief Returns a Gaussian position-noise sample (metres). */
   double noise() {
     std::normal_distribution<double> d(0.0, position_noise_m_);
     return d(rng_);
   }
+
   std::string carrier_;
   double spawn_x_, spawn_y_, spawn_z_;
   double cam_bearing_deg_, cam_pitch_deg_, half_angle_deg_, max_range_m_;
@@ -276,6 +295,7 @@ class EoAgentNode : public rclcpp::Node {
   std::uniform_real_distribution<double> uniform_{0.0, 1.0};
   uint64_t seq_ = 0;
 };
+
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<EoAgentNode>());

@@ -5,7 +5,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+# ============================================================================
+# Dependencies
+# ============================================================================
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(geometry_msgs REQUIRED)
@@ -21,6 +23,8 @@ find_package(px4_msgs REQUIRED)
 # and error model. The coverage geometry is a simulation model, not specified
 # by the paper.
 # ============================================================================
+
+# --- radar_agent_node : TRACK (position + velocity), sea sector ---
 add_executable(radar_agent_node src/radar_agent_node.cpp)
 target_include_directories(radar_agent_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -31,6 +35,7 @@ ament_target_dependencies(radar_agent_node
 )
 target_compile_features(radar_agent_node PUBLIC c_std_99 cxx_std_17)
 
+# --- rf_agent_node : SIGNATURE (freq/bw/rssi), needs std_msgs ---
 add_executable(rf_agent_node src/rf_agent_node.cpp)
 target_include_directories(rf_agent_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -41,6 +46,7 @@ ament_target_dependencies(rf_agent_node
 )
 target_compile_features(rf_agent_node PUBLIC c_std_99 cxx_std_17)
 
+# --- acoustic_agent_node : BEARING from nearest buoy ---
 add_executable(acoustic_agent_node src/acoustic_agent_node.cpp)
 target_include_directories(acoustic_agent_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -51,6 +57,10 @@ ament_target_dependencies(acoustic_agent_node
 )
 target_compile_features(acoustic_agent_node PUBLIC c_std_99 cxx_std_17)
 
+# --- eo_agent_node : VISUAL. Depends on px4_msgs because its coverage moves
+#     with the carrier UAV: it reads the drone's vehicle_local_position to
+#     place the camera cone. The other three agents have static coverage and
+#     so do not need px4_msgs. ---
 add_executable(eo_agent_node src/eo_agent_node.cpp)
 target_include_directories(eo_agent_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -61,6 +71,9 @@ ament_target_dependencies(eo_agent_node
 )
 target_compile_features(eo_agent_node PUBLIC c_std_99 cxx_std_17)
 
+# ============================================================================
+# Install
+# ============================================================================
 install(TARGETS
   radar_agent_node
   rf_agent_node
@@ -68,19 +81,16 @@ install(TARGETS
   eo_agent_node
   DESTINATION lib/${PROJECT_NAME}
 )
-
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )
 
+# ============================================================================
+# Testing
+# ============================================================================
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
