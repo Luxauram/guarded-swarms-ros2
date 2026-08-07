@@ -29,6 +29,11 @@
 #include <string>
 
 using namespace std::chrono_literals;
+namespace {
+// The status timer runs at SAFETY_STATUS_RATE_HZ; log one diagnostic line
+// every this-many ticks (so ~ once every 2 s at 10 Hz) to avoid flooding.
+constexpr uint64_t kStatusLogEveryNTicks = 20;
+}
 
 // ============================================================================
 // Constructor
@@ -154,6 +159,11 @@ void SafetyBoardNode::cmd_raw_callback(
 
 // ============================================================================
 // Safety Evaluation - OR Logic
+//
+// Checks run in a fixed order and short-circuit on the first violation, so the
+// reported reason is the highest-priority one: staleness first (a stale sensor
+// makes every other reading untrustworthy), then proximity, attitude, battery,
+// altitude.
 // ============================================================================
 
 SafetyVerdict SafetyBoardNode::evaluate_safety() {
@@ -260,7 +270,7 @@ void SafetyBoardNode::publish_safety_status() {
   safety_status_pub_->publish(status);
 
   static uint64_t log_counter = 0;
-  if (++log_counter % 20 == 0) {
+  if (++log_counter % kStatusLogEveryNTicks == 0) {
     if (verdict.is_safe) {
       RCLCPP_INFO(this->get_logger(),
                   "[SafetyBoard] SAFE | prox=%.2fm pitch=%.1fdeg roll=%.1fdeg "

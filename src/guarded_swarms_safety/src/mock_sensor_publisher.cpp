@@ -78,6 +78,12 @@ static const std::vector<Scenario> SCENARIOS = {
 
 static constexpr double SCENARIO_DURATION_S = 10.0;
 static constexpr double PUBLISH_RATE_HZ = 10.0;
+static constexpr int QUEUE_SIZE = 10;
+// Range sensor limits reported in the mock Range message (m).
+static constexpr float PROXIMITY_MIN_RANGE_M = 0.1f;
+static constexpr float PROXIMITY_MAX_RANGE_M = 10.0f;
+// Battery message uses a [0, 1] fraction; readings here are in percent.
+static constexpr float BATTERY_PERCENT_SCALE = 100.0f;
 
 // ============================================================================
 // MockSensorPublisher
@@ -98,13 +104,14 @@ public:
    */
   MockSensorPublisher()
       : Node("mock_sensor_publisher"), current_scenario_idx_(0) {
-    imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", 10);
-    proximity_pub_ =
-        this->create_publisher<sensor_msgs::msg::Range>("/drone/proximity", 10);
+    imu_pub_ =
+        this->create_publisher<sensor_msgs::msg::Imu>("/drone/imu", QUEUE_SIZE);
+    proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>(
+        "/drone/proximity", QUEUE_SIZE);
     battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>(
-        "/drone/battery", 10);
-    altitude_pub_ =
-        this->create_publisher<std_msgs::msg::Float32>("/drone/altitude", 10);
+        "/drone/battery", QUEUE_SIZE);
+    altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>(
+        "/drone/altitude", QUEUE_SIZE);
 
     start_time_ = this->now().seconds();
 
@@ -192,8 +199,8 @@ private:
   void publish_proximity(float distance_m) {
     sensor_msgs::msg::Range msg;
     msg.range = distance_m;
-    msg.min_range = 0.1f;
-    msg.max_range = 10.0f;
+    msg.min_range = PROXIMITY_MIN_RANGE_M;
+    msg.max_range = PROXIMITY_MAX_RANGE_M;
     proximity_pub_->publish(msg);
   }
 
@@ -206,7 +213,7 @@ private:
    */
   void publish_battery(float percent) {
     sensor_msgs::msg::BatteryState msg;
-    msg.percentage = percent / 100.0f;
+    msg.percentage = percent / BATTERY_PERCENT_SCALE;
     battery_pub_->publish(msg);
   }
 
