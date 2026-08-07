@@ -28,7 +28,7 @@
         px4-kill px4-config px4-reset-params \
         setup-ugv setup-worlds gazebo-test gazebo-worlds \
         gen-coastal check-coastal \
-        demo-swarm demo-coastal
+        demo-swarm demo-coastal demo-coordination
 
 # ------------------------------------------------------------------------------
 # Guard: verify PX4 is installed
@@ -302,6 +302,26 @@ demo-coastal:
 	@echo "[6/6] ROS 2 coastal pipeline"
 	@bash -c '$(FULL_SOURCE) && ros2 daemon stop && ros2 daemon start' || true
 	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup coastal_pipeline.launch.py'
+
+# ------------------------------------------------------------------------------
+# Coordination + scenario layer, over an already-running demo-coastal.
+#
+# Second step of the coastal case study: start this in a second terminal once
+# the vehicles are up, armed and holding their patrol state. Brings up the
+# sensing agents, the TB-CSPN chain and the intruder. The intruder holds at its
+# spawn point for start_delay_s, so sensing and TB-CSPN are ready before the
+# first observation.
+#
+# Counterfactual runs (IET Sec 5.3) are invocations of this target:
+#   make demo-coordination EO=false               # loss of the EO modality
+#   RF_LABEL=LikelyCivilianTraffic make demo-coordination   # conflicting RF
+# ------------------------------------------------------------------------------
+demo-coordination:
+	@echo "=========================================="
+	@echo "Coastal Coordination + Scenario layer"
+	@echo "=========================================="
+	@echo "Prereq: 'make demo-coastal' already running (vehicles up)."
+	@bash -c '$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup coordination.launch.py'
 
 # ------------------------------------------------------------------------------
 # Regenerate the coastal world from its generator (deterministic seed)
