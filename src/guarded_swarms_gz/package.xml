@@ -4,10 +4,10 @@
   <name>guarded_swarms_gz</name>
   <version>0.1.0</version>
   <description>
-    Gazebo Harmonic simulation assets for Guarded Swarms.
-    Contains world files and models for UAV and UGV urban scenarios.
+    Gazebo Harmonic simulation assets for Guarded Swarms: the coastal
+    surveillance world and the UAV/UGV/intruder models it spawns.
   </description>
-  <maintainer email="thesis@unimol.it">Luca D'Aurizio</maintainer>
+  <maintainer email="daurizio.lc@gmail.com">Luca D'Aurizio</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
