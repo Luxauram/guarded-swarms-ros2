@@ -27,17 +27,17 @@ observation and target recovery.
 
 Architecture mapping
 --------------------
-The paper places the digital coordination layer centrally (a coordination node
-hosts the TB-CSPN orchestration and the supervisor agents) while every platform
-carries its own independent analogue safety envelope. This file mirrors that:
+The paper places the digital coordination layer centrally (the TB-CSPN chain,
+brought up separately by tbcspn.launch.py) while every platform carries its own
+independent analogue safety envelope. This file brings up the per-vehicle side:
 
-  shared, no namespace   coordinator_node + agents A..D
-  per vehicle            lidar bridge, control node, px4_safety_bridge,
-                         safety_board, command_bridge
+  per vehicle   lidar bridge, px4_safety_bridge, safety_board, worker
+                (uav_worker or ugv_worker)
 
 Each safety board vetoes only its own vehicle's actuator command, with no
 knowledge of the others. That decoupling is the point of the architecture, so
-it is expressed structurally here rather than by configuration.
+it is expressed structurally here rather than by configuration. The worker is
+the single command source per vehicle, which the board gates.
 
 Instance mapping
 ----------------
