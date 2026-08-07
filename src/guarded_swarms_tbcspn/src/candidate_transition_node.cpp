@@ -74,7 +74,17 @@
 #include <deque>
 #include <string>
 #include <vector>
+
 using guarded_swarms_msgs::msg::InterpToken;
+
+namespace {
+// Larger queue for the shared marking: transitions publish back onto
+// /interp_tokens, so the buffer must absorb bursts without dropping tokens.
+constexpr int TOKEN_QUEUE_SIZE = 50;
+// Period of the periodic TTL prune (ms).
+constexpr int PRUNE_PERIOD_MS = 200;
+}
+
 class CandidateTransitionNode : public rclcpp::Node {
  public:
   CandidateTransitionNode() : Node("candidate_transition_node") {
@@ -91,12 +101,12 @@ class CandidateTransitionNode : public rclcpp::Node {
     // Validity of the emitted CandidateTarget.
     emit_ttl_s_ = this->declare_parameter<double>("emit_ttl_s", 4.0);
     sub_ = this->create_subscription<InterpToken>(
-        "/interp_tokens", 50,
+        "/interp_tokens", TOKEN_QUEUE_SIZE,
         [this](const InterpToken::SharedPtr m) { on_token(m); });
-    pub_ = this->create_publisher<InterpToken>("/interp_tokens", 50);
+    pub_ = this->create_publisher<InterpToken>("/interp_tokens", TOKEN_QUEUE_SIZE);
     // Periodic prune, so expired tokens leave the buffers even when no new
     // token arrives to trigger a fusion attempt.
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(200),
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(PRUNE_PERIOD_MS),
                                      [this]() { prune_all(); });
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -110,10 +120,16 @@ class CandidateTransitionNode : public rclcpp::Node {
                 "============================================================");
   }
  private:
+
   struct Held {
     InterpToken tok;
     rclcpp::Time expiry;  // t + ttl, the instant the token stops being valid
   };
+
+  /**
+   * @brief Buffers a valid input token and attempts a fusion.
+   * @param m Shared pointer to the received @c InterpToken.
+   */
   void on_token(const InterpToken::SharedPtr m) {
     // This transition ignores its own output and anything that is not one of
     // its two concordant inputs.
@@ -141,6 +157,8 @@ class CandidateTransitionNode : public rclcpp::Node {
     }
     try_fuse();
   }
+
+  /** @brief Fuses the first concordant, same-target, in-window pair found. */
   void try_fuse() {
     prune_all();
     for (size_t i = 0; i < buf_a_.size(); ++i) {
@@ -162,6 +180,11 @@ class CandidateTransitionNode : public rclcpp::Node {
       }
     }
   }
+
+  /**
+   * @brief Emits the fused CandidateTarget, carrying forward provenance.
+   * @param a,b  The two fused parent tokens.
+   */
   void emit_candidate(const Held& a, const Held& b) {
     InterpToken tok;
     tok.id = emit_label_ + "-" + std::to_string(seq_++);
@@ -195,10 +218,17 @@ class CandidateTransitionNode : public rclcpp::Node {
                 emit_label_.c_str(), tok.target_id.c_str(), tok.confidence,
                 tok.origin.size());
   }
+
+  /** @brief Prunes expired tokens from both input buffers. */
   void prune_all() {
     prune(buf_a_);
     prune(buf_b_);
   }
+
+  /**
+   * @brief Removes tokens whose validity has elapsed from one buffer.
+   * @param buf  Input buffer to prune in place.
+   */
   void prune(std::deque<Held>& buf) {
     const rclcpp::Time now = this->now();
     while (!buf.empty() && buf.front().expiry <= now) {
@@ -213,6 +243,7 @@ class CandidateTransitionNode : public rclcpp::Node {
       }
     }
   }
+
   std::string label_a_, label_b_, emit_label_;
   double sync_threshold_s_, emit_ttl_s_;
   std::deque<Held> buf_a_, buf_b_;
@@ -221,6 +252,7 @@ class CandidateTransitionNode : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr timer_;
   uint64_t seq_ = 0;
 };
+
 int main(int argc, char* argv[]) {
   rclcpp::init(argc, argv);
   rclcpp::spin(std::make_shared<CandidateTransitionNode>());

@@ -5,7 +5,9 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
-# find dependencies
+# ============================================================================
+# Dependencies
+# ============================================================================
 find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
@@ -13,6 +15,11 @@ find_package(px4_msgs REQUIRED)
 
 # ============================================================================
 # TB-CSPN transitions
+#
+# The seven transitions of Figure 4, instantiated by parameters over four node
+# types: interpretation (T1/T2/T4), candidate join (T3/T5), mission release
+# (T6), dispatch (T7). Only dispatch depends on px4_msgs: it reads the live UAV
+# positions to assign the nearest one.
 # ============================================================================
 add_executable(interpretation_node src/interpretation_node.cpp)
 target_include_directories(interpretation_node PUBLIC
@@ -68,12 +75,7 @@ install(DIRECTORY config launch
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # comment the line when a copyright and license is added to all source files
   set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # comment the line when this package is in a git repo and when
-  # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()

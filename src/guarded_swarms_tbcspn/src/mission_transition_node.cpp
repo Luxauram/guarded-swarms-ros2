@@ -80,6 +80,12 @@ using guarded_swarms_msgs::msg::SupervisorAuth;
 using guarded_swarms_msgs::msg::InterpToken;
 using guarded_swarms_msgs::msg::MissionToken;
 
+namespace {
+constexpr int TOKEN_QUEUE_SIZE = 50;
+constexpr int AUTH_QUEUE_SIZE = 10;
+constexpr int PRUNE_PERIOD_MS = 200;
+}
+
 class MissionTransitionNode : public rclcpp::Node {
  public:
   MissionTransitionNode() : Node("mission_transition_node") {
@@ -96,23 +102,23 @@ class MissionTransitionNode : public rclcpp::Node {
     mission_ttl_s_ = this->declare_parameter<double>("mission_ttl_s", 10.0);
 
     threat_sub_ = this->create_subscription<InterpToken>(
-        "/interp_tokens", 50,
+        "/interp_tokens", TOKEN_QUEUE_SIZE,
         [this](const InterpToken::SharedPtr m) { on_interp(m); });
     // Durable QoS for the authorisation: an authorisation is a one-shot,
     // must-not-be-missed event. transient_local means a late-joining T6 still
     // receives the last authorisation a supervisor published, and removes the
     // startup race where a briefly-lived command-line publisher delivers to no
     // one. Depth 10 keeps the recent authorisations, not just the very last.
-    rclcpp::QoS auth_qos(10);
+    rclcpp::QoS auth_qos(AUTH_QUEUE_SIZE);
     auth_qos.transient_local();
     auth_sub_ = this->create_subscription<SupervisorAuth>(
         "/supervisor_auth", auth_qos,
         [this](const SupervisorAuth::SharedPtr m) { on_auth(m); });
 
     mission_pub_ =
-        this->create_publisher<MissionToken>("/mission_tokens", 10);
+        this->create_publisher<MissionToken>("/mission_tokens", AUTH_QUEUE_SIZE);
 
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(200),
+    timer_ = this->create_wall_timer(std::chrono::milliseconds(PRUNE_PERIOD_MS),
                                      [this]() { prune(); });
 
     RCLCPP_INFO(this->get_logger(),
@@ -141,6 +147,10 @@ class MissionTransitionNode : public rclcpp::Node {
     rclcpp::Time expiry;
   };
 
+  /**
+   * @brief Buffers a live ConfirmedThreat and attempts a release.
+   * @param m Shared pointer to the received @c InterpToken.
+   */
   void on_interp(const InterpToken::SharedPtr m) {
     // Only ConfirmedThreat tokens are held; everything else on the shared
     // marking is ignored by this transition.
@@ -173,6 +183,10 @@ class MissionTransitionNode : public rclcpp::Node {
     try_release(m->target_id);
   }
 
+  /**
+   * @brief Buffers a live AUTHORISE (or logs a DENY) and attempts a release.
+   * @param m Shared pointer to the received @c SupervisorAuth.
+   */
   void on_auth(const SupervisorAuth::SharedPtr m) {
     // A denial is recorded and consumed: it is an explicit refusal, not the
     // mere absence of authorisation.
@@ -242,6 +256,11 @@ class MissionTransitionNode : public rclcpp::Node {
     auths_.erase(auths_.begin() + ai);
   }
 
+  /**
+   * @brief Emits the InterceptMission with its full justification chain.
+   * @param threat  The releasing ConfirmedThreat.
+   * @param auth    The supervisor authorisation.
+   */
   void release_mission(const Held& threat, const SupervisorAuth& auth) {
     MissionToken msn;
     msn.mission_id = "mission-" + std::to_string(seq_++);

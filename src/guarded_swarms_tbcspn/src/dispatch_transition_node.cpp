@@ -66,6 +66,10 @@
 using guarded_swarms_msgs::msg::MissionToken;
 using guarded_swarms_msgs::msg::VehicleTask;
 
+namespace {
+constexpr int QUEUE_SIZE = 10;
+}
+
 class DispatchTransitionNode : public rclcpp::Node {
  public:
   DispatchTransitionNode() : Node("dispatch_transition_node") {
@@ -92,7 +96,7 @@ class DispatchTransitionNode : public rclcpp::Node {
       uav_spawn_.push_back(spawn);
     }
 
-    auto px4_qos = rclcpp::QoS(10)
+    auto px4_qos = rclcpp::QoS(QUEUE_SIZE)
                        .reliability(rclcpp::ReliabilityPolicy::BestEffort)
                        .durability(rclcpp::DurabilityPolicy::TransientLocal);
 
@@ -112,10 +116,10 @@ class DispatchTransitionNode : public rclcpp::Node {
     }
 
     mission_sub_ = this->create_subscription<MissionToken>(
-        "/mission_tokens", 10,
+        "/mission_tokens", QUEUE_SIZE,
         [this](const MissionToken::SharedPtr m) { on_mission(m); });
 
-    task_pub_ = this->create_publisher<VehicleTask>("/vehicle_tasks", 10);
+    task_pub_ = this->create_publisher<VehicleTask>("/vehicle_tasks", QUEUE_SIZE);
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -133,6 +137,11 @@ class DispatchTransitionNode : public rclcpp::Node {
   }
 
  private:
+
+  /**
+   * @brief Dispatches a mission once into a UAV intercept and a UGV observe task.
+   * @param m Shared pointer to the received @c MissionToken.
+   */
   void on_mission(const MissionToken::SharedPtr m) {
     // Dispatch each mission exactly once.
     if (dispatched_.count(m->mission_id)) return;
@@ -176,6 +185,11 @@ class DispatchTransitionNode : public rclcpp::Node {
                 m->mission_id.c_str(), m->target_id.c_str(), uav, ugv_system_);
   }
 
+  /**
+   * @brief Returns the system id of the UAV nearest the target.
+   * @param target  Target position, world ENU.
+   * @return The nearest UAV's system id, or the first UAV if no pose is live.
+   */
   uint8_t nearest_uav(const geometry_msgs::msg::Point& target) {
     int best = -1;
     double best_d = std::numeric_limits<double>::max();
@@ -200,6 +214,12 @@ class DispatchTransitionNode : public rclcpp::Node {
     return uav_systems_[best];
   }
 
+  /**
+   * @brief Reads an integer-array parameter and narrows it to system ids.
+   * @param name  Parameter name.
+   * @param def   Default value if the parameter is unset.
+   * @return The values narrowed to uint8 system ids.
+   */
   std::vector<uint8_t> read_int_list(const std::string& name,
                                      const std::vector<int64_t>& def) {
     // ROS 2 delivers integer-array parameters as int64, so declare and read
