@@ -130,7 +130,7 @@ class UavWorkerNode : public rclcpp::Node {
 
     // Tasks are swarm-wide; this worker filters by kind and system id.
     task_sub_ = this->create_subscription<VehicleTask>(
-        "/vehicle_tasks", 10,
+        "/vehicle_tasks", QUEUE_SIZE,
         [this](const VehicleTask::SharedPtr m) { on_task(m); });
 
     // Track-lock: once a task has designated a target, follow the system's
@@ -139,7 +139,7 @@ class UavWorkerNode : public rclcpp::Node {
     // not know where the intruder truly is, only what the TB-CSPN layer
     // believes. This mirrors a real interceptor following its own sensor lock.
     threat_sub_ = this->create_subscription<InterpToken>(
-        "/interp_tokens", 50,
+        "/interp_tokens", THREAT_QUEUE_SIZE,
         [this](const InterpToken::SharedPtr m) { on_threat(m); });
     // The analogue safety board publishes its verdict here, per vehicle
     // (relative topic, namespaced per UAV). This worker is the single command
@@ -152,9 +152,9 @@ class UavWorkerNode : public rclcpp::Node {
     // physical PWM-level cut the paper describes lives inside PX4/hardware and
     // is not reachable from SITL -- the same limitation as the rover.
     veto_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-        "actuator_cmd_safe", 10,
+        "actuator_cmd_safe", QUEUE_SIZE,
         [this](const std_msgs::msg::Float32::SharedPtr msg) {
-          if (msg->data < 0.01f) {
+          if (msg->data < VETO_CMD_THRESHOLD) {
             vetoed_ = true;
             last_veto_ = this->now();
           } else if (vetoed_ &&
@@ -180,7 +180,11 @@ class UavWorkerNode : public rclcpp::Node {
   }
 
  private:
+
   static constexpr int QUEUE_SIZE = 10;
+  // Larger queue for the threat stream: track-lock must not miss ConfirmedThreat
+  // updates arriving between control ticks.
+  static constexpr int THREAT_QUEUE_SIZE = 50;
   static constexpr std::chrono::milliseconds TIMER_PERIOD{100};  // 10 Hz
   static constexpr double TIMER_FREQUENCY_HZ = 10.0;
   static constexpr double ARMING_DELAY_S = 5.0;
@@ -199,6 +203,13 @@ class UavWorkerNode : public rclcpp::Node {
   // it the UAV holds, the hazard leaves the board's window, the veto clears,
   // the UAV moves back in, and it chatters. Same value as rover_control_node.
   static constexpr double VETO_MIN_HOLD_S = 2.0;
+  // Below this actuator_cmd_safe value the board's verdict counts as a veto.
+  static constexpr float VETO_CMD_THRESHOLD = 0.01f;
+
+  /**
+   * @brief Locks onto a UAV task addressed to this vehicle and sets the goal.
+   * @param m Shared pointer to the received @c VehicleTask.
+   */
   void on_task(const VehicleTask::SharedPtr m) {
     if (m->vehicle_kind != VehicleTask::KIND_UAV) return;
     if (m->assigned_system != target_system_) return;
@@ -218,6 +229,10 @@ class UavWorkerNode : public rclcpp::Node {
                 intercept_altitude_m_);
   }
 
+  /**
+   * @brief Follows the locked target's latest ConfirmedThreat estimate.
+   * @param m Shared pointer to the received @c InterpToken.
+   */
   void on_threat(const InterpToken::SharedPtr m) {
     // Only follow updates once locked, and only for the designated target.
     if (!has_task_ || m->target_id != locked_target_) return;
@@ -229,13 +244,17 @@ class UavWorkerNode : public rclcpp::Node {
     set_goal_from_enu(m->position.x, m->position.y);
   }
 
-  // Convert a world-ENU (x_east, y_north) point to this vehicle's NED local
-  // frame and store it as the horizontal goal.
+  /**
+   * @brief Converts a world-ENU point to this vehicle's NED local frame and
+   *        stores it as the horizontal goal.
+   * @param enu_x,enu_y  Target position in world ENU (east, north).
+   */
   void set_goal_from_enu(double enu_x, double enu_y) {
     task_north_ = enu_y - spawn_y_;
     task_east_ = enu_x - spawn_x_;
   }
 
+  /** @brief Main loop: proposes actuation, arms, and publishes the setpoint. */
   void control_loop() {
     // Propose actuation to the analog Safety Board every cycle. The board
     // gates this against its own sensor envelope and answers on
@@ -262,6 +281,7 @@ class UavWorkerNode : public rclcpp::Node {
     counter_++;
   }
 
+  /** @brief Publishes the offboard control mode (position control). */
   void publish_offboard_mode() {
     px4_msgs::msg::OffboardControlMode msg;
     msg.timestamp = now_us();
@@ -269,6 +289,7 @@ class UavWorkerNode : public rclcpp::Node {
     offboard_mode_pub_->publish(msg);
   }
 
+  /** @brief Publishes the trajectory setpoint, or freezes it under veto. */
   void publish_setpoint() {
     px4_msgs::msg::TrajectorySetpoint msg;
     msg.timestamp = now_us();
@@ -305,6 +326,11 @@ class UavWorkerNode : public rclcpp::Node {
     setpoint_pub_->publish(msg);
   }
 
+  /**
+   * @brief Sends a vehicle command to PX4.
+   * @param command MAVLink command ID.
+   * @param p1,p2   Command parameters (command-specific meaning).
+   */
   void publish_command(uint16_t command, float p1, float p2) {
     px4_msgs::msg::VehicleCommand msg;
     msg.timestamp = now_us();
@@ -319,6 +345,7 @@ class UavWorkerNode : public rclcpp::Node {
     command_pub_->publish(msg);
   }
 
+  /** @brief Returns the current ROS time in microseconds (PX4 timestamp). */
   uint64_t now_us() { return this->get_clock()->now().nanoseconds() / 1000; }
 
   rclcpp::Publisher<px4_msgs::msg::OffboardControlMode>::SharedPtr

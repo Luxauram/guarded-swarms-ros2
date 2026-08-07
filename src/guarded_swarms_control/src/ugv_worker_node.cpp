@@ -104,21 +104,21 @@ class UgvWorkerNode : public rclcpp::Node {
       waypoints_ = {{0.0f, 0.0f}, {0.0f, 46.0f}};
     }
 
-    auto qos = rclcpp::QoS(10)
+    auto qos = rclcpp::QoS(QUEUE_SIZE)
                    .reliability(rclcpp::ReliabilityPolicy::BestEffort)
                    .durability(rclcpp::DurabilityPolicy::TransientLocal);
 
     pos_pub_ = this->create_publisher<px4_msgs::msg::RoverPositionSetpoint>(
-        "fmu/in/rover_position_setpoint", 10);
+        "fmu/in/rover_position_setpoint", QUEUE_SIZE);
     throttle_pub_ = this->create_publisher<px4_msgs::msg::RoverThrottleSetpoint>(
-        "fmu/in/rover_throttle_setpoint", 10);
+        "fmu/in/rover_throttle_setpoint", QUEUE_SIZE);
     cmd_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
-        "fmu/in/vehicle_command", 10);
+        "fmu/in/vehicle_command", QUEUE_SIZE);
     // Proposed-actuation channel into this vehicle's analog Safety Board
     // (relative topic: stays within the vehicle namespace). The board answers
     // on actuator_cmd_safe.
     cmd_raw_pub_ = this->create_publisher<std_msgs::msg::Float32>(
-        "actuator_cmd_raw", 10);
+        "actuator_cmd_raw", QUEUE_SIZE);
 
     pos_sub_ = this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
         "fmu/out/vehicle_local_position_v1", qos,
@@ -129,9 +129,9 @@ class UgvWorkerNode : public rclcpp::Node {
         });
 
     veto_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-        "actuator_cmd_safe", 10,
+        "actuator_cmd_safe", QUEUE_SIZE,
         [this](const std_msgs::msg::Float32::SharedPtr m) {
-          if (m->data < 0.01f) {
+          if (m->data < VETO_CMD_THRESHOLD) {
             vetoed_ = true;
             last_veto_ = this->now();
           } else if (vetoed_ &&
@@ -141,9 +141,10 @@ class UgvWorkerNode : public rclcpp::Node {
         });
 
     task_sub_ = this->create_subscription<VehicleTask>(
-        "/vehicle_tasks", 10,
+        "/vehicle_tasks", QUEUE_SIZE,
         [this](const VehicleTask::SharedPtr m) { on_task(m); });
 
+    // 10 Hz control loop, matching the safety board's status rate.
     timer_ = this->create_wall_timer(std::chrono::duration<double>(0.1),
                                      [this]() { control_loop(); });
     start_time_ = this->now();
@@ -178,7 +179,20 @@ class UgvWorkerNode : public rclcpp::Node {
   static constexpr double ARM_DELAY_S = 5.0;
   static constexpr double VETO_GIVEUP_S = 6.0;
   static constexpr double VETO_MIN_HOLD_S = 2.0;
+  // Below this actuator_cmd_safe value the board's verdict counts as a veto.
+  static constexpr float VETO_CMD_THRESHOLD = 0.01f;
+  static constexpr int QUEUE_SIZE = 10;
+  static constexpr uint8_t COMPONENT_ID = 1;
+  // Magic value PX4 requires in param2 to force-arm, bypassing preflight
+  // checks. Acceptable in SITL, where the preflight sensors are simulated.
+  static constexpr float FORCE_ARM = 21196.0f;
+  static constexpr float ARM = 1.0f;
 
+  /**
+   * @brief Accepts a UGV task addressed to this vehicle and sets the
+   *        observation point (on the road, abreast of the target).
+   * @param m Shared pointer to the received @c VehicleTask.
+   */
   void on_task(const VehicleTask::SharedPtr m) {
     if (m->vehicle_kind != VehicleTask::KIND_UGV) return;
     if (m->assigned_system != target_system_) return;
@@ -198,6 +212,7 @@ class UgvWorkerNode : public rclcpp::Node {
                 observe_point_[1]);
   }
 
+  /** @brief Main loop: proposes actuation, arms, patrols or observes, honouring the veto. */
   void control_loop() {
     // Propose actuation to the analog Safety Board every cycle. The board
     // gates this against its own sensor envelope and answers on
@@ -256,6 +271,7 @@ class UgvWorkerNode : public rclcpp::Node {
     if (reached(waypoints_[wp_index_])) advance_waypoint();
   }
 
+  /** @brief Advances to the next patrol waypoint, reversing at either end. */
   void advance_waypoint() {
     if (wp_forward_) {
       if (wp_index_ + 1 < waypoints_.size()) {
@@ -274,12 +290,20 @@ class UgvWorkerNode : public rclcpp::Node {
     }
   }
 
+  /**
+   * @brief True if the rover is within WAYPOINT_RADIUS_M of the waypoint.
+   * @param wp  Target waypoint, NED (north, east).
+   */
   bool reached(const std::array<float, 2>& wp) const {
     const float dn = north_ - wp[0];
     const float de = east_ - wp[1];
     return std::sqrt(dn * dn + de * de) < WAYPOINT_RADIUS_M;
   }
 
+  /**
+   * @brief Publishes a rover position setpoint for the given waypoint.
+   * @param wp  Target waypoint, NED (north, east).
+   */
   void publish_position(const std::array<float, 2>& wp) {
     px4_msgs::msg::RoverPositionSetpoint msg;
     msg.timestamp = this->now().nanoseconds() / 1000;
@@ -293,6 +317,7 @@ class UgvWorkerNode : public rclcpp::Node {
     pos_pub_->publish(msg);
   }
 
+  /** @brief Commands zero throttle to hold the rover still under veto. */
   void publish_stop() {
     px4_msgs::msg::RoverThrottleSetpoint msg;
     msg.timestamp = this->now().nanoseconds() / 1000;
@@ -301,17 +326,18 @@ class UgvWorkerNode : public rclcpp::Node {
     throttle_pub_->publish(msg);
   }
 
+  /** @brief Sends the force-arm command to PX4. */
   void arm_rover() {
     px4_msgs::msg::VehicleCommand cmd;
     cmd.timestamp = this->now().nanoseconds() / 1000;
     cmd.command =
         px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM;
-    cmd.param1 = 1.0f;
-    cmd.param2 = 21196.0f;
+    cmd.param1 = ARM;
+    cmd.param2 = FORCE_ARM;
     cmd.target_system = target_system_;
-    cmd.target_component = 1;
+    cmd.target_component = COMPONENT_ID;
     cmd.source_system = target_system_;
-    cmd.source_component = 1;
+    cmd.source_component = COMPONENT_ID;
     cmd.from_external = true;
     cmd_pub_->publish(cmd);
   }

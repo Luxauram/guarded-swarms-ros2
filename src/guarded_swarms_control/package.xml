@@ -3,7 +3,7 @@
 <package format="3">
   <name>guarded_swarms_control</name>
   <version>0.0.0</version>
-  <description>PX4 offboard control node for autonomous UAV flight using ROS 2</description>
+  <description>Control and worker nodes: the UAV/UGV worker agents that turn dispatched tasks into platform commands, the PX4 sensor bridge, and the scenario intruder.</description>
   <maintainer email="daurizio.lc@gmail.com">Luca D'Aurizio</maintainer>
   <license>Apache-2.0</license>
 

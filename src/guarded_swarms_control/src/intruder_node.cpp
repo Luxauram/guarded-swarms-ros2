@@ -79,6 +79,7 @@
 using namespace std::chrono_literals;
 
 static constexpr double PUBLISH_RATE_HZ = 20.0;
+static constexpr int QUEUE_SIZE = 10;
 
 class IntruderNode : public rclcpp::Node {
  public:
@@ -120,19 +121,20 @@ class IntruderNode : public rclcpp::Node {
     dr_y_ = ingress_y_;
     dr_z_ = ingress_z_;
 
-    cmd_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_topic, 10);
+    cmd_pub_ = this->create_publisher<geometry_msgs::msg::Twist>(cmd_topic,
+                                                                 QUEUE_SIZE);
     truth_pub_ = this->create_publisher<geometry_msgs::msg::PoseStamped>(
-        "intruder/ground_truth", 10);
-    active_pub_ =
-        this->create_publisher<std_msgs::msg::Bool>("intruder/active", 10);
-    transmitting_pub_ =
-        this->create_publisher<std_msgs::msg::Bool>("intruder/transmitting", 10);
+        "intruder/ground_truth", QUEUE_SIZE);
+    active_pub_ = this->create_publisher<std_msgs::msg::Bool>("intruder/active",
+                                                              QUEUE_SIZE);
+    transmitting_pub_ = this->create_publisher<std_msgs::msg::Bool>(
+        "intruder/transmitting", QUEUE_SIZE);
 
     // Pose is used ONLY to refine the published ground truth. It never feeds
     // back into the velocity command, so a gap in this feed cannot stall the
     // trajectory.
     pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        pose_topic, 10,
+        pose_topic, QUEUE_SIZE,
         [this](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
           meas_x_ = m->pose.position.x;
           meas_y_ = m->pose.position.y;
@@ -164,6 +166,7 @@ class IntruderNode : public rclcpp::Node {
  private:
   enum class Phase { Idle, Ingress, Arrived };
 
+  /** @brief Timer tick: advances the phase state machine and publishes truth. */
   void step() {
     const rclcpp::Time now = this->now();
     const double elapsed = (now - start_time_).seconds();
@@ -209,6 +212,10 @@ class IntruderNode : public rclcpp::Node {
     publish_ground_truth();
   }
 
+  /**
+   * @brief Publishes the commanded velocity plus the active/transmitting flags.
+   * @param vx,vy,vz  Commanded linear velocity, world ENU (m/s).
+   */
   void publish_velocity(double vx, double vy, double vz) {
     geometry_msgs::msg::Twist cmd;
     cmd.linear.x = vx;
@@ -225,6 +232,7 @@ class IntruderNode : public rclcpp::Node {
     transmitting_pub_->publish(tx);
   }
 
+  /** @brief Publishes the target's ground-truth pose (measured, else dead-reckoned). */
   void publish_ground_truth() {
     geometry_msgs::msg::PoseStamped truth;
     truth.header.stamp = this->now();

@@ -69,7 +69,7 @@ ament_target_dependencies(px4_safety_bridge_node
   rclcpp px4_msgs sensor_msgs std_msgs
 )
 
-target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
+target_compile_features(px4_safety_bridge_node PUBLIC c_std_99 cxx_std_17)
 
 # ============================================================================
 # Executable: rover_control_node
@@ -104,6 +104,13 @@ ament_target_dependencies(intruder_node
 )
 target_compile_features(intruder_node PUBLIC c_std_99 cxx_std_17)
 
+# ============================================================================
+# Executable: uav_worker_node
+#
+# The single controller of its UAV (T8): absorbs arm/offboard/hover and adds
+# task handling, so there is one command source per drone for the safety board
+# to gate.
+# ============================================================================
 add_executable(uav_worker_node src/uav_worker_node.cpp)
 target_include_directories(uav_worker_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
@@ -114,6 +121,12 @@ ament_target_dependencies(uav_worker_node
 )
 target_compile_features(uav_worker_node PUBLIC c_std_99 cxx_std_17)
 
+# ============================================================================
+# Executable: ugv_worker_node
+#
+# The single controller of the rover (T9): absorbs the patrol (veto included)
+# and adds task handling.
+# ============================================================================
 add_executable(ugv_worker_node src/ugv_worker_node.cpp)
 target_include_directories(ugv_worker_node PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>

@@ -17,7 +17,7 @@
 /**
  * @file offboard_control_node.cpp
  *
- * Offboard position control node for PX4 UAV via ROS 2.
+ * @brief Offboard position control node for a PX4 UAV via ROS 2.
  *
  * This node demonstrates autonomous flight control using the PX4 offboard mode.
  * It publishes trajectory setpoints at 10Hz to maintain a stable hover
@@ -45,7 +45,7 @@
 using namespace std::chrono_literals;
 
 /**
- * ROS 2 node for PX4 offboard position control.
+ * @brief ROS 2 node for PX4 offboard position control.
  *
  * Publishes trajectory setpoints and vehicle commands to control a PX4 drone
  * in offboard mode. Maintains hover at a fixed altitude above the start
@@ -54,11 +54,8 @@ using namespace std::chrono_literals;
 class OffboardControlNode : public rclcpp::Node {
 public:
   /**
-   * Constructor - initializes publishers and timer.
-   *
-   * Sets up ROS 2 publishers for offboard control mode, trajectory setpoints,
-   * and vehicle commands. Creates a 10Hz timer for continuous setpoint
-   * publishing.
+   * @brief Constructs the node, initialising publishers, the status
+   *        subscription, and the 10 Hz control timer.
    */
   OffboardControlNode() : Node("offboard_control_node") {
     offboard_setpoint_counter_ = 0;
@@ -133,7 +130,6 @@ private:
       static_cast<int>(ARMING_DELAY_SECONDS * TIMER_FREQUENCY_HZ);
 
   // Flight Parameters (NED Frame)
-  static constexpr double HOVER_ALTITUDE_METERS = 5.0;
   static constexpr double TARGET_POSITION_NORTH = 0.0; // meters
   static constexpr double TARGET_POSITION_EAST = 0.0;  // meters
   static constexpr double TARGET_YAW_RADIANS = 0.0;    // facing north
@@ -146,8 +142,10 @@ private:
   static constexpr float PARAM_CUSTOM_MAIN_MODE = 1.0f;
   static constexpr float PARAM_CUSTOM_SUB_MODE_OFFBOARD = 6.0f;
   static constexpr float PARAM_ARM = 1.0f;
-  static constexpr float PARAM_FORCE_ARM =
-      21196.0f; // bypasses preflight checks - @TODO
+  // Magic value PX4 requires in param2 to force-arm, bypassing preflight
+  // checks. Acceptable in SITL, where the preflight sensors are simulated;
+  // a real deployment would arm only after passing them.
+  static constexpr float PARAM_FORCE_ARM = 21196.0f;
 
   // PX4 component ID. 
   // The system ID is deliberately NOT a constant: it is a
@@ -165,11 +163,11 @@ private:
   // ========================================================================
 
   /**
-   * Main control loop callback, executed at 10Hz.
+   * @brief Main control loop, executed at 10 Hz.
    *
    * Continuously publishes offboard control mode and trajectory setpoints.
-   * After the arming delay period, sends commands to enable offboard mode
-   * and arm the drone.
+   * After the arming delay, re-issues offboard-mode and arm commands until
+   * PX4 reports armed.
    */
   void timer_callback() {
     publish_offboard_control_mode();
@@ -197,7 +195,7 @@ private:
   }
 
   /**
-   * Publishes offboard control mode configuration.
+   * @brief Publishes the offboard control mode configuration.
    *
    * Informs PX4 which control dimensions are active. This implementation
    * enables position control only, disabling velocity and acceleration control.
@@ -216,12 +214,10 @@ private:
   }
 
   /**
-   * Publishes trajectory setpoint for position control.
+   * @brief Publishes a trajectory setpoint for position control.
    *
-   * Sends target position in NED (North-East-Down) coordinate frame.
-   *
-   * Velocity and acceleration fields are set to NaN to indicate they
-   * are not used for control.
+   * Sends the target position in the NED (North-East-Down) frame. Velocity and
+   * acceleration fields are set to NaN to indicate they are not used.
    */
   void publish_trajectory_setpoint() {
     px4_msgs::msg::TrajectorySetpoint msg;
@@ -249,11 +245,11 @@ private:
   }
 
   /**
-   * Sends a vehicle command to PX4.
+   * @brief Sends a vehicle command to PX4.
    *
-   * @param command The MAVLink command ID (e.g., CMD_SET_MODE, CMD_ARM_DISARM)
-   * @param param1 First command parameter (command-specific meaning)
-   * @param param2 Second command parameter (command-specific meaning)
+   * @param command The MAVLink command ID (e.g. CMD_SET_MODE, CMD_ARM_DISARM).
+   * @param param1  First command parameter (command-specific meaning).
+   * @param param2  Second command parameter (command-specific meaning).
    */
   void publish_vehicle_command(uint16_t command, float param1 = 0.0f,
                                float param2 = 0.0f) {
@@ -277,12 +273,12 @@ private:
   }
 
   /**
-   * Gets current ROS time in microseconds.
+   * @brief Returns the current ROS time in microseconds.
    *
-   * PX4 expects timestamps in microseconds since epoch for proper
-   * time synchronization across the system.
+   * PX4 expects timestamps in microseconds since epoch for time
+   * synchronisation across the system.
    *
-   * @return Current time in microseconds
+   * @return Current time in microseconds.
    */
   uint64_t get_timestamp_microseconds() {
     return this->get_clock()->now().nanoseconds() / 1000;
@@ -318,14 +314,11 @@ private:
 // ============================================================================
 
 /**
- * Main entry point for the offboard control node.
+ * @brief Entry point. Initialises ROS 2 and spins the node until shutdown.
  *
- * Initializes ROS 2, creates the offboard control node instance,
- * and spins until shutdown.
- *
- * @param argc Command line argument count
- * @param argv Command line argument values
- * @return Exit code (0 on success)
+ * @param argc Argument count forwarded to @c rclcpp::init.
+ * @param argv Argument vector forwarded to @c rclcpp::init.
+ * @return 0 on clean exit.
  */
 int main(int argc, char *argv[]) {
   rclcpp::init(argc, argv);

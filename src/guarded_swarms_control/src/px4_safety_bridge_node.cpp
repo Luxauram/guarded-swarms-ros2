@@ -55,6 +55,10 @@
 
 using namespace std::chrono_literals;
 
+namespace {
+constexpr int QUEUE_SIZE = 10;
+}
+
 // ============================================================================
 // Px4SafetyBridgeNode
 // ============================================================================
@@ -78,7 +82,7 @@ public:
                             "lidar_sensor_link/sensor/lidar/scan");
     std::string lidar_topic = this->get_parameter("lidar_topic").as_string();
 
-    auto px4_qos = rclcpp::QoS(10)
+    auto px4_qos = rclcpp::QoS(QUEUE_SIZE)
                        .reliability(rclcpp::ReliabilityPolicy::BestEffort)
                        .durability(rclcpp::DurabilityPolicy::Volatile)
                        .history(rclcpp::HistoryPolicy::KeepLast);
@@ -103,18 +107,19 @@ public:
             });
 
     lidar_sub_ = this->create_subscription<sensor_msgs::msg::LaserScan>(
-        lidar_topic, 10,
+        lidar_topic, QUEUE_SIZE,
         [this](const sensor_msgs::msg::LaserScan::SharedPtr msg) {
           on_lidar(msg);
         });
 
-    imu_pub_ = this->create_publisher<sensor_msgs::msg::Imu>("drone/imu", 10);
+    imu_pub_ =
+        this->create_publisher<sensor_msgs::msg::Imu>("drone/imu", QUEUE_SIZE);
     battery_pub_ = this->create_publisher<sensor_msgs::msg::BatteryState>(
-        "drone/battery", 10);
-    altitude_pub_ =
-        this->create_publisher<std_msgs::msg::Float32>("drone/altitude", 10);
-    proximity_pub_ =
-        this->create_publisher<sensor_msgs::msg::Range>("drone/proximity", 10);
+        "drone/battery", QUEUE_SIZE);
+    altitude_pub_ = this->create_publisher<std_msgs::msg::Float32>(
+        "drone/altitude", QUEUE_SIZE);
+    proximity_pub_ = this->create_publisher<sensor_msgs::msg::Range>(
+        "drone/proximity", QUEUE_SIZE);
 
     RCLCPP_INFO(this->get_logger(),
                 "Px4SafetyBridge initialized (BEST_EFFORT QoS)");
@@ -184,11 +189,13 @@ private:
   }
 
   /**
-   * @brief Converts Gazebo LaserScan to sensor_msgs/Range for the safety board.
+   * @brief Converts a Gazebo LaserScan to a sensor_msgs/Range for the board.
    *
-   * Takes the minimum finite range value across all rays as the closest
-   * obstacle distance. If all rays return inf (no obstacle), range_max
-   * is used as a safe fallback.
+   * Takes the minimum finite range across all rays as the closest obstacle
+   * distance. If all rays return inf (no obstacle), range_max is used as a
+   * safe fallback.
+   *
+   * @param msg Shared pointer to the received @c LaserScan message.
    */
   void on_lidar(const sensor_msgs::msg::LaserScan::SharedPtr msg) {
     // Gazebo encodes the two out-of-range cases with opposite signs, and they

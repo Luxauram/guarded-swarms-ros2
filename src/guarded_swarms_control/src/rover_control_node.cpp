@@ -82,6 +82,14 @@ static constexpr double VETO_GIVEUP_S      = 6.0;
 // resumes: it edges forward a few centimetres per cycle and the give-up timer
 // never matures.
 static constexpr double VETO_MIN_HOLD_S    = 2.0;
+// Below this actuator_cmd_safe value the board's verdict counts as a veto.
+static constexpr float  VETO_CMD_THRESHOLD = 0.01f;
+static constexpr int    QUEUE_SIZE         = 10;
+static constexpr uint8_t PX4_COMPONENT_ID  = 1;
+// Magic value PX4 requires in param2 to force-arm, bypassing preflight checks.
+// Acceptable in SITL, where the preflight sensors are simulated.
+static constexpr float  PARAM_FORCE_ARM    = 21196.0f;
+static constexpr float  PARAM_ARM          = 1.0f;
 
 // Waypoints in NED frame (north, east) relative to spawn origin
 // Default patrol: 8 m straight ahead (NED north). Overridden by the
@@ -124,24 +132,24 @@ public:
         }
 
         // QoS for PX4 topics
-        auto qos = rclcpp::QoS(10)
+        auto qos = rclcpp::QoS(QUEUE_SIZE)
             .reliability(rclcpp::ReliabilityPolicy::BestEffort)
             .durability(rclcpp::DurabilityPolicy::TransientLocal);
 
         pos_setpoint_pub_ = this->create_publisher<
             px4_msgs::msg::RoverPositionSetpoint>(
-            "fmu/in/rover_position_setpoint", 10);
+            "fmu/in/rover_position_setpoint", QUEUE_SIZE);
 
         vehicle_cmd_pub_ = this->create_publisher<
             px4_msgs::msg::VehicleCommand>(
-            "fmu/in/vehicle_command", 10);
+            "fmu/in/vehicle_command", QUEUE_SIZE);
 
         // Under veto the rover is stopped by commanding zero throttle, not by
         // commanding its own position: a position setpoint at zero distance
         // leaves the target heading undefined and the vehicle spins in place.
         throttle_pub_ = this->create_publisher<
             px4_msgs::msg::RoverThrottleSetpoint>(
-            "fmu/in/rover_throttle_setpoint", 10);
+            "fmu/in/rover_throttle_setpoint", QUEUE_SIZE);
 
         local_pos_sub_ = this->create_subscription<
             px4_msgs::msg::VehicleLocalPosition>(
@@ -159,9 +167,9 @@ public:
         // way an analogue circuit would, so the gate lives in the commanding
         // node. Document this as a simulation limitation.
         cmd_safe_sub_ = this->create_subscription<std_msgs::msg::Float32>(
-            "actuator_cmd_safe", 10,
+            "actuator_cmd_safe", QUEUE_SIZE,
             [this](const std_msgs::msg::Float32::SharedPtr msg) {
-                if (msg->data < 0.01f) {
+                if (msg->data < VETO_CMD_THRESHOLD) {
                     vetoed_ = true;
                     last_veto_ = this->now();
                 } else if (vetoed_ &&
@@ -231,6 +239,11 @@ private:
     // -----------------------------------------------------------------------
     // Local position callback
     // -----------------------------------------------------------------------
+
+    /**
+     * @brief Caches the rover's NED position from PX4 local position.
+     * @param msg Shared pointer to the received @c VehicleLocalPosition.
+     */
     void on_local_position(
         const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg)
     {
@@ -242,6 +255,8 @@ private:
     // -----------------------------------------------------------------------
     // Main control loop
     // -----------------------------------------------------------------------
+
+    /** @brief Main loop: arms, then patrols, honouring the safety veto. */
     void control_loop()
     {
         double elapsed = (this->now() - start_time_).seconds();
@@ -296,6 +311,8 @@ private:
     // -----------------------------------------------------------------------
     // Waypoint logic
     // -----------------------------------------------------------------------
+
+    /** @brief Advances to the next patrol waypoint, reversing at either end. */
     void advance_waypoint()
     {
         if (wp_forward_) {
@@ -324,6 +341,10 @@ private:
             wp_forward_ ? "forward" : "returning");
     }
 
+    /**
+     * @brief True if the rover is within WAYPOINT_RADIUS_M of the waypoint.
+     * @param wp  Target waypoint, NED (north, east).
+     */
     bool reached_waypoint(const std::array<float, 2>& wp) const
     {
         float dn = rover_north_ - wp[0];
@@ -334,6 +355,11 @@ private:
     // -----------------------------------------------------------------------
     // PX4 command helpers
     // -----------------------------------------------------------------------
+
+    /**
+     * @brief Publishes a rover position setpoint for the given waypoint.
+     * @param wp  Target waypoint, NED (north, east).
+     */
     void publish_waypoint(const std::array<float, 2>& wp)
     {
         px4_msgs::msg::RoverPositionSetpoint msg;
@@ -348,6 +374,7 @@ private:
         pos_setpoint_pub_->publish(msg);
     }
 
+    /** @brief Commands zero throttle to hold the rover still under veto. */
     void publish_stop()
     {
         px4_msgs::msg::RoverThrottleSetpoint msg;
@@ -357,17 +384,18 @@ private:
         throttle_pub_->publish(msg);
     }
 
+    /** @brief Sends the force-arm command to PX4. */
     void arm_rover()
     {
         px4_msgs::msg::VehicleCommand cmd;
         cmd.timestamp        = this->now().nanoseconds() / 1000;
         cmd.command          = px4_msgs::msg::VehicleCommand::VEHICLE_CMD_COMPONENT_ARM_DISARM;
-        cmd.param1           = 1.0f;   // 1 = arm
-        cmd.param2           = 21196.0f; // force arm magic number
+        cmd.param1           = PARAM_ARM;
+        cmd.param2           = PARAM_FORCE_ARM;
         cmd.target_system    = target_system_;
-        cmd.target_component = 1;
+        cmd.target_component = PX4_COMPONENT_ID;
         cmd.source_system    = target_system_;
-        cmd.source_component = 1;
+        cmd.source_component = PX4_COMPONENT_ID;
         cmd.from_external    = true;
         vehicle_cmd_pub_->publish(cmd);
 
