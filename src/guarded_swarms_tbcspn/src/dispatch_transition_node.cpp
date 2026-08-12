@@ -37,9 +37,10 @@
  * positions, which the node reads from their vehicle_local_position (NED->ENU
  * by each UAV's spawn offset, exactly as the EO agent does).
  *
- * A mission is dispatched once. Its mission_id is remembered so repeated
- * MissionTokens for the same mission (the release transition may emit several
- * while the threat persists) do not scramble the swarm with duplicate tasks.
+ * Each TARGET is dispatched once. The assigned UAV is remembered per target, so
+ * the repeated MissionTokens the release transition emits while a threat
+ * persists do not send a second UAV onto the same target: the first assigned
+ * worker track-locks and follows it on its own (T8).
  *
  * Topics:
  *   Subscribed:
@@ -59,7 +60,7 @@
 
 #include <cmath>
 #include <limits>
-#include <set>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -143,11 +144,13 @@ class DispatchTransitionNode : public rclcpp::Node {
    * @param m Shared pointer to the received @c MissionToken.
    */
   void on_mission(const MissionToken::SharedPtr m) {
-    // Dispatch each mission exactly once.
-    if (dispatched_.count(m->mission_id)) return;
-    dispatched_.insert(m->mission_id);
+    // Dispatch each TARGET exactly once. Repeated missions for a target already
+    // assigned are ignored: its worker track-locks and follows the target on
+    // its own, so a second dispatch would put another UAV on the same point.
+    if (assigned_uav_.count(m->target_id)) return;
 
     const uint8_t uav = nearest_uav(m->target_position);
+    assigned_uav_[m->target_id] = uav;
 
     // Intercept task to the chosen UAV.
     VehicleTask uav_task;
@@ -241,7 +244,12 @@ class DispatchTransitionNode : public rclcpp::Node {
   rclcpp::Subscription<MissionToken>::SharedPtr mission_sub_;
   rclcpp::Publisher<VehicleTask>::SharedPtr task_pub_;
 
-  std::set<std::string> dispatched_;
+  // Targets already assigned to a UAV, and which UAV took each. A target is
+  // dispatched once: T6 re-emits a MissionToken for the same target several
+  // times while the threat persists, but the assigned worker then track-locks
+  // the target on its own (T8), so re-dispatching would only send a second UAV
+  // onto the same point. Keyed by target_id, not mission_id.
+  std::map<std::string, uint8_t> assigned_uav_;
 };
 
 int main(int argc, char* argv[]) {
