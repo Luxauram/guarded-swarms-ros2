@@ -299,21 +299,32 @@ def analyse(bag_path):
               f"dur={b-a:4.1f}s  cause={cause:20s} reaction={rt_str}")
     print("-" * 66)
 
-    # Envelope coverage.
-    enforced = ["proximity", "attitude", "battery", "altitude"]
-    print("  envelope coverage (which vetoes fired):")
-    for c in enforced:
-        print(f"    {c:12s}: {'FIRED' if c in causes_seen else 'not seen'}")
-    covered = sum(1 for c in enforced if c in causes_seen)
-    print("-" * 66)
+    # core = architecture-defined guards; extended = simulation-only (altitude)
+    core_env = ["proximity", "attitude", "battery"]
+    extended_env = ["altitude"]
+    enforced = core_env + extended_env
 
+    print("  envelope coverage (which vetoes fired):")
+    print("    -- core safety envelope --")
+    for c in core_env:
+        print(f"    {c:12s}: {'FIRED' if c in causes_seen else 'not seen'}")
+    print("    -- extended simulation envelope --")
+    for c in extended_env:
+        print(f"    {c:12s}: {'FIRED' if c in causes_seen else 'not seen'}")
+
+    core_cov = sum(1 for c in core_env if c in causes_seen)
+    ext_cov = sum(1 for c in extended_env if c in causes_seen)
+    covered = core_cov + ext_cov
+    print("-" * 66)
     ok_iso = not digital
     ok_clamp = (checked > 0 and clamped == checked)
-    ok_cov = (covered == len(enforced))  # every enforced constraint fired
+    ok_cov = (covered == len(enforced))
     verdict = ok_iso and ok_clamp and ok_cov
     print(f"  isolation upheld:   {'PASS' if ok_iso else 'FAIL'}")
     print(f"  clamping upheld:    {'PASS' if ok_clamp else 'FAIL'}")
-    print(f"  envelope exercised: {covered}/{len(enforced)} constraints")
+    print(f"  core envelope:      {core_cov}/{len(core_env)} constraints")
+    print(f"  extended envelope:  {ext_cov}/{len(extended_env)} constraints")
+    print(f"  envelope exercised: {covered}/{len(enforced)} constraints total")
     print("=" * 66)
     print(f"  veto verification: {'PASS' if verdict else 'REVIEW'}")
     print("=" * 66)
