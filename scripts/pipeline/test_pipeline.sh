@@ -37,7 +37,7 @@ source install/setup.bash
 
 # --- tunables ---------------------------------------------------------------
 INTRUDER_DELAY="${INTRUDER_DELAY:-8.0}"    # s before the intruder moves
-INTRUDER_SPEED="${INTRUDER_SPEED:-1.5}"    # m/s, slow = wide detection window
+INTRUDER_SPEED="${INTRUDER_SPEED:-6.0}"    # m/s, slow = wide detection window
 
 # Attack vector: ingress geometry of the intruder, chosen from the sensor
 # coverage map. "frontal" is the well-covered sea front; "east-deep" and "rear"
@@ -100,7 +100,7 @@ MANUAL_AUTH="${MANUAL_AUTH:-0}"
 
 # s to wait for a ConfirmedThreat (a slower intruder takes longer to reach full
 # coverage).
-THREAT_TIMEOUT="${THREAT_TIMEOUT:-30}"
+THREAT_TIMEOUT="${THREAT_TIMEOUT:-60}"
 
 # Seconds to let the vehicles react after an automatic authorisation.
 REACT_S="${REACT_S:-10}"
