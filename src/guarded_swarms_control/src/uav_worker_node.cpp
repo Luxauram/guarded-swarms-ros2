@@ -220,6 +220,9 @@ class UavWorkerNode : public rclcpp::Node {
     locked_target_ = m->target_id;
     set_goal_from_enu(m->target_position.x, m->target_position.y);
     has_task_ = true;
+    mission_ttl_s_ = m->ttl_s;
+    last_target_update_ = this->now();
+    track_active_ = true;
 
     RCLCPP_WARN(this->get_logger(),
                 "Task '%s' (%s): locked on '%s', flying to NED (%.1f, %.1f) "
@@ -242,8 +245,9 @@ class UavWorkerNode : public rclcpp::Node {
     // target's position. Stand-off altitude is held separately, so the UAV
     // tracks the target horizontally without descending onto it.
     set_goal_from_enu(m->position.x, m->position.y);
+    last_target_update_ = this->now();
+    track_active_ = true;
   }
-
   /**
    * @brief Converts a world-ENU point to this vehicle's NED local frame and
    *        stores it as the horizontal goal.
@@ -303,6 +307,20 @@ class UavWorkerNode : public rclcpp::Node {
       msg.position[1] = static_cast<float>(last_east_);
       msg.position[2] = static_cast<float>(last_down_);
     } else {
+      // A locked task whose target track has gone stale for longer than the
+      // mission TTL is released: the mission expires rather than being flown
+      // blind toward a last-known position that may no longer be valid.
+      if (has_task_ && track_active_ && mission_ttl_s_ > 0.0 &&
+          (this->now() - last_target_update_).seconds() > mission_ttl_s_) {
+        has_task_ = false;
+        track_active_ = false;
+        RCLCPP_WARN(this->get_logger(),
+                    "Mission on '%s' expired (no track for %.1fs > ttl %.1fs); "
+                    "returning to hover.",
+                    locked_target_.c_str(),
+                    (this->now() - last_target_update_).seconds(),
+                    mission_ttl_s_);
+      }
       if (has_task_) {
         msg.position[0] = static_cast<float>(task_north_);
         msg.position[1] = static_cast<float>(task_east_);
@@ -368,9 +386,16 @@ class UavWorkerNode : public rclcpp::Node {
 
   rclcpp::Subscription<InterpToken>::SharedPtr threat_sub_;
 
-  bool has_task_ = false;
+    bool has_task_ = false;
   std::string locked_target_;
   double task_north_ = 0.0, task_east_ = 0.0;
+  // Mission validity: TTL from the task, and the time of the last target
+  // update (dispatch or latest ConfirmedThreat). When the track is lost, the
+  // mission is held for ttl_s more, then released rather than flown blind
+  // (see MissionToken.msg: "should expire rather than be flown blind").
+  double mission_ttl_s_ = 0.0;
+  rclcpp::Time last_target_update_;
+  bool track_active_ = false;
   // Analogue safety board veto (honoured as in rover_control_node).
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
   bool vetoed_ = false;
