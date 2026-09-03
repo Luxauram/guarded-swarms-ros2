@@ -72,6 +72,7 @@
 #include <px4_msgs/msg/rover_throttle_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
+#include <px4_msgs/msg/vehicle_status.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 #include <guarded_swarms_msgs/msg/vehicle_task.hpp>
@@ -128,6 +129,11 @@ class UgvWorkerNode : public rclcpp::Node {
           pos_valid_ = true;
         });
 
+    status_sub_ = this->create_subscription<px4_msgs::msg::VehicleStatus>(
+        "fmu/out/vehicle_status_v1", qos,
+        [this](const px4_msgs::msg::VehicleStatus::SharedPtr m) {
+          is_armed_ = (m->arming_state == 2);  // 2 = ARMING_STATE_ARMED
+        });
     veto_sub_ = this->create_subscription<std_msgs::msg::Float32>(
         "actuator_cmd_safe", QUEUE_SIZE,
         [this](const std_msgs::msg::Float32::SharedPtr m) {
@@ -225,14 +231,18 @@ class UgvWorkerNode : public rclcpp::Node {
 
     const double elapsed = (this->now() - start_time_).seconds();
 
-    if (!armed_) {
+    if (!is_armed_) {
+      // Retry the force-arm until PX4 confirms. A one-shot command is lost if
+      // the DDS link to PX4 is not yet matched at that instant; retrying every
+      // cycle after ARM_DELAY_S makes the demo robust to that startup race.
       if (elapsed > ARM_DELAY_S) {
         arm_rover();
-        armed_ = true;
-        patrol_active_ = true;
-        RCLCPP_INFO(this->get_logger(), "Rover armed.");
       }
       return;
+    }
+    if (!patrol_active_) {
+      patrol_active_ = true;
+      RCLCPP_INFO(this->get_logger(), "Rover armed, starting patrol.");
     }
     if (!patrol_active_ || !pos_valid_) return;
 
@@ -347,6 +357,8 @@ class UgvWorkerNode : public rclcpp::Node {
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr pos_sub_;
+  rclcpp::Subscription<px4_msgs::msg::VehicleStatus>::SharedPtr status_sub_;
+  bool is_armed_ = false;
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
   rclcpp::Subscription<VehicleTask>::SharedPtr task_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
@@ -357,7 +369,7 @@ class UgvWorkerNode : public rclcpp::Node {
   float east_min_ = 0.0f, east_max_ = 0.0f, patrol_north_ = 0.0f;
 
   rclcpp::Time start_time_, veto_start_, last_veto_;
-  bool armed_ = false, patrol_active_ = false;
+  bool patrol_active_ = false;
   bool vetoed_ = false, veto_timing_ = false;
   size_t wp_index_ = 0;
   bool wp_forward_ = true;
