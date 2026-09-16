@@ -191,15 +191,18 @@ if [[ "$EXPECT_THREAT" == "no" ]]; then
 fi
 
 echo "[test] waiting for a ConfirmedThreat (up to ${THREAT_TIMEOUT}s)..."
-deadline=$(( SECONDS + THREAT_TIMEOUT ))
 got_threat=0
-while (( SECONDS < deadline )); do
-  line=$(timeout 3 ros2 topic echo /interp_tokens --field label --once 2>/dev/null)
-  if [[ "$line" == *ConfirmedThreat* ]]; then
-    got_threat=1
-    break
-  fi
-done
+# Stream /interp_tokens continuously and stop at the first ConfirmedThreat.
+# (A per-message --once in a loop samples ONE arbitrary token from the mixed
+# stream -- usually a PossibleUAV or CandidateTarget -- and only rarely lands
+# on a ConfirmedThreat, so it misses threats that are in fact present. A
+# continuous grep sees every token and cannot miss it.)
+if timeout "${THREAT_TIMEOUT}" bash -c '
+    stdbuf -oL ros2 topic echo /interp_tokens --field label 2>/dev/null \
+      | grep -q -m1 ConfirmedThreat
+  '; then
+  got_threat=1
+fi
 if (( got_threat == 0 )); then
   echo "[test] FAIL: no ConfirmedThreat within ${THREAT_TIMEOUT}s."
   echo "[test] check /tmp/gs_sensing.log and /tmp/gs_tbcspn.log"
