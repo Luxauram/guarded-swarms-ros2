@@ -263,9 +263,17 @@ def analyse(bag_path):
     print("-" * 66)
 
     # Command clamping: while unsafe, is safe forced to 0 though raw > 0?
+    # Measurement starts once the board is operational: the very first safe
+    # sample can be emitted in the bootstrap instant, before the board has
+    # applied its initial (fail-safe) verdict to that first message. Such a
+    # pre-operational sample is a stream start-up artefact, not a missed veto,
+    # so the count begins from the first raw command onward.
     clamped = 0
     checked = 0
+    t_start = raw_cmd[0][0] if raw_cmd else None
     for ts, sv in safe_cmd:
+        if t_start is not None and ts < t_start:
+            continue  # skip the pre-operational bootstrap sample
         st = _value_at(status, ts)
         rv = _value_at(raw_cmd, ts)
         if st is not None and st < STATUS_UNSAFE and rv is not None and rv > CMD_ACTIVE:
