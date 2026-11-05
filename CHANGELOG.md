@@ -73,6 +73,13 @@ reproducible release.
   second Ctrl-C no longer interrupts it.
 - Ctrl-C takes effect at once while `test_pipeline.sh` waits for the
   ConfirmedThreat, instead of when the wait ends.
+- The intruder and the four sensing agents run on simulated time: the
+  intruder's start delay, motion and ground truth, and the agents' scans.
+  On the wall clock the intruder covered its route faster in simulated time
+  whenever the real-time factor was below 1 (6.2 m/s instead of 6.0 at a
+  factor of 0.97) and the agents scanned more often, so latencies measured
+  in simulated time depended on the load of the machine. The scripted
+  supervisor also checks its pending decisions on simulated time.
 
 ## [0.1.0] - 2026-11-05
 
@@ -110,3 +117,7 @@ Found after the thesis.
   lidar does not look along the direction of travel.
 - The sensing agents seed their random generators from
   `std::random_device`, so a run cannot be repeated with the same noise.
+- The intruder and the sensing agents advance on the wall clock, while
+  Gazebo, PX4 and the coordination chain run on simulated time. At a
+  real-time factor of 0.97 the intruder, commanded at 6.0 m/s, moves at
+  6.2 m/s in simulated time, and the gap grows as the simulation slows down.

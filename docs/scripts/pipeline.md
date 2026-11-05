@@ -74,8 +74,9 @@ The counterfactual runs of the thesis use these variables:
 | Authorisation withheld      | `DECISION=deny`                                          |
 
 **Seeds.** With the same seed, each sensing agent draws the same random
-sequence. A run is still not identical bit for bit: the agents' scan timers run
-on wall-clock time, so the order of the draws depends on message timing.
+sequence. A run is still not identical bit for bit: the position an agent reads
+at each scan depends on when the ground-truth messages arrive, so the same
+draws can meet slightly different positions.
 
 ## Exit codes
 

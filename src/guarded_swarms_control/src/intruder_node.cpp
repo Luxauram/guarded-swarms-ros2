@@ -47,6 +47,16 @@
  * accurate ground truth for the consultant agents; it never feeds back into
  * the motion command.
  *
+ * SIMULATED TIME
+ * ==============
+ * The node runs on the simulation clock (use_sim_time): the start delay, the
+ * dead reckoning and the publication timer all follow simulated time, like
+ * Gazebo and PX4. On the wall clock the target used to cover its route faster
+ * in simulated time whenever the real-time factor was below 1 (6.2 m/s
+ * instead of 6.0 at a factor of 0.97), and the error grew as the simulation
+ * slowed down, so every latency measured in simulated time depended on the
+ * load of the machine.
+ *
  * All motion is in world ENU, matching Gazebo. The PX4 vehicles reason in NED;
  * frame conversion, if any, is the consultant agents' responsibility.
  *
@@ -67,6 +77,7 @@
  * @author Luca D'Aurizio
  */
 
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -142,12 +153,13 @@ class IntruderNode : public rclcpp::Node {
           pose_valid_ = true;
         });
 
-    timer_ = this->create_wall_timer(
-        std::chrono::duration<double>(1.0 / PUBLISH_RATE_HZ),
+    // The timer runs on the node clock, which is simulated time: it ticks
+    // PUBLISH_RATE_HZ times per simulated second, whatever the real-time
+    // factor. The start time is taken at the first tick (see step()).
+    timer_ = rclcpp::create_timer(
+        this, this->get_clock(),
+        rclcpp::Duration::from_seconds(1.0 / PUBLISH_RATE_HZ),
         [this]() { step(); });
-
-    start_time_ = this->now();
-    last_step_ = start_time_;
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -169,6 +181,15 @@ class IntruderNode : public rclcpp::Node {
   /** @brief Timer tick: advances the phase state machine and publishes truth. */
   void step() {
     const rclcpp::Time now = this->now();
+    // Before the first /clock message the simulated time reads zero, so the
+    // start time is taken at the first tick with a valid clock. Taken in the
+    // constructor, it would make the whole start delay look already elapsed.
+    if (!started_) {
+      if (now.nanoseconds() == 0) return;
+      start_time_ = now;
+      last_step_ = now;
+      started_ = true;
+    }
     const double elapsed = (now - start_time_).seconds();
     const double dt = (now - last_step_).seconds();
     last_step_ = now;
@@ -255,6 +276,7 @@ class IntruderNode : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr timer_;
 
   rclcpp::Time start_time_, last_step_;
+  bool started_ = false;  // start_time_ is taken at the first valid tick
   Phase phase_ = Phase::Idle;
 
   double ingress_x_, ingress_y_, ingress_z_;

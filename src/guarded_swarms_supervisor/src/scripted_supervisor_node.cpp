@@ -73,6 +73,7 @@
  * @author Luca D'Aurizio
  */
 
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <guarded_swarms_msgs/msg/interp_token.hpp>
@@ -122,12 +123,14 @@ class ScriptedSupervisorNode : public rclcpp::Node {
         "/interp_tokens", TOKEN_QUEUE_SIZE,
         [this](const InterpToken::SharedPtr m) { on_interp(m); });
 
-    // Pending decisions are checked on a short wall-clock period against the
-    // node clock, which is simulated time under use_sim_time (as T6 prunes its
-    // buffers). A decision therefore fires when SIMULATED time reaches its due
-    // instant, whatever the real-time factor of the run.
-    timer_ = this->create_wall_timer(std::chrono::milliseconds(CHECK_PERIOD_MS),
-                                     [this]() { decide_due(); });
+    // Pending decisions are checked every CHECK_PERIOD_MS of simulated time,
+    // against the node clock (simulated time under use_sim_time). A decision
+    // therefore fires when simulated time reaches its due instant, within one
+    // check period, whatever the real-time factor of the run.
+    timer_ = rclcpp::create_timer(
+        this, this->get_clock(),
+        rclcpp::Duration::from_seconds(CHECK_PERIOD_MS / 1000.0),
+        [this]() { decide_due(); });
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");

@@ -29,7 +29,13 @@ Two bridges are needed because the intruder is driven kinematically rather
 than by PX4:
 
   ROS -> GZ   /model/intruder/cmd_vel     commanded velocity
-  GZ  -> ROS  /model/intruder/odometry    ground truth for the consultant agents
+  GZ  -> ROS  /model/intruder/pose        measured pose; when it arrives, the
+                                          node publishes it as ground truth in
+                                          place of its dead-reckoned position
+
+The intruder node runs on the simulation clock (use_sim_time), like the rest
+of the scenario: its start delay, its motion and its ground truth follow
+simulated time.
 
 Prereq: 'make demo-coastal' (or at least scripts/sim/gz_launch.sh coastal).
 
@@ -110,6 +116,7 @@ def generate_launch_description():
             "arrival_radius_m": LaunchConfiguration("arrival_radius_m"),
             "cmd_vel_topic": CMD_VEL_TOPIC,
             "pose_topic": POSE_TOPIC,
+            "use_sim_time": True,
         }],
         emulate_tty=True,
     )

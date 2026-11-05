@@ -52,6 +52,7 @@
  * @author Luca D'Aurizio
  */
 
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/rclcpp.hpp>
 
 #include <geometry_msgs/msg/pose_stamped.hpp>
@@ -156,8 +157,11 @@ class RfAgentNode : public rclcpp::Node {
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
         "/obs_tokens", kQueueSize);
 
-    timer_ = this->create_wall_timer(
-        std::chrono::duration<double>(1.0 / update_rate_hz_),
+    // Scans run on the node clock (simulated time): update_rate_hz_ scans per
+    // simulated second, whatever the real-time factor.
+    timer_ = rclcpp::create_timer(
+        this, this->get_clock(),
+        rclcpp::Duration::from_seconds(1.0 / update_rate_hz_),
         [this]() { scan(); });
 
     RCLCPP_INFO(this->get_logger(),

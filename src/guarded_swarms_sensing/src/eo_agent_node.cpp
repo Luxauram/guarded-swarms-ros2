@@ -41,7 +41,7 @@
  * THE STALE-EO COUNTERFACTUAL
  * ===========================
  * emit_delay_s (parameter, or the EO_DELAY_S environment variable) holds each
- * EO observation back by a fixed wall-clock delay before publishing it. With a
+ * EO observation back by a fixed sim-time delay before publishing it. With a
  * large enough delay the ConfirmedAerialObject reaches T5 only after the
  * CandidateTarget's validity window has closed, so the two cannot fuse and no
  * ConfirmedThreat is produced. This reproduces the paper's "stale EO
@@ -73,6 +73,7 @@
  * @author Luca D'Aurizio
  */
 
+#include <rclcpp/create_timer.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <geometry_msgs/msg/pose_stamped.hpp>
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
@@ -181,15 +182,19 @@ class EoAgentNode : public rclcpp::Node {
     }
     obs_pub_ = this->create_publisher<guarded_swarms_msgs::msg::ObsToken>(
         "/obs_tokens", kQueueSize);
-    timer_ = this->create_wall_timer(
-        std::chrono::duration<double>(1.0 / update_rate_hz_),
+    // Scans run on the node clock (simulated time): update_rate_hz_ scans per
+    // simulated second, whatever the real-time factor.
+    timer_ = rclcpp::create_timer(
+        this, this->get_clock(),
+        rclcpp::Duration::from_seconds(1.0 / update_rate_hz_),
         [this]() { scan(); });
     // A second timer drains the delayed-publication queue, so a held-back EO
     // observation is released once its delay has elapsed even if no new scan
     // happens meanwhile.
     if (emit_delay_s_ > 0.0) {
-      drain_timer_ = this->create_wall_timer(
-          std::chrono::milliseconds(kDrainPeriodMs),
+      drain_timer_ = rclcpp::create_timer(
+          this, this->get_clock(),
+          rclcpp::Duration::from_seconds(kDrainPeriodMs / 1000.0),
           [this]() { drain_delayed(); });
     }
     RCLCPP_INFO(this->get_logger(),
@@ -215,7 +220,7 @@ class EoAgentNode : public rclcpp::Node {
  private:
   struct Pending {
     guarded_swarms_msgs::msg::ObsToken tok;
-    rclcpp::Time release_at;  // wall-clock instant to publish
+    rclcpp::Time release_at;  // simulated instant to publish
   };
 
   /** @brief Scans every target with a valid pose, if the carrier pose is known. */
