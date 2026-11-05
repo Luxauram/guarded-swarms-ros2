@@ -104,11 +104,11 @@ sleep "$RECORDER_SETTLE_S"
 # is interrupted), the trap stops the bag.
 echo "[record] launching the pipeline via test_pipeline.sh..."
 echo "============================================================"
-# Propagate the scenario knobs to the child process. A variable set as
-# `RF_LABEL=... ./record_run.sh` is NOT exported, so test_pipeline.sh (a
-# separate process) would otherwise fall back to its own defaults. Export the
-# ones a counterfactual run needs to override; any left unset are exported
-# empty and test_pipeline.sh applies its own default via ${VAR:-default}.
+# Settle the scenario knobs here, so that the run and the scenario line printed
+# below use the same values: a value given in front of the command
+# (`RF_LABEL=... ./record_run.sh`) is kept, an unset one takes the default of
+# test_pipeline.sh, and an unset SEED is drawn here. Any variable given in
+# front of the command also reaches test_pipeline.sh through the environment.
 export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
 export DECISION="${DECISION:-authorise}"
 export AUTH_DELAY_S="${AUTH_DELAY_S:-0}"

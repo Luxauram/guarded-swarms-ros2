@@ -9,6 +9,12 @@ The pages in this folder document each part of the project in detail.
 | -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md) | Scripted supervisor that issues the authorisation decisions of T6 in automated runs |
 
+## Scripts
+
+| Page                                        | Description                                                                |
+| ------------------------------------------- | -------------------------------------------------------------------------- |
+| [Pipeline run scripts](scripts/pipeline.md) | One end-to-end run, its recording, and the checks that keep its data clean |
+
 The remaining sections (getting started, architecture, the other packages,
-scripts, supervisor console, experiments, conventions) are added as the
-documentation is completed.
+the other scripts, supervisor console, experiments, conventions) are added as
+the documentation is completed.

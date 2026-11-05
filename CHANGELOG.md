@@ -36,6 +36,11 @@ reproducible release.
   at start-up. `sensing.launch.py` takes the seed of the run from `SEED` and
   gives each agent its own (`SEED+1` to `SEED+4`); `test_pipeline.sh` and
   `record_run.sh` draw and print one when `SEED` is unset.
+- `scripts/pipeline/run_guards.sh`: checks shared by `test_pipeline.sh` and
+  `record_run.sh`. A run refuses to start (exit 2) if the scenario is down or
+  processes of an earlier run are still alive, and stops (exit 3) if the
+  intruder's ground truth does not have exactly one source. The run scripts
+  are documented in `docs/scripts/pipeline.md`.
 - This changelog.
 
 ### Changed
@@ -48,10 +53,26 @@ reproducible release.
   poses for the verdict are taken before a threat can form.
 - `scripts/record/record_run.sh` passes `AUTH_DELAY_S` and `AUTH_TTL_S` to
   the run.
+- `scripts/record/record_run.sh` runs the pre-run checks before it starts the
+  recorder, warns when a guard stopped the run, and exits with the code of
+  `test_pipeline.sh`.
 - The manual authorisation command shown by `tbcspn.launch.py` publishes with
   TRANSIENT_LOCAL durability, as T6's subscription requires.
 - `results/` is ignored by git: analysis outputs are regenerated from the
   bags by the scripts in `scripts/metrics/`.
+
+### Fixed
+
+- `scripts/pipeline/test_pipeline.sh` no longer stops the scenario's vehicle
+  workers on exit: it stops only what it started, and checks that nothing
+  survives.
+- The verdict of `test_pipeline.sh` measures how far each vehicle travelled
+  and reports it as moved only beyond `MOVE_THRESHOLD_M` (default 0.5 m),
+  instead of comparing positions as text.
+- `test_pipeline.sh` and `record_run.sh` run their teardown once, and a
+  second Ctrl-C no longer interrupts it.
+- Ctrl-C takes effect at once while `test_pipeline.sh` waits for the
+  ConfirmedThreat, instead of when the wait ends.
 
 ## [0.1.0] - 2026-11-05
 
@@ -75,6 +96,14 @@ Found after the thesis.
 - The test scripts do not check that the nodes of a previous run have
   stopped: two runs of the thesis campaign recorded two intruder
   ground-truth sources.
+- On exit, `scripts/pipeline/test_pipeline.sh` also stops the vehicle
+  workers started by the scenario, so from the second run of a session the
+  vehicles have no controller.
+- The verdict of `test_pipeline.sh` compares positions as text, so the
+  jitter of a hovering vehicle counts as movement.
+- On Ctrl-C, `test_pipeline.sh` and `record_run.sh` run their teardown
+  twice, and a Ctrl-C pressed while `test_pipeline.sh` waits for the
+  ConfirmedThreat takes effect only when the wait ends, up to 60 s later.
 - Under a veto, `uav_worker_node` keeps sending its last commanded goal
   instead of holding its current position.
 - `uav_worker_node` always commands yaw 0 (north), so the single-ray forward
