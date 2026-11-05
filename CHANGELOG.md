@@ -29,6 +29,8 @@ reproducible release.
   `/supervisor_auth`, stamped in simulated time and published with the
   RELIABLE + TRANSIENT_LOCAL QoS of T6's subscription. `supervisor.launch.py`
   reads `DECISION`, `AUTH_DELAY_S` and `AUTH_TTL_S` from the environment.
+- `docs/`: project documentation, starting with the page of the
+  `guarded_swarms_supervisor` package.
 - This changelog.
 
 ### Changed
