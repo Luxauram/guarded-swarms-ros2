@@ -34,12 +34,22 @@
 #
 # The bag is written to bags/<name>-<timestamp>/. If no name is given, the
 # scenario name "coastal" is used.
+#
+# The run is not recorded if the scenario is down or an earlier run left
+# processes behind (exit 2). A run stopped by a guard (exit 3) keeps its bag
+# for inspection, but the bag must not be analysed (see run_guards.sh).
 # ==============================================================================
 set -o pipefail
 cd "$(dirname "$0")/../.." || exit 1
 source install/setup.bash
+source scripts/pipeline/run_guards.sh
 
 RECORDER_SETTLE_S=2   # let rosbag subscribe before the chain starts producing
+
+# Refuse to record if the run cannot start clean. Checked before the recorder
+# starts, so a refused run leaves no partial bag behind.
+guard_scenario_running || exit 2
+guard_no_leftovers || exit 2
 
 RUN_NAME="${1:-coastal}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
@@ -73,6 +83,8 @@ ros2 bag record -o "${BAG_DIR}" "${TOPICS[@]}" \
 BAG_PID=$!
 
 cleanup() {
+  # Ignore a second Ctrl-C: the script must wait for rosbag to close the bag.
+  trap '' INT TERM
   echo
   echo "[record] stopping rosbag..."
   kill -INT "$BAG_PID" 2>/dev/null
@@ -80,7 +92,9 @@ cleanup() {
   echo "[record] bag saved to ${BAG_DIR}"
   echo "[record] inspect with:  ros2 bag info ${BAG_DIR}"
 }
-trap cleanup EXIT INT TERM
+# The bag is closed once, on exit; Ctrl-C and SIGTERM only trigger the exit.
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 sleep "$RECORDER_SETTLE_S"
 
@@ -110,5 +124,12 @@ export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT
 
 echo "[record] scenario: SEED=${SEED}, DECISION=${DECISION}, AUTH_DELAY_S=${AUTH_DELAY_S}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
 ./scripts/pipeline/test_pipeline.sh
-# test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user
-# interrupts it, the trap above stops the bag cleanly.
+rc=$?
+# Reached only when test_pipeline.sh ends on its own: it normally stays up
+# until Ctrl-C, which ends both scripts through their traps and closes the bag.
+# Exit code 3 means a guard stopped a contaminated run: the bag is kept for
+# inspection, but it must not be analysed.
+if [ "$rc" -eq 3 ]; then
+  echo "[record] WARNING: a guard stopped the run; do not analyse ${BAG_DIR}"
+fi
+exit "$rc"

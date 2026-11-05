@@ -30,11 +30,16 @@
 #     make demo-coastal            # terminal 1, leave running
 #     ./scripts/pipeline/test_pipeline.sh  # terminal 2, does everything else
 #
-# Everything this script starts is torn down on exit, so a re-run is clean.
+# Everything this script starts, and only that, is torn down on exit. The run
+# refuses to start if the scenario is down or an earlier run left processes
+# behind, and stops if the intruder's ground truth has more than one source
+# (see run_guards.sh). Exit codes: 1 no ConfirmedThreat within THREAT_TIMEOUT,
+# 2 refused to start, 3 stopped by a guard; Ctrl-C ends it with 130.
 # ==============================================================================
 set -o pipefail
 cd "$(dirname "$0")/../.." || exit 1
 source install/setup.bash
+source scripts/pipeline/run_guards.sh
 
 # --- tunables ---------------------------------------------------------------
 INTRUDER_DELAY="${INTRUDER_DELAY:-8.0}"    # s before the intruder moves
@@ -114,36 +119,41 @@ THREAT_TIMEOUT="${THREAT_TIMEOUT:-60}"
 # Seconds to let the vehicles react after an automatic authorisation.
 REACT_S="${REACT_S:-10}"
 
+# Metres a vehicle must travel between the two pose snapshots to count as
+# MOVED. The hover alone jitters by about 0.1 m.
+MOVE_THRESHOLD_M="${MOVE_THRESHOLD_M:-0.5}"
+
 PIDS=()
 
-# Tear down everything this script started, leaving a clean slate for a re-run.
+# --- pre-run checks ----------------------------------------------------------
+# Before anything is started, so a refused run leaves nothing behind.
+guard_scenario_running || exit 2
+guard_no_leftovers || exit 2
+
+# Tear down everything this script started, and only that: the scenario's own
+# nodes (vehicle workers, safety boards, bridges) belong to demo-coastal and
+# stay up.
 #
 # Killing a `ros2 launch` process does NOT reliably kill the nodes it spawned:
 # they are reparented and survive as orphans, which then run alongside the next
 # launch and produce a duplicated sensing chain (doubled observation counts,
-# overlapping timestamps). Explicitly sweep the nodes each launch starts. The
-# names are specific to this pipeline; nothing else in the workspace shares them.
+# overlapping timestamps). stop_pipeline_processes therefore also sweeps the
+# nodes by name, and checks that nothing survives.
 cleanup() {
+  # Ignore a second Ctrl-C: an interrupted teardown would leave nodes running.
+  trap '' INT TERM
   echo
   echo "[test] tearing down..."
   for pid in "${PIDS[@]}"; do
     kill "$pid" 2>/dev/null
   done
-  for n in radar_agent_node rf_agent_node acoustic_agent_node eo_agent_node \
-           interpretation_node candidate_transition_node \
-           mission_transition_node dispatch_transition_node \
-           scripted_supervisor_node \
-           uav_worker_node ugv_worker_node intruder_node; do
-    pkill -f "$n" 2>/dev/null
-  done
-  pkill -f "sensing.launch" 2>/dev/null
-  pkill -f "tbcspn.launch" 2>/dev/null
-  pkill -f "supervisor.launch" 2>/dev/null
-  pkill -f "intruder.launch" 2>/dev/null
+  stop_pipeline_processes
   wait 2>/dev/null
   echo "[test] done."
 }
-trap cleanup EXIT INT TERM
+# The teardown runs once, on exit; Ctrl-C and SIGTERM only trigger the exit.
+trap cleanup EXIT
+trap 'exit 130' INT TERM
 
 echo "[test] launching intruder (vector ${ATTACK_VECTOR}, delay ${INTRUDER_DELAY}s, speed ${INTRUDER_SPEED} m/s)..."
 ros2 launch guarded_swarms_bringup intruder.launch.py \
@@ -195,8 +205,15 @@ if [ "$MANUAL_AUTH" = "1" ]; then
   PIDS+=($MISSION_WATCH_PID)
 fi
 
-# Ground-truth pose "x,y,z" of a Gazebo model, or empty if not found.
-pose() { gz model -m "$1" -p 2>/dev/null | grep -A1 Pose | tail -1 | tr -d ' []'; }
+# One intruder only: a second source of ground truth would mix two trajectories
+# in the data.
+guard_single_ground_truth || exit 3
+
+# Ground-truth position "x,y,z" of a Gazebo model, or empty if not found.
+pose() {
+  gz model -m "$1" -p 2>/dev/null | grep -A1 Pose | tail -1 | tr -d '[]' \
+    | awk '{ if (NF >= 3) printf "%s,%s,%s", $1, $2, $3 }'
+}
 
 # Starting poses, taken now: the intruder is still far from the sensors, so no
 # vehicle has a task yet. The three gz calls take several seconds, and after
@@ -228,10 +245,18 @@ got_threat=0
 # stream -- usually a PossibleUAV or CandidateTarget -- and only rarely lands
 # on a ConfirmedThreat, so it misses threats that are in fact present. A
 # continuous grep sees every token and cannot miss it.)
-if timeout "${THREAT_TIMEOUT}" bash -c '
+#
+# The watch runs in the background, and the script waits for it: timeout puts
+# itself in a process group of its own, which Ctrl-C does not reach, so in the
+# foreground it would hold a Ctrl-C back for up to THREAT_TIMEOUT. The wait
+# builtin lets Ctrl-C through at once, and the teardown then stops the watch.
+timeout "${THREAT_TIMEOUT}" bash -c '
     stdbuf -oL ros2 topic echo /interp_tokens --field label 2>/dev/null \
       | grep -q -m1 ConfirmedThreat
-  '; then
+  ' &
+THREAT_WATCH_PID=$!
+PIDS+=($THREAT_WATCH_PID)
+if wait "$THREAT_WATCH_PID"; then
   got_threat=1
 fi
 if (( got_threat == 0 )); then
@@ -281,13 +306,21 @@ after_uav0=$(pose x500_lidar_front_0)
 after_uav1=$(pose x500_lidar_front_1)
 after_ugv=$(pose r1_rover_2)
 
-# Report whether a vehicle's pose changed between the before/after snapshots.
+# Report whether a vehicle moved more than MOVE_THRESHOLD_M between the
+# before/after snapshots.
 moved() {
-  local label="$1" b="$2" a="$3"
-  if [[ "$b" == "$a" ]]; then
-    echo "  $label: still   $a"
+  local label="$1" b="$2" a="$3" d
+  if [ -z "$b" ] || [ -z "$a" ]; then
+    echo "  $label: unknown (no pose from Gazebo)"
+    return
+  fi
+  d=$(LC_ALL=C awk -v b="$b" -v a="$a" 'BEGIN {
+        split(b, p, ","); split(a, q, ",")
+        printf "%.1f", sqrt((q[1]-p[1])^2 + (q[2]-p[2])^2 + (q[3]-p[3])^2) }')
+  if LC_ALL=C awk -v d="$d" -v t="$MOVE_THRESHOLD_M" 'BEGIN { exit !(d > t) }'; then
+    echo "  $label: MOVED ${d} m   ($b -> $a)"
   else
-    echo "  $label: MOVED   $b  ->  $a"
+    echo "  $label: still (${d} m)   $a"
   fi
 }
 
