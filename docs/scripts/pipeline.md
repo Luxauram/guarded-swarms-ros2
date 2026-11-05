@@ -18,7 +18,8 @@ make demo-coastal                               # terminal 1: the scenario, leav
 ```
 
 Both scripts stay up after the result, so the vehicles can be watched. Ctrl-C
-ends the run.
+ends the run. With `STAY_UP=0` they end on their own once the report is
+printed, as in the [campaigns](../experiments/campaigns.md).
 
 ## What a run does
 
@@ -36,7 +37,8 @@ ends the run.
    `AUTH_DELAY_S + REACT_S` seconds.
 7. **Report.** Second snapshot, [verdict](#verdict), the supervisor's decision
    and the dispatch log.
-8. **Teardown** on Ctrl-C (see [Teardown](#teardown)).
+8. **Teardown** on Ctrl-C, or right after the report with `STAY_UP=0` (see
+   [Teardown](#teardown)).
 
 ## Configuration
 
@@ -46,24 +48,26 @@ Set the variables in front of the command; both scripts pass them on:
 SEED=1000 DECISION=deny ./scripts/record/record_run.sh withheld
 ```
 
-| Variable                                                        | Default           | Meaning                                                                                                                  |
-| --------------------------------------------------------------- | ----------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `ATTACK_VECTOR`                                                 | `frontal`         | Intruder ingress: `frontal`, `east-deep`, `rear`, or `demo` (a demonstration path, not a measurement vector)             |
-| `INTRUDER_DELAY`                                                | `8.0`             | Seconds before the intruder starts moving                                                                                |
-| `INTRUDER_SPEED`                                                | `6.0`             | Intruder speed, m/s                                                                                                      |
-| `SEED`                                                          | drawn and printed | Seed of the run. The sensing agents use `SEED+1` (radar), `+2` (RF), `+3` (acoustic) and `+4` (EO)                       |
-| `RADAR_ENABLED`, `RF_ENABLED`, `ACOUSTIC_ENABLED`, `EO_ENABLED` | `true`            | Per-modality enables                                                                                                     |
-| `EO_DELAY_S`                                                    | `0`               | Delay of EO delivery, seconds                                                                                            |
-| `RF_LABEL`                                                      | `LikelyDroneLink` | Label emitted by T2                                                                                                      |
-| `EXPECT_THREAT`                                                 | `yes`             | `no`: do not wait for a ConfirmedThreat; let the pipeline run for `OBSERVE_S` seconds instead                            |
-| `OBSERVE_S`                                                     | `90`              | Observation time when `EXPECT_THREAT=no`, seconds                                                                        |
-| `DECISION`                                                      | `authorise`       | Scripted supervisor: `authorise`, `deny` (explicit refusal) or `none` (no decision)                                      |
-| `AUTH_DELAY_S`                                                  | `0`               | Supervisor decision time after the first ConfirmedThreat, simulated seconds                                              |
-| `AUTH_TTL_S`                                                    | `15`              | Validity of the decision, seconds                                                                                        |
-| `MANUAL_AUTH`                                                   | `0`               | `1`: the supervisor decides from the console (`console/decision_panel.html`), and the scripted supervisor is not started |
-| `THREAT_TIMEOUT`                                                | `60`              | Seconds to wait for a ConfirmedThreat                                                                                    |
-| `REACT_S`                                                       | `10`              | Seconds to let the vehicles react after an automatic decision                                                            |
-| `MOVE_THRESHOLD_M`                                              | `0.5`             | Metres a vehicle must travel to count as moved                                                                           |
+| Variable                                                        | Default                   | Meaning                                                                                                                  |
+| --------------------------------------------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `ATTACK_VECTOR`                                                 | `frontal`                 | Intruder ingress: `frontal`, `east-deep`, `rear`, or `demo` (a demonstration path, not a measurement vector)             |
+| `INTRUDER_DELAY`                                                | `8.0`                     | Seconds before the intruder starts moving                                                                                |
+| `INTRUDER_SPEED`                                                | `6.0`                     | Intruder speed, m/s                                                                                                      |
+| `SEED`                                                          | drawn and printed         | Seed of the run. The sensing agents use `SEED+1` (radar), `+2` (RF), `+3` (acoustic) and `+4` (EO)                       |
+| `RADAR_ENABLED`, `RF_ENABLED`, `ACOUSTIC_ENABLED`, `EO_ENABLED` | `true`                    | Per-modality enables                                                                                                     |
+| `EO_DELAY_S`                                                    | `0`                       | Delay of EO delivery, seconds                                                                                            |
+| `RF_LABEL`                                                      | `LikelyDroneLink`         | Label emitted by T2                                                                                                      |
+| `EXPECT_THREAT`                                                 | `yes`                     | `no`: do not wait for a ConfirmedThreat; let the pipeline run for `OBSERVE_S` seconds instead                            |
+| `OBSERVE_S`                                                     | `90`                      | Observation time when `EXPECT_THREAT=no`, seconds                                                                        |
+| `DECISION`                                                      | `authorise`               | Scripted supervisor: `authorise`, `deny` (explicit refusal) or `none` (no decision)                                      |
+| `AUTH_DELAY_S`                                                  | `0`                       | Supervisor decision time after the first ConfirmedThreat, simulated seconds                                              |
+| `AUTH_TTL_S`                                                    | `15`                      | Validity of the decision, seconds                                                                                        |
+| `MANUAL_AUTH`                                                   | `0`                       | `1`: the supervisor decides from the console (`console/decision_panel.html`), and the scripted supervisor is not started |
+| `THREAT_TIMEOUT`                                                | `60`                      | Seconds to wait for a ConfirmedThreat                                                                                    |
+| `REACT_S`                                                       | `10`                      | Seconds to let the vehicles react after an automatic decision                                                            |
+| `MOVE_THRESHOLD_M`                                              | `0.5`                     | Metres a vehicle must travel to count as moved                                                                           |
+| `STAY_UP`                                                       | `1`                       | `0`: end the run once the report is printed, with exit code 0, instead of staying up until Ctrl-C                        |
+| `BAG_DIR`                                                       | `bags/<name>-<timestamp>` | `record_run.sh` only: folder of the bag. rosbag2 refuses an existing folder                                              |
 
 The counterfactual runs of the thesis use these variables:
 
@@ -82,10 +86,11 @@ draws can meet slightly different positions.
 
 | Code  | Meaning                                                                                                                                                                                   |
 | ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`   | The run ended on its own after the report (`STAY_UP=0`)                                                                                                                                   |
 | `1`   | No ConfirmedThreat within `THREAT_TIMEOUT` (also: unknown `ATTACK_VECTOR`)                                                                                                                |
 | `2`   | Refused to start: the scenario is down, or an earlier run left processes behind. Nothing of the run was started; `record_run.sh` checks before starting the recorder, so it writes no bag |
 | `3`   | Stopped by a guard: the intruder's ground truth does not have exactly one source. `record_run.sh` keeps the bag for inspection, but **the bag must not be analysed**                      |
-| `130` | Ended with Ctrl-C or SIGTERM: the normal end of a run                                                                                                                                     |
+| `130` | Ended with Ctrl-C or SIGTERM: the normal end of a run with `STAY_UP=1`                                                                                                                    |
 
 `record_run.sh` exits with the code of `test_pipeline.sh`.
 
@@ -170,6 +175,7 @@ python3 scripts/metrics/audit_timing.py bags/my-run-*
   ConfirmedThreat.
 - The teardown runs once, on exit. A second Ctrl-C is ignored, so the teardown
   and the closing of the bag always complete.
+- With `STAY_UP=0` the run ends after the report, through the same teardown.
 - Only what the run started is stopped. The scenario stays up for the next run.
 
 ## Logs

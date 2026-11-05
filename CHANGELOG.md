@@ -41,6 +41,18 @@ reproducible release.
   processes of an earlier run are still alive, and stops (exit 3) if the
   intruder's ground truth does not have exactly one source. The run scripts
   are documented in `docs/scripts/pipeline.md`.
+- `scripts/experiments/run_campaign.sh`: unattended campaigns of recorded
+  runs over the configurations of `scripts/experiments/configurations.conf`
+  (the eleven of the thesis campaign). Every run starts from a freshly
+  started scenario; the runs alternate between the configurations, and run
+  _n_ has the same seed in all of them. A campaign can be stopped with Ctrl-C
+  or after `MAX_HOURS` and continued later with the same command; every
+  attempt has its own folder and its own line in `manifest.csv`, and nothing
+  is overwritten. Documented in `docs/experiments/campaigns.md`.
+- `scripts/sim/coastal_up.sh` and `scripts/sim/coastal_down.sh`: start the
+  coastal scenario with the settings of `make demo-coastal`, without
+  terminals, and wait until it is ready; stop it and check that nothing
+  survives.
 - This changelog.
 
 ### Changed
@@ -56,6 +68,10 @@ reproducible release.
 - `scripts/record/record_run.sh` runs the pre-run checks before it starts the
   recorder, warns when a guard stopped the run, and exits with the code of
   `test_pipeline.sh`.
+- `scripts/pipeline/test_pipeline.sh` ends on its own, with exit code 0, once
+  the report is printed if `STAY_UP=0`; by default it still stays up until
+  Ctrl-C. `scripts/record/record_run.sh` writes the bag to `BAG_DIR` when it
+  is set.
 - The manual authorisation command shown by `tbcspn.launch.py` publishes with
   TRANSIENT_LOCAL durability, as T6's subscription requires.
 - `results/` is ignored by git: analysis outputs are regenerated from the
@@ -121,3 +137,5 @@ Found after the thesis.
   Gazebo, PX4 and the coordination chain run on simulated time. At a
   real-time factor of 0.97 the intruder, commanded at 6.0 m/s, moves at
   6.2 m/s in simulated time, and the gap grows as the simulation slows down.
+- `scripts/kill_all.sh` (`make kill-all`) matches node names anywhere in a
+  command line, so it also kills an editor open on a node's source file.

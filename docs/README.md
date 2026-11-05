@@ -15,6 +15,12 @@ The pages in this folder document each part of the project in detail.
 | ------------------------------------------- | -------------------------------------------------------------------------- |
 | [Pipeline run scripts](scripts/pipeline.md) | One end-to-end run, its recording, and the checks that keep its data clean |
 
+## Experiments
+
+| Page                                  | Description                                                                             |
+| ------------------------------------- | --------------------------------------------------------------------------------------- |
+| [Campaigns](experiments/campaigns.md) | Unattended campaigns of recorded runs, and the scripts that start and stop the scenario |
+
 The remaining sections (getting started, architecture, the other packages,
-the other scripts, supervisor console, experiments, conventions) are added as
-the documentation is completed.
+the other scripts, supervisor console, conventions) are added as the
+documentation is completed.

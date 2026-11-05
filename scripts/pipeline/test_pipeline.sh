@@ -33,8 +33,10 @@
 # Everything this script starts, and only that, is torn down on exit. The run
 # refuses to start if the scenario is down or an earlier run left processes
 # behind, and stops if the intruder's ground truth has more than one source
-# (see run_guards.sh). Exit codes: 1 no ConfirmedThreat within THREAT_TIMEOUT,
-# 2 refused to start, 3 stopped by a guard; Ctrl-C ends it with 130.
+# (see run_guards.sh). It stays up after the report until Ctrl-C, or ends on
+# its own with STAY_UP=0. Exit codes: 0 report done (STAY_UP=0), 1 no
+# ConfirmedThreat within THREAT_TIMEOUT, 2 refused to start, 3 stopped by a
+# guard; Ctrl-C ends it with 130.
 # ==============================================================================
 set -o pipefail
 cd "$(dirname "$0")/../.." || exit 1
@@ -122,6 +124,10 @@ REACT_S="${REACT_S:-10}"
 # Metres a vehicle must travel between the two pose snapshots to count as
 # MOVED. The hover alone jitters by about 0.1 m.
 MOVE_THRESHOLD_M="${MOVE_THRESHOLD_M:-0.5}"
+
+# 1 = stay up after the report until Ctrl-C, to watch the vehicles; 0 = tear
+# down and exit with 0 once the report is printed (used by the campaigns).
+STAY_UP="${STAY_UP:-1}"
 
 PIDS=()
 
@@ -233,8 +239,10 @@ if [[ "$EXPECT_THREAT" == "no" ]]; then
   echo "[test] letting the pipeline run for ${OBSERVE_S}s..."
   sleep "${OBSERVE_S}"
   echo "[test] done observing; the bag holds the (non-)result."
-  echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
-  wait
+  if [ "$STAY_UP" = "1" ]; then
+    echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
+    wait
+  fi
   exit 0
 fi
 
@@ -336,5 +344,6 @@ echo
 echo "[test] dispatch log:"
 grep -h "Dispatched\|RELEASED\|locked on\|observing from" /tmp/gs_tbcspn.log 2>/dev/null | tail -5
 echo
+[ "$STAY_UP" = "1" ] || exit 0
 echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
 wait

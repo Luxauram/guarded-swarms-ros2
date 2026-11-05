@@ -32,8 +32,8 @@
 #     make demo-coastal                 # terminal 1: the scenario (GUI)
 #     ./scripts/record/record_run.sh [name]    # terminal 2: run + record
 #
-# The bag is written to bags/<name>-<timestamp>/. If no name is given, the
-# scenario name "coastal" is used.
+# The bag is written to bags/<name>-<timestamp>/, or to BAG_DIR if set. If no
+# name is given, the scenario name "coastal" is used.
 #
 # The run is not recorded if the scenario is down or an earlier run left
 # processes behind (exit 2). A run stopped by a guard (exit 3) keeps its bag
@@ -53,8 +53,10 @@ guard_no_leftovers || exit 2
 
 RUN_NAME="${1:-coastal}"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-BAG_DIR="bags/${RUN_NAME}-${STAMP}"
-mkdir -p bags
+# BAG_DIR can be set by the caller, as the campaign script does; by default the
+# bag goes to bags/<name>-<timestamp>/. rosbag2 refuses an existing directory.
+BAG_DIR="${BAG_DIR:-bags/${RUN_NAME}-${STAMP}}"
+mkdir -p "$(dirname "$BAG_DIR")"
 
 # Topics that carry the chain and everything a metric needs a timestamp for.
 TOPICS=(
@@ -125,8 +127,9 @@ export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT
 echo "[record] scenario: SEED=${SEED}, DECISION=${DECISION}, AUTH_DELAY_S=${AUTH_DELAY_S}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
 ./scripts/pipeline/test_pipeline.sh
 rc=$?
-# Reached only when test_pipeline.sh ends on its own: it normally stays up
-# until Ctrl-C, which ends both scripts through their traps and closes the bag.
+# Reached when test_pipeline.sh ends on its own: with STAY_UP=0 after the
+# report, or on an error. By default it stays up until Ctrl-C, which ends both
+# scripts through their traps and closes the bag.
 # Exit code 3 means a guard stopped a contaminated run: the bag is kept for
 # inspection, but it must not be analysed.
 if [ "$rc" -eq 3 ]; then
