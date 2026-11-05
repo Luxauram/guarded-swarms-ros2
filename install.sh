@@ -252,6 +252,7 @@ colcon build \
         guarded_swarms_control \
         guarded_swarms_sensing \
         guarded_swarms_tbcspn \
+        guarded_swarms_supervisor \
         guarded_swarms_bringup \
     --symlink-install \
     --event-handlers console_direct+

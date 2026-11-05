@@ -56,7 +56,7 @@ setup-workspace:
 	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install --event-handlers console_direct+"
 	@echo ""
 	@echo "Building remaining packages..."
-	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL) --packages-select guarded_swarms_safety guarded_swarms_control guarded_swarms_sensing guarded_swarms_tbcspn guarded_swarms_bringup"
+	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL) --packages-select guarded_swarms_safety guarded_swarms_control guarded_swarms_sensing guarded_swarms_tbcspn guarded_swarms_supervisor guarded_swarms_bringup"
 	@echo ""
 	@echo "Workspace built successfully."
 	@echo ""

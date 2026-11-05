@@ -22,6 +22,13 @@ reproducible release.
 - `scripts/tools/time_auth_stub.sh`: times the steps that
   `scripts/pipeline/test_pipeline.sh` performs between the first
   ConfirmedThreat and the authorisation.
+- `guarded_swarms_supervisor` package with `scripted_supervisor_node`, which
+  stands in for the human supervisor of T6 in automated runs. At the first
+  ConfirmedThreat of each target it waits a configurable delay in simulated
+  time, then issues one decision (authorise, deny or none) on
+  `/supervisor_auth`, stamped in simulated time and published with the
+  RELIABLE + TRANSIENT_LOCAL QoS of T6's subscription. `supervisor.launch.py`
+  reads `DECISION`, `AUTH_DELAY_S` and `AUTH_TTL_S` from the environment.
 - This changelog.
 
 ### Changed
