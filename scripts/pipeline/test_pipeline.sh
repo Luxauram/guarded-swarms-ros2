@@ -18,10 +18,11 @@
 # ==============================================================================
 # test_pipeline.sh - one-command end-to-end test of the Guarded Swarms pipeline
 #
-# Launches the intruder, the sensing layer and the TB-CSPN coordination layer
-# against an already-running coastal scenario, waits for the chain to raise a
-# ConfirmedThreat, issues the supervisor authorisation automatically, and
-# reports whether an assigned vehicle actually moved.
+# Launches the intruder, the sensing layer, the TB-CSPN coordination layer and
+# the scripted supervisor against an already-running coastal scenario, waits
+# for the chain to raise a ConfirmedThreat, lets the supervisor decide, and
+# reports whether an assigned vehicle actually moved. With MANUAL_AUTH=1 the
+# decision comes from the supervisor console instead.
 #
 # It does NOT launch the scenario itself (that needs the Gazebo GUI and its own
 # terminal). Start the scenario first:
@@ -65,9 +66,6 @@ case "$ATTACK_VECTOR" in
   *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear|demo)"; exit 1 ;;
 esac
 
-AUTH_TARGET="${AUTH_TARGET:-intruder}"
-SUPERVISOR="${SUPERVISOR:-supervisor_luca}"
-
 # Seconds to delay EO delivery; a value above the threat TTL reproduces the
 # stale-EO counterfactual (C2) of the paper.
 export EO_DELAY_S="${EO_DELAY_S:-0}"
@@ -90,12 +88,18 @@ export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 EXPECT_THREAT="${EXPECT_THREAT:-yes}"
 OBSERVE_S="${OBSERVE_S:-90}"
 
-# authorise | deny. deny reproduces the "authorisation withheld" counterfactual
-# (Sec 5.3): the threat forms but no mission is released.
-DECISION="${DECISION:-authorise}"
+# The scripted supervisor's decision: authorise | deny | none. deny reproduces
+# the "authorisation withheld" counterfactual (Sec 5.3): the threat forms but no
+# mission is released. none issues no decision at all. Exported, because
+# supervisor.launch.py reads these three from the environment.
+export DECISION="${DECISION:-authorise}"
+# Supervisor decision time, in simulated seconds from the first ConfirmedThreat.
+export AUTH_DELAY_S="${AUTH_DELAY_S:-0}"
+# Validity of the decision, in seconds.
+export AUTH_TTL_S="${AUTH_TTL_S:-15}"
 
-# 1 = wait for the supervisor to authorise from the console/browser instead of
-# publishing it automatically.
+# 1 = the supervisor decides from the console/browser, and the scripted
+# supervisor is not started.
 MANUAL_AUTH="${MANUAL_AUTH:-0}"
 
 # s to wait for a ConfirmedThreat (a slower intruder takes longer to reach full
@@ -123,11 +127,13 @@ cleanup() {
   for n in radar_agent_node rf_agent_node acoustic_agent_node eo_agent_node \
            interpretation_node candidate_transition_node \
            mission_transition_node dispatch_transition_node \
+           scripted_supervisor_node \
            uav_worker_node ugv_worker_node intruder_node; do
     pkill -f "$n" 2>/dev/null
   done
   pkill -f "sensing.launch" 2>/dev/null
   pkill -f "tbcspn.launch" 2>/dev/null
+  pkill -f "supervisor.launch" 2>/dev/null
   pkill -f "intruder.launch" 2>/dev/null
   wait 2>/dev/null
   echo "[test] done."
@@ -156,6 +162,16 @@ ros2 launch guarded_swarms_tbcspn tbcspn.launch.py \
   >/tmp/gs_tbcspn.log 2>&1 &
 PIDS+=($!)
 
+# In automatic mode the scripted supervisor issues the T6 decision. It runs for
+# the whole test, so its decision cannot be lost. In manual mode the console
+# decides instead.
+if [ "$MANUAL_AUTH" != "1" ]; then
+  echo "[test] launching scripted supervisor ('${DECISION}', ${AUTH_DELAY_S}s after the first ConfirmedThreat)..."
+  ros2 launch guarded_swarms_supervisor supervisor.launch.py \
+    >/tmp/gs_supervisor.log 2>&1 &
+  PIDS+=($!)
+fi
+
 # Start watching /mission_tokens IMMEDIATELY, in the background, writing every
 # released mission_id to a file. This must begin now -- not later in the manual
 # phase -- because the ConfirmedThreat can form while we are still waiting for
@@ -173,6 +189,16 @@ if [ "$MANUAL_AUTH" = "1" ]; then
   MISSION_WATCH_PID=$!
   PIDS+=($MISSION_WATCH_PID)
 fi
+
+# Ground-truth pose "x,y,z" of a Gazebo model, or empty if not found.
+pose() { gz model -m "$1" -p 2>/dev/null | grep -A1 Pose | tail -1 | tr -d ' []'; }
+
+# Starting poses, taken now: the intruder is still far from the sensors, so no
+# vehicle has a task yet. The three gz calls take several seconds, and after
+# the ConfirmedThreat a mission may already be flying.
+before_uav0=$(pose x500_lidar_front_0)
+before_uav1=$(pose x500_lidar_front_1)
+before_ugv=$(pose r1_rover_2)
 
 # --- wait for a ConfirmedThreat --------------------------------------------
 # In a counterfactual run where the threat must NOT form (EXPECT_THREAT=no, the
@@ -210,14 +236,7 @@ if (( got_threat == 0 )); then
 fi
 echo "[test] ConfirmedThreat is up."
 
-# --- record positions, authorise, record again -----------------------------
-
-# Ground-truth pose "x,y,z" of a Gazebo model, or empty if not found.
-pose() { gz model -m "$1" -p 2>/dev/null | grep -A1 Pose | tail -1 | tr -d ' []'; }
-
-before_uav0=$(pose x500_lidar_front_0)
-before_uav1=$(pose x500_lidar_front_1)
-before_ugv=$(pose r1_rover_2)
+# --- the decision, then the vehicles' reaction -----------------------------
 
 if [ "$MANUAL_AUTH" = "1" ]; then
   # Manual mode: the supervisor authorises from the console/browser. The script
@@ -245,20 +264,12 @@ if [ "$MANUAL_AUTH" = "1" ]; then
       echo "[swarm] mission released: ${rec#* }  (authorised from the console)"
     done
 else
-  echo "[test] supervisor decision '${DECISION}' for '${AUTH_TARGET}' as '${SUPERVISOR}'..."
-  # Publish the authorisation as a short repeated burst rather than with --once.
-  # A single --once publisher is created and destroyed immediately; with RELIABLE
-  # QoS the DDS handshake with T6's subscription may not complete in time and the
-  # message is lost. transient_local durability matches T6's subscription so a
-  # late-joining handshake still receives it, and the 5 Hz burst removes any
-  # residual timing gap. T6 releases the mission once and ignores repeats for the
-  # same live threat.
-  ros2 topic pub --rate 5 --times 10 --qos-durability transient_local \
-    /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
-    "{target_id: '${AUTH_TARGET}', authorised_by: '${SUPERVISOR}', decision: '${DECISION}', ttl_s: 15.0}" \
-    >/dev/null 2>&1
-  echo "[test] letting the vehicles react (${REACT_S}s)..."
-  sleep "${REACT_S}"
+  # The scripted supervisor, running since the start, decides on its own
+  # AUTH_DELAY_S simulated seconds after the first ConfirmedThreat. The script
+  # only waits for the decision and for the vehicles' reaction.
+  echo "[test] scripted supervisor: '${DECISION}' ${AUTH_DELAY_S}s after the first ConfirmedThreat."
+  echo "[test] letting the vehicles react (${AUTH_DELAY_S}s + ${REACT_S}s)..."
+  sleep "$(LC_ALL=C awk -v a="${AUTH_DELAY_S}" -v b="${REACT_S}" 'BEGIN { print a + b }')"
 fi
 
 after_uav0=$(pose x500_lidar_front_0)
@@ -280,6 +291,9 @@ echo "[test] === result ==="
 moved "UAV0" "$before_uav0" "$after_uav0"
 moved "UAV1" "$before_uav1" "$after_uav1"
 moved "UGV " "$before_ugv"  "$after_ugv"
+echo
+echo "[test] supervisor log:"
+grep -h "Decision for" /tmp/gs_supervisor.log 2>/dev/null | tail -5
 echo
 echo "[test] dispatch log:"
 grep -h "Dispatched\|RELEASED\|locked on\|observing from" /tmp/gs_tbcspn.log 2>/dev/null | tail -5

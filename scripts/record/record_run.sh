@@ -85,8 +85,9 @@ trap cleanup EXIT INT TERM
 sleep "$RECORDER_SETTLE_S"
 
 # Drive the actual run through the existing test script. It launches the
-# intruder, sensing and TB-CSPN, waits for a ConfirmedThreat, authorises, and
-# reports. When it returns (or is interrupted), the trap stops the bag.
+# intruder, sensing, TB-CSPN and the scripted supervisor, waits for a
+# ConfirmedThreat, lets the supervisor decide, and reports. When it returns (or
+# is interrupted), the trap stops the bag.
 echo "[record] launching the pipeline via test_pipeline.sh..."
 echo "============================================================"
 # Propagate the scenario knobs to the child process. A variable set as
@@ -95,6 +96,8 @@ echo "============================================================"
 # ones a counterfactual run needs to override; any left unset are exported
 # empty and test_pipeline.sh applies its own default via ${VAR:-default}.
 export DECISION="${DECISION:-authorise}"
+export AUTH_DELAY_S="${AUTH_DELAY_S:-0}"
+export AUTH_TTL_S="${AUTH_TTL_S:-15}"
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 export EO_ENABLED="${EO_ENABLED:-true}"
 export EO_DELAY_S="${EO_DELAY_S:-0}"
@@ -102,9 +105,9 @@ export ATTACK_VECTOR="${ATTACK_VECTOR:-frontal}"
 export RADAR_ENABLED="${RADAR_ENABLED:-true}"
 export RF_ENABLED="${RF_ENABLED:-true}"
 export ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
-export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT AUTH_TARGET SUPERVISOR
+export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT
 
-echo "[record] scenario: DECISION=${DECISION}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
+echo "[record] scenario: DECISION=${DECISION}, AUTH_DELAY_S=${AUTH_DELAY_S}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
 ./scripts/pipeline/test_pipeline.sh
 # test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user
 # interrupts it, the trap above stops the bag cleanly.

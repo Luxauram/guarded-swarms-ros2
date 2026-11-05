@@ -68,11 +68,17 @@ Monitor:
   ros2 topic echo /interp_tokens  --field label
   ros2 topic echo /mission_tokens
 
-Authorise (from the console, or by hand for now):
-  ros2 topic pub --rate 5 --times 10 /supervisor_auth \\
-    guarded_swarms_msgs/msg/SupervisorAuth \\
-    "{target_id: 'intruder', authorised_by: 'supervisor_luca', \\
-      decision: 'authorise', ttl_s: 15.0}"
+Authorise:
+  - automated runs: the scripted supervisor decides on its own
+    (ros2 launch guarded_swarms_supervisor supervisor.launch.py);
+  - interactive runs: the supervisor console, or by hand:
+      ros2 topic pub --once --keep-alive 5 \\
+        --qos-durability transient_local /supervisor_auth \\
+        guarded_swarms_msgs/msg/SupervisorAuth \\
+        "{target_id: 'intruder', authorised_by: 'supervisor_luca', \\
+          decision: 'authorise', ttl_s: 15.0}"
+    T6 subscribes with TRANSIENT_LOCAL durability, so the publisher must
+    offer it too; --keep-alive keeps the message available while T6 matches.
 
 @author Luca D'Aurizio
 """
@@ -163,8 +169,11 @@ def generate_launch_description():
         LogInfo(msg="Prereq: sensing layer producing /obs_tokens"),
         LogInfo(msg="Monitor:  ros2 topic echo /interp_tokens --field label"),
         LogInfo(msg="          ros2 topic echo /mission_tokens"),
-        LogInfo(msg="Authorise: ros2 topic pub --rate 5 --times 10 \\"),
-        LogInfo(msg="  /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \\"),
+        LogInfo(msg="Authorise: scripted supervisor (supervisor.launch.py),"),
+        LogInfo(msg="  the console, or by hand:"),
+        LogInfo(msg="  ros2 topic pub --once --keep-alive 5 \\"),
+        LogInfo(msg="  --qos-durability transient_local /supervisor_auth \\"),
+        LogInfo(msg="  guarded_swarms_msgs/msg/SupervisorAuth \\"),
         LogInfo(msg="  \"{target_id: 'intruder', authorised_by: 'sup', \\"),
         LogInfo(msg="    decision: 'authorise', ttl_s: 15.0}\""),
         LogInfo(msg="============================================================"),

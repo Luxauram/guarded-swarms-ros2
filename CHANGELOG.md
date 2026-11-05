@@ -33,6 +33,16 @@ reproducible release.
 
 ### Changed
 
+- `scripts/pipeline/test_pipeline.sh` authorises through the scripted
+  supervisor instead of the command-line stub, so nothing but the
+  supervisor's own delay sits between the first ConfirmedThreat and the
+  decision. New variables `AUTH_DELAY_S` and `AUTH_TTL_S`; `DECISION` also
+  accepts `none`; `AUTH_TARGET` and `SUPERVISOR` are removed. The starting
+  poses for the verdict are taken before a threat can form.
+- `scripts/record/record_run.sh` passes `AUTH_DELAY_S` and `AUTH_TTL_S` to
+  the run.
+- The manual authorisation command shown by `tbcspn.launch.py` publishes with
+  TRANSIENT_LOCAL durability, as T6's subscription requires.
 - `results/` is ignored by git: analysis outputs are regenerated from the
   bags by the scripts in `scripts/metrics/`.
 
