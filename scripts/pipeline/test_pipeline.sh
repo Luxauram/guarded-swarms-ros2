@@ -79,6 +79,11 @@ RF_ENABLED="${RF_ENABLED:-true}"
 ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
 EO_ENABLED="${EO_ENABLED:-true}"
 
+# Seed of the run's random draws (sensor noise, missed detections, false
+# alarms); each sensing agent derives its own seed from it. Drawn at random
+# when unset, and printed, so that any run can be repeated.
+export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
+
 # T2's emitted label; set to LikelyCivilianTraffic to reproduce the conflict
 # counterfactual (C3).
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
@@ -148,7 +153,7 @@ ros2 launch guarded_swarms_bringup intruder.launch.py \
   >/tmp/gs_intruder.log 2>&1 &
 PIDS+=($!)
 
-echo "[test] launching sensing layer..."
+echo "[test] launching sensing layer (seed ${SEED})..."
 ros2 launch guarded_swarms_sensing sensing.launch.py \
   radar:="${RADAR_ENABLED}" rf:="${RF_ENABLED}" \
   acoustic:="${ACOUSTIC_ENABLED}" eo:="${EO_ENABLED}" \

@@ -59,7 +59,9 @@
 #include <std_msgs/msg/bool.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -73,11 +75,24 @@ constexpr double kPathLossCoeff = 20.0;
 // Ghost false alarm: nominal received power (dBm) and confidence discount.
 constexpr double kGhostRssiDbm = -90.0;
 constexpr double kGhostConfidenceFactor = 0.5;
+// The generator takes 32-bit seeds.
+constexpr int64_t kMaxSeed = 4294967295;
 }
 
 class RfAgentNode : public rclcpp::Node {
  public:
-  RfAgentNode() : Node("rf_agent_node"), rng_(std::random_device{}()) {
+  RfAgentNode() : Node("rf_agent_node") {
+    // --- Random generator ---
+    // A seed above 0 fixes the noise of the run, so that it can be reproduced;
+    // 0 draws a seed at random. Either way the seed in use is logged below.
+    const int64_t seed = this->declare_parameter<int64_t>("seed", 0);
+    if (seed < 0 || seed > kMaxSeed) {
+      throw std::invalid_argument("seed must be between 0 and 4294967295");
+    }
+    seed_drawn_ = (seed == 0);
+    seed_ = seed_drawn_ ? std::random_device{}() : static_cast<uint32_t>(seed);
+    rng_.seed(seed_);
+
     // Placement (simulation model). The mast sits inland, well away from the
     // radar so the two modalities are visually distinct in the demo.
     pos_x_ = this->declare_parameter<double>("pos_x", -150.0);
@@ -153,6 +168,9 @@ class RfAgentNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "  omnidirectional; sees transmitting targets only");
     RCLCPP_INFO(this->get_logger(), "  tracking %zu target(s)", n);
+    RCLCPP_INFO(this->get_logger(), "  seed %lu%s",
+                static_cast<unsigned long>(seed_),
+                seed_drawn_ ? " (drawn at random: seed parameter was 0)" : "");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
@@ -245,6 +263,8 @@ class RfAgentNode : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr timer_;
 
   std::mt19937 rng_;
+  uint32_t seed_ = 0;        // the seed in use, logged at start-up
+  bool seed_drawn_ = false;  // drawn at random (seed parameter was 0)
   std::uniform_real_distribution<double> uniform_{0.0, 1.0};
   uint64_t seq_ = 0;
 };

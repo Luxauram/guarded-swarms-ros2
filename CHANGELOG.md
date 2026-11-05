@@ -31,6 +31,11 @@ reproducible release.
   reads `DECISION`, `AUTH_DELAY_S` and `AUTH_TTL_S` from the environment.
 - `docs/`: project documentation, starting with the page of the
   `guarded_swarms_supervisor` package.
+- `seed` parameter in the four sensing agents: a value above 0 fixes the
+  random generator, 0 draws a seed at random, and the seed in use is logged
+  at start-up. `sensing.launch.py` takes the seed of the run from `SEED` and
+  gives each agent its own (`SEED+1` to `SEED+4`); `test_pipeline.sh` and
+  `record_run.sh` draw and print one when `SEED` is unset.
 - This changelog.
 
 ### Changed

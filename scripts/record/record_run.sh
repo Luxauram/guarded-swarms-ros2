@@ -95,6 +95,7 @@ echo "============================================================"
 # separate process) would otherwise fall back to its own defaults. Export the
 # ones a counterfactual run needs to override; any left unset are exported
 # empty and test_pipeline.sh applies its own default via ${VAR:-default}.
+export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
 export DECISION="${DECISION:-authorise}"
 export AUTH_DELAY_S="${AUTH_DELAY_S:-0}"
 export AUTH_TTL_S="${AUTH_TTL_S:-15}"
@@ -107,7 +108,7 @@ export RF_ENABLED="${RF_ENABLED:-true}"
 export ACOUSTIC_ENABLED="${ACOUSTIC_ENABLED:-true}"
 export INTRUDER_SPEED INTRUDER_DELAY THREAT_TIMEOUT
 
-echo "[record] scenario: DECISION=${DECISION}, AUTH_DELAY_S=${AUTH_DELAY_S}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
+echo "[record] scenario: SEED=${SEED}, DECISION=${DECISION}, AUTH_DELAY_S=${AUTH_DELAY_S}, RF_LABEL=${RF_LABEL}, EO_ENABLED=${EO_ENABLED}, EO_DELAY_S=${EO_DELAY_S}, ATTACK_VECTOR=${ATTACK_VECTOR}"
 ./scripts/pipeline/test_pipeline.sh
 # test_pipeline.sh ends with `wait` (it stays up until Ctrl-C). When the user
 # interrupts it, the trap above stops the bag cleanly.

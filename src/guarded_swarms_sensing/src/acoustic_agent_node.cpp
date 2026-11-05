@@ -57,7 +57,9 @@
 
 #include <array>
 #include <cmath>
+#include <cstdint>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -66,12 +68,24 @@ constexpr double kPi = 3.14159265358979323846;
 constexpr int kQueueSize = 10;
 // How much confidence falls off at max range (fraction of the base value).
 constexpr double kConfidenceRangeFalloff = 0.4;
+// The generator takes 32-bit seeds.
+constexpr int64_t kMaxSeed = 4294967295;
 }
 
 class AcousticAgentNode : public rclcpp::Node {
  public:
-  AcousticAgentNode()
-      : Node("acoustic_agent_node"), rng_(std::random_device{}()) {
+  AcousticAgentNode() : Node("acoustic_agent_node") {
+    // --- Random generator ---
+    // A seed above 0 fixes the noise of the run, so that it can be reproduced;
+    // 0 draws a seed at random. Either way the seed in use is logged below.
+    const int64_t seed = this->declare_parameter<int64_t>("seed", 0);
+    if (seed < 0 || seed > kMaxSeed) {
+      throw std::invalid_argument("seed must be between 0 and 4294967295");
+    }
+    seed_drawn_ = (seed == 0);
+    seed_ = seed_drawn_ ? std::random_device{}() : static_cast<uint32_t>(seed);
+    rng_.seed(seed_);
+
     // Buoy positions (simulation model). Flattened x,y,x,y,... in world ENU.
     // Defaults match the inner ring of buoys in the generated coastal world.
     const auto flat = this->declare_parameter<std::vector<double>>(
@@ -134,6 +148,9 @@ class AcousticAgentNode : public rclcpp::Node {
                 buoys_.size(), max_range_m_);
     RCLCPP_INFO(this->get_logger(), "  emits BEARING, sea coverage only");
     RCLCPP_INFO(this->get_logger(), "  tracking %zu target(s)", n);
+    RCLCPP_INFO(this->get_logger(), "  seed %lu%s",
+                static_cast<unsigned long>(seed_),
+                seed_drawn_ ? " (drawn at random: seed parameter was 0)" : "");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
@@ -216,6 +233,8 @@ class AcousticAgentNode : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr timer_;
 
   std::mt19937 rng_;
+  uint32_t seed_ = 0;        // the seed in use, logged at start-up
+  bool seed_drawn_ = false;  // drawn at random (seed parameter was 0)
   std::uniform_real_distribution<double> uniform_{0.0, 1.0};
   uint64_t seq_ = 0;
 };

@@ -50,9 +50,11 @@
  *     (1 - detection_prob) and occasionally reports a ghost (false_positive_hz)
  *   - a confidence that falls off with range
  *   - a fixed processing latency (latency_s), applied by timestamping the
- *     token in the past rather than by delaying publication, so replays stay
- *     deterministic
- * These are exactly the knobs the evaluation sweeps.
+ *     token in the past rather than by delaying publication, so the latency
+ *     adds no scheduling jitter of its own
+ * These are exactly the knobs the evaluation sweeps. The random draws come
+ * from a generator seeded by the `seed` parameter (0 = drawn at random); the
+ * seed in use is logged at start-up, so the noise of a run can be reproduced.
  *
  * Multi-target: the agent subscribes to one ground-truth topic per target and
  * stamps every ObsToken with that target's id. Data association is assumed, a
@@ -73,7 +75,9 @@
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
 
 #include <cmath>
+#include <cstdint>
 #include <random>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -88,11 +92,24 @@ constexpr size_t kMaxTargets = 64;
 // Ghost placement: minimum range from the radar, and nominal ghost altitude.
 constexpr double kGhostMinRangeM = 20.0;
 constexpr double kGhostAltitudeM = 15.0;
+// The generator takes 32-bit seeds.
+constexpr int64_t kMaxSeed = 4294967295;
 }
 
 class RadarAgentNode : public rclcpp::Node {
  public:
-  RadarAgentNode() : Node("radar_agent_node"), rng_(std::random_device{}()) {
+  RadarAgentNode() : Node("radar_agent_node") {
+    // --- Random generator ---
+    // A seed above 0 fixes the noise of the run, so that it can be reproduced;
+    // 0 draws a seed at random. Either way the seed in use is logged below.
+    const int64_t seed = this->declare_parameter<int64_t>("seed", 0);
+    if (seed < 0 || seed > kMaxSeed) {
+      throw std::invalid_argument("seed must be between 0 and 4294967295");
+    }
+    seed_drawn_ = (seed == 0);
+    seed_ = seed_drawn_ ? std::random_device{}() : static_cast<uint32_t>(seed);
+    rng_.seed(seed_);
+
     // --- Placement and coverage geometry (simulation model) ---
     pos_x_ = this->declare_parameter<double>("pos_x", 0.0);
     pos_y_ = this->declare_parameter<double>("pos_y", -160.0);
@@ -167,6 +184,9 @@ class RadarAgentNode : public rclcpp::Node {
                 max_range_m_, detection_prob_);
     RCLCPP_INFO(this->get_logger(), "  tracking %zu target(s)",
                 target_ids_.size());
+    RCLCPP_INFO(this->get_logger(), "  seed %lu%s",
+                static_cast<unsigned long>(seed_),
+                seed_drawn_ ? " (drawn at random: seed parameter was 0)" : "");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
@@ -245,8 +265,8 @@ class RadarAgentNode : public rclcpp::Node {
     const double frac = std::min(1.0, range / max_range_m_);
     tok.confidence = confidence_near_ + frac * (confidence_far_ - confidence_near_);
 
-    // Latency is expressed by stamping the observation in the past, so that a
-    // replay with the same seed is bit-identical regardless of scheduling.
+    // Latency is expressed by stamping the observation in the past rather than
+    // by delaying its publication, so it adds no scheduling jitter of its own.
     tok.t = to_msg(now - rclcpp::Duration::from_seconds(latency_s_));
     tok.ttl_s = ttl_s_;
 
@@ -314,6 +334,8 @@ class RadarAgentNode : public rclcpp::Node {
   rclcpp::TimerBase::SharedPtr timer_;
 
   std::mt19937 rng_;
+  uint32_t seed_ = 0;        // the seed in use, logged at start-up
+  bool seed_drawn_ = false;  // drawn at random (seed parameter was 0)
   std::uniform_real_distribution<double> uniform_{0.0, 1.0};
   uint64_t seq_ = 0;
 };
