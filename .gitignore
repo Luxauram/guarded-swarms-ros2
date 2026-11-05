@@ -115,3 +115,6 @@ temp/
 
 # Resilience test results
 scripts/resilience/results/*.json
+
+# Analysis outputs, regenerated from the bags by scripts/metrics/
+results/
