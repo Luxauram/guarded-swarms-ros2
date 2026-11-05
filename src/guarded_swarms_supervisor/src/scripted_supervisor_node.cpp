@@ -39,10 +39,9 @@
  * releases a mission, so one decision releases at most one mission. A later
  * ConfirmedThreat for a target already decided is ignored.
  *
- * The delay starts when the ConfirmedThreat reaches the supervisor, not at the
- * token's own timestamp: the token carries the age of the evidence behind it
- * (latency is modelled by back-dating), while a supervisor can only start
- * deciding once the threat is in front of them.
+ * The delay starts when the ConfirmedThreat reaches the supervisor, measured on
+ * the simulation clock: a supervisor can only start deciding once the threat
+ * is in front of them.
  *
  * WHY A NODE AND NOT A COMMAND-LINE PUBLISHER
  * ===========================================
