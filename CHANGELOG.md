@@ -9,6 +9,8 @@ reproducible release.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-05
+
 ### Added
 
 - `scripts/metrics/audit_timing.py`: timing audit of the coordination chain
