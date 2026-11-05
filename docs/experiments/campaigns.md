@@ -17,8 +17,8 @@ session does the runs that are still missing.
 
 ```bash
 RUNS=1 ./scripts/experiments/run_campaign.sh pilot nominal   # one run, to check the set-up
-./scripts/experiments/run_campaign.sh point3                 # every configuration, 20 runs each
-MAX_HOURS=6 ./scripts/experiments/run_campaign.sh point3     # a session of at most 6 hours
+./scripts/experiments/run_campaign.sh full                   # every configuration, 20 runs each
+MAX_HOURS=6 ./scripts/experiments/run_campaign.sh full       # a session of at most 6 hours
 ```
 
 Before starting:
@@ -52,8 +52,8 @@ its post, the rover at the start of its patrol.
 ## Configurations
 
 `configurations.conf` holds one configuration per line: a name, then the
-variables that make it differ from the nominal run. These are the eleven
-configurations of the thesis campaign:
+variables that make it differ from the nominal run. It defines eleven
+configurations:
 
 | Name            | Variables                                         | What it tests                                        |
 | --------------- | ------------------------------------------------- | ---------------------------------------------------- |
@@ -70,7 +70,7 @@ configurations of the thesis campaign:
 | `loss-eo`       | `EO_ENABLED=false`                                | Loss of the EO camera                                |
 
 `nominal` and `vec-frontal` set the same scenario, since the frontal vector is
-the default; they are kept apart on purpose, as in the thesis.
+the default, but they are separate configurations, each with its own runs.
 
 The variables are those of the [pipeline run scripts](../scripts/pipeline.md#configuration).
 The campaign accepts only those, each with the values it allows, and checks
@@ -138,7 +138,7 @@ in the manifest, so the record of a campaign is complete, failures included.
 Everything is under `bags/campaigns/<campaign>/`:
 
 ```text
-bags/campaigns/point3/
+bags/campaigns/full/
 ├── campaign.env                      first seed and commit of the campaign
 ├── manifest.csv                      one line per attempt
 ├── nominal/

@@ -42,13 +42,13 @@ reproducible release.
   intruder's ground truth does not have exactly one source. The run scripts
   are documented in `docs/scripts/pipeline.md`.
 - `scripts/experiments/run_campaign.sh`: unattended campaigns of recorded
-  runs over the configurations of `scripts/experiments/configurations.conf`
-  (the eleven of the thesis campaign). Every run starts from a freshly
-  started scenario; the runs alternate between the configurations, and run
-  _n_ has the same seed in all of them. A campaign can be stopped with Ctrl-C
-  or after `MAX_HOURS` and continued later with the same command; every
-  attempt has its own folder and its own line in `manifest.csv`, and nothing
-  is overwritten. Documented in `docs/experiments/campaigns.md`.
+  runs over the configurations of `scripts/experiments/configurations.conf`.
+  Every run starts from a freshly started scenario; the runs alternate
+  between the configurations, and run _n_ has the same seed in all of them.
+  A campaign can be stopped with Ctrl-C or after `MAX_HOURS` and continued
+  later with the same command; every attempt has its own folder and its own
+  line in `manifest.csv`, and nothing is overwritten. Documented in
+  `docs/experiments/campaigns.md`.
 - `scripts/sim/coastal_up.sh` and `scripts/sim/coastal_down.sh`: start the
   coastal scenario with the settings of `make demo-coastal`, without
   terminals, and wait until it is ready; stop it and check that nothing

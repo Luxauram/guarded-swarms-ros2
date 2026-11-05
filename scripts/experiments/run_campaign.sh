@@ -58,8 +58,8 @@
 # Usage:
 #   ./scripts/experiments/run_campaign.sh <campaign> [configuration ...]
 #
-#   ./scripts/experiments/run_campaign.sh point3                 # every configuration
-#   MAX_HOURS=3 ./scripts/experiments/run_campaign.sh point3     # a 3-hour session
+#   ./scripts/experiments/run_campaign.sh full                   # every configuration
+#   MAX_HOURS=3 ./scripts/experiments/run_campaign.sh full       # a 3-hour session
 #   RUNS=2 ./scripts/experiments/run_campaign.sh pilot nominal deny
 #
 # Variables:
