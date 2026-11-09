@@ -36,8 +36,9 @@ To continue a campaign, run the same command again.
 1. **Start the scenario** with `coastal_up.sh`: the same sequence and
    settings as `make demo-coastal` (Gazebo, three uXRCE-DDS agents, PX4
    instances 0, 1 and 2 configured by `px4_configure.sh`, then
-   `coastal_pipeline.launch.py`), with no terminals. It returns once the
-   scenario is [ready](#starting-and-stopping-the-scenario).
+   `coastal_pipeline.launch.py`), with no terminals, and with the `VETO_BY`
+   and `UAV_FAULT` of the configuration. It returns once the scenario is
+   [ready](#starting-and-stopping-the-scenario).
 2. **Record the run** with `record_run.sh`, with the variables of the
    configuration, the seed of the run, `STAY_UP=0` (the run ends on its own
    after the report) and `BAG_DIR` set to the folder of the attempt.
@@ -52,27 +53,39 @@ its post, the rover at the start of its patrol.
 ## Configurations
 
 `configurations.conf` holds one configuration per line: a name, then the
-variables that make it differ from the nominal run. It defines eleven
+variables that make it differ from the nominal run. It defines fourteen
 configurations:
 
-| Name            | Variables                                         | What it tests                                        |
-| --------------- | ------------------------------------------------- | ---------------------------------------------------- |
-| `nominal`       | (none)                                            | The full chain                                       |
-| `deny`          | `DECISION=deny`                                   | Authorisation withheld                               |
-| `stale-eo`      | `EO_DELAY_S=12`                                   | EO confirmation arriving after the threat TTL (10 s) |
-| `civilian`      | `RF_LABEL=LikelyCivilianTraffic EXPECT_THREAT=no` | Conflicting RF evidence                              |
-| `vec-frontal`   | `ATTACK_VECTOR=frontal`                           | Frontal ingress                                      |
-| `vec-east-deep` | `ATTACK_VECTOR=east-deep`                         | Deep ingress from the east                           |
-| `vec-rear`      | `ATTACK_VECTOR=rear`                              | Ingress from the rear                                |
-| `loss-radar`    | `RADAR_ENABLED=false`                             | Loss of the radar                                    |
-| `loss-rf`       | `RF_ENABLED=false`                                | Loss of the RF sensor                                |
-| `loss-acoustic` | `ACOUSTIC_ENABLED=false`                          | Loss of the acoustic sensor                          |
-| `loss-eo`       | `EO_ENABLED=false`                                | Loss of the EO camera                                |
+| Name            | Variables                                         | What it tests                                                        |
+| --------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| `nominal`       | (none)                                            | The full chain                                                       |
+| `deny`          | `DECISION=deny`                                   | Authorisation withheld                                               |
+| `stale-eo`      | `EO_DELAY_S=12`                                   | EO confirmation arriving after the threat TTL (10 s)                 |
+| `civilian`      | `RF_LABEL=LikelyCivilianTraffic EXPECT_THREAT=no` | Conflicting RF evidence                                              |
+| `vec-frontal`   | `ATTACK_VECTOR=frontal`                           | Frontal ingress                                                      |
+| `vec-east-deep` | `ATTACK_VECTOR=east-deep`                         | Deep ingress from the east                                           |
+| `vec-rear`      | `ATTACK_VECTOR=rear`                              | Ingress from the rear                                                |
+| `loss-radar`    | `RADAR_ENABLED=false`                             | Loss of the radar                                                    |
+| `loss-rf`       | `RF_ENABLED=false`                                | Loss of the RF sensor                                                |
+| `loss-acoustic` | `ACOUSTIC_ENABLED=false`                          | Loss of the acoustic sensor                                          |
+| `loss-eo`       | `EO_ENABLED=false`                                | Loss of the EO camera                                                |
+| `fault-worker`  | `VETO_BY=worker UAV_FAULT=obstacle REACT_S=30`    | A faulty UAV worker flies into a building; the veto is left to it    |
+| `fault-gate`    | `VETO_BY=gate UAV_FAULT=obstacle REACT_S=30`      | The same faulty worker, with the safety gate enforcing the veto      |
+| `nominal-gate`  | `VETO_BY=gate REACT_S=30`                         | The full chain, with the safety gate enforcing the veto and no fault |
 
 `nominal` and `vec-frontal` set the same scenario, since the frontal vector is
 the default, but they are separate configurations, each with its own runs.
 
-The variables are those of the [pipeline run scripts](../scripts/pipeline.md#configuration).
+The last three configurations record 30 s after the decision (`REACT_S=30`)
+instead of 10. With the faulty worker, the flight reaches the building about
+10 s after the task, and the rest of the recording shows the impact or the
+hold; `nominal-gate` records as long, so that the three compare. The faulty
+worker and its targets are described in
+[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode).
+
+The variables are those of the
+[pipeline run scripts](../scripts/pipeline.md#configuration), plus `VETO_BY`
+and `UAV_FAULT` of [`coastal_up.sh`](#starting-and-stopping-the-scenario).
 The campaign accepts only those, each with the values it allows, and checks
 the whole file before the first run: a typo stops the campaign at once
 instead of producing runs of the wrong scenario. A variable set in the

@@ -45,6 +45,12 @@ reproducible release.
   which `scripts/sim/coastal_up.sh` sets from `VETO_BY` and `UAV_FAULT`. The
   fault targets of the coastal scenario are the centres of two buildings, one
   per UAV.
+- Three configurations for a faulty UAV worker in
+  `scripts/experiments/configurations.conf`: `fault-worker` (the veto is left
+  to the faulty worker), `fault-gate` (the safety gate enforces it) and
+  `nominal-gate` (the gate enforces it, and no worker is faulty). They record
+  30 s after the decision instead of 10. `scripts/metrics/audit_recordings.py`
+  expects of them the outcome of the nominal chain.
 
 ### Changed
 
@@ -57,6 +63,9 @@ reproducible release.
 - `scripts/record/record_run.sh` also records the safety layer of each
   vehicle: `safety_status`, `actuator_cmd_safe` and `drone/proximity`, and for
   the two UAVs the setpoint before and after the safety gate.
+- `scripts/experiments/run_campaign.sh` accepts `VETO_BY` and `UAV_FAULT` in a
+  configuration, and passes the variables of the configuration to
+  `scripts/sim/coastal_up.sh` as well as to `scripts/record/record_run.sh`.
 
 ### Fixed
 

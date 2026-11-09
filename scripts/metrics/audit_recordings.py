@@ -136,6 +136,10 @@ EXPECTED = {
     "loss-radar": "no-cand",
     "loss-rf": "no-cand",
     "loss-eo": "no-eo",
+    # A faulty UAV worker changes the flight, not the chain.
+    "fault-worker": "mission",
+    "fault-gate": "mission",
+    "nominal-gate": "mission",
 }
 OUTCOMES: Dict[str, Callable] = {
     # ConfirmedThreat and mission.

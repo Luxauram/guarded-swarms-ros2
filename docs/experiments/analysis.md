@@ -69,15 +69,16 @@ without a valid attempt, and the notes on single runs.
 The expected outcome of each configuration of
 `scripts/experiments/configurations.conf`:
 
-| Configuration                             | Expected outcome                                        |
-| ----------------------------------------- | ------------------------------------------------------- |
-| `nominal`, `vec-frontal`, `loss-acoustic` | ConfirmedThreat and mission                             |
-| `deny`                                    | ConfirmedThreat, no mission                             |
-| `stale-eo`                                | CandidateTarget and EO confirmation, no ConfirmedThreat |
-| `civilian`                                | Civilian RF interpretation, no CandidateTarget          |
-| `vec-east-deep`, `vec-rear`               | CandidateTarget, no ConfirmedThreat                     |
-| `loss-radar`, `loss-rf`                   | No CandidateTarget                                      |
-| `loss-eo`                                 | CandidateTarget, no EO confirmation, no ConfirmedThreat |
+| Configuration                                | Expected outcome                                                                             |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `nominal`, `vec-frontal`, `loss-acoustic`    | ConfirmedThreat and mission                                                                  |
+| `deny`                                       | ConfirmedThreat, no mission                                                                  |
+| `stale-eo`                                   | CandidateTarget and EO confirmation, no ConfirmedThreat                                      |
+| `civilian`                                   | Civilian RF interpretation, no CandidateTarget                                               |
+| `vec-east-deep`, `vec-rear`                  | CandidateTarget, no ConfirmedThreat                                                          |
+| `loss-radar`, `loss-rf`                      | No CandidateTarget                                                                           |
+| `loss-eo`                                    | CandidateTarget, no EO confirmation, no ConfirmedThreat                                      |
+| `fault-worker`, `fault-gate`, `nominal-gate` | ConfirmedThreat and mission: the faulty worker and the gate change the flight, not the chain |
 
 ## Clean runs
 

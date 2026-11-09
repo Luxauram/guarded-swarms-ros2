@@ -25,7 +25,9 @@
 # the logs are copied next to the bag, and the scenario is stopped again
 # (scripts/sim/coastal_down.sh). Restarting the scenario puts every run in the
 # same initial state: the vehicles at their spawn points, the EO camera
-# (carried by UAV0) at its post, the rover at the start of its patrol.
+# (carried by UAV0) at its post, the rover at the start of its patrol. The
+# variables of the configuration reach both the scenario and the run:
+# coastal_up.sh reads VETO_BY and UAV_FAULT, record_run.sh the others.
 #
 # Runs alternate between the configurations (run 1 of each, then run 2 of
 # each, ...), so that a campaign stopped halfway is balanced, and anything that
@@ -103,9 +105,10 @@ COASTAL_DOWN="${COASTAL_DOWN:-./scripts/sim/coastal_down.sh}"
 RECORD_RUN="${RECORD_RUN:-./scripts/record/record_run.sh}"
 
 # The variables a configuration may set, which are the scenario variables of
-# test_pipeline.sh, each with the values it accepts (a regular expression). A
-# wrong value stops the campaign before the first run, instead of producing
-# runs of a scenario nobody asked for.
+# test_pipeline.sh and the two of coastal_up.sh (VETO_BY, UAV_FAULT), each
+# with the values it accepts (a regular expression). A wrong value stops the
+# campaign before the first run, instead of producing runs of a scenario
+# nobody asked for.
 NUMBER='[0-9]+([.][0-9]+)?'
 BOOLEAN='true|false'
 declare -A KNOBS=(
@@ -118,6 +121,7 @@ declare -A KNOBS=(
   [DECISION]='authorise|deny|none'
   [AUTH_DELAY_S]="$NUMBER"       [AUTH_TTL_S]="$NUMBER"
   [THREAT_TIMEOUT]="$NUMBER"     [REACT_S]="$NUMBER"
+  [VETO_BY]='worker|gate'        [UAV_FAULT]='none|obstacle'
 )
 
 # Only the configuration file sets the scenario: a value left exported in this
@@ -167,7 +171,8 @@ while IFS= read -r line || [ -n "$line" ]; do
     var="${BASH_REMATCH[1]}"
     value="${BASH_REMATCH[2]}"
     [ -n "${KNOBS[$var]+set}" ] \
-      || die "$where: '$var' is not a scenario variable of test_pipeline.sh."
+      || die "$where: '$var' is not a scenario variable of test_pipeline.sh" \
+             "or coastal_up.sh."
     [[ "$value" =~ ^(${KNOBS[$var]})$ ]] \
       || die "$where: '$value' is not a valid value of $var."
   done
@@ -315,7 +320,10 @@ attempt_run() {
   rm -f /tmp/gs_*.log "$SIM_LOG_DIR"/*.log
 
   log "$conf, run $run/$RUNS, seed $seed, attempt $attempt: starting the scenario..."
-  "$COASTAL_UP" > "$folder/logs/coastal_up.log" 2>&1 9>&-
+  # The variables of the configuration reach both steps: coastal_up.sh reads
+  # VETO_BY and UAV_FAULT, record_run.sh the others.
+  read -ra tokens <<< "${CONF_VARS[$conf]}"
+  env "${tokens[@]}" "$COASTAL_UP" > "$folder/logs/coastal_up.log" 2>&1 9>&-
   rc=$?
   if [ "$INTERRUPTED" = 1 ]; then
     outcome=interrupted
@@ -323,7 +331,6 @@ attempt_run() {
     outcome=sim-failed
   else
     log "$conf, run $run/$RUNS: scenario ready, recording the run..."
-    read -ra tokens <<< "${CONF_VARS[$conf]}"
     env "${tokens[@]}" SEED="$seed" STAY_UP=0 BAG_DIR="$folder/bag" \
       "$RECORD_RUN" "$CAMPAIGN/$conf/run-$run" > "$folder/logs/record_run.log" 2>&1 9>&-
     rc=$?
