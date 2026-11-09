@@ -20,6 +20,7 @@ The pages in this folder document each part of the project in detail.
 | Page                                  | Description                                                                             |
 | ------------------------------------- | --------------------------------------------------------------------------------------- |
 | [Campaigns](experiments/campaigns.md) | Unattended campaigns of recorded runs, and the scripts that start and stop the scenario |
+| [Analysis](experiments/analysis.md)   | Clean-run checks of recorded runs, and the tables of a campaign                         |
 
 The remaining sections (getting started, architecture, the other packages,
 the other scripts, supervisor console, conventions) are added as the

@@ -187,8 +187,8 @@ The `logs/` folder holds the output of the three steps (`coastal_up.log`,
 | `sim-failed`  | from `coastal_up.sh` | no    | The scenario did not start or was not ready in time                                            |
 | `error`       | any other            | no    | The run ended in an unexpected way; see `record_run.log`                                       |
 
-The analysis takes, for each configuration and run, the attempt with
-`valid=yes`.
+The [analysis](analysis.md) takes, for each configuration and run, the first
+attempt with `valid=yes` whose recording is clean.
 
 ## Exit codes
 

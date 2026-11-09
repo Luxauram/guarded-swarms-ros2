@@ -9,6 +9,24 @@ reproducible release.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/metrics/audit_recordings.py`: checks that recorded runs are clean
+  (one intruder ground-truth source, a `/clock` that never goes back, one
+  producer per token stream, one target, no stray supervisor decision, every
+  token in simulated time) and recomputes their time figures on the token
+  stamps and on the recorder receive time. For the Safety Board runs of
+  `scripts/record/record_veto.sh` it measures the reaction time message by
+  message. Documented in `docs/experiments/analysis.md`.
+- `scripts/metrics/analyze_campaign.py`: the tables of a campaign of
+  `scripts/experiments/run_campaign.sh`, from its manifest and bags: outcomes
+  with their 95% Wilson interval, the times of the chain in simulated time,
+  the authorisation, the detection by modality and the quality of the runs,
+  as Markdown and CSV. Every run is checked as in `audit_recordings.py`; a
+  run that is not clean is left out and listed, and can be repeated in a
+  later campaign with the same configuration and seed. Documented in
+  `docs/experiments/analysis.md`.
+
 ## [0.2.0] - 2026-11-05
 
 ### Added
@@ -141,3 +159,13 @@ Found after the thesis.
   6.2 m/s in simulated time, and the gap grows as the simulation slows down.
 - `scripts/kill_all.sh` (`make kill-all`) matches node names anywhere in a
   command line, so it also kills an editor open on a node's source file.
+- `scripts/metrics/metrics_veto.py` samples the Safety Board status on a
+  0.1 s grid that starts with the first status message. For a hazard that
+  starts while the board is safe, the reaction time it gives includes the
+  wait for the next grid point: in the recorded runs, 100 ms more than the
+  reaction measured message by message. For a hazard that starts while the
+  board is already unsafe, as when hazards follow one another, it gives the
+  offset between the sensor and status streams, not a reaction time. Its
+  isolation check passes by construction, since `record_veto.sh` records
+  only the Safety Board topics. `scripts/metrics/audit_recordings.py`
+  measures the reaction message by message.
