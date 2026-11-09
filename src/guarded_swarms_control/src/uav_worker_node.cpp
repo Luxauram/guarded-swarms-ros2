@@ -44,10 +44,13 @@
  *     to the target's horizontal position, holding an interception altitude of
  *     its own (intercept_altitude), so it does not descend onto the target.
  *     This is a stand-off interception trajectory in the sense of the paper.
- *   - While its setpoint is more than a few metres away the UAV faces the
- *     direction of travel, so the single-ray forward lidar of its Safety
- *     Board looks where it is going. Near a task goal it keeps its heading;
- *     in hover over the spawn point it faces north.
+ *   - Every transit, to a task goal and back to the hover point, is flown at
+ *     a bounded speed (APPROACH_SPEED_MPS, in simulated time), so the Safety
+ *     Board's proximity veto can brake the UAV in time.
+ *   - While its goal is more than a few metres away the UAV faces it, so the
+ *     single-ray forward lidar of its Safety Board looks where it is going.
+ *     Near a task goal it keeps its heading; in hover over the spawn point it
+ *     faces north.
  *   - Under a Safety Board veto, once airborne, it holds the position and
  *     heading it has when the veto begins (see publish_setpoint()).
  *   - The task's target_position is in world ENU (Gazebo). PX4 wants NED local,
@@ -237,11 +240,21 @@ class UavWorkerNode : public rclcpp::Node {
   static constexpr double VETO_MIN_HOLD_S = 2.0;
   // Below this actuator_cmd_safe value the board's verdict counts as a veto.
   static constexpr float VETO_CMD_THRESHOLD = 0.01f;
-  // A setpoint farther than this (metres, horizontal) turns the UAV toward
-  // it, so its single forward lidar looks along the direction of travel.
-  // Nearer, the heading is kept on a task and is 0 (north) in hover over the
-  // spawn point, so the detection phase before a task is unchanged.
+  // A goal farther than this (metres, horizontal) turns the UAV toward it, so
+  // its single forward lidar looks along the direction of travel. Nearer, the
+  // heading is kept on a task and is 0 (north) in hover over the spawn point,
+  // so the detection phase before a task is unchanged.
   static constexpr double HEADING_MIN_DIST_M = 3.0;
+  // Horizontal speed of every transit, in simulated time, bounded so the
+  // Safety Board's proximity veto can brake the UAV before an obstacle: at
+  // this speed it brakes in ~6 m. Set to PX4's own cruise speed
+  // (MPC_XY_CRUISE). At the autopilot's maximum (MPC_XY_VEL_MAX, 12 m/s) it
+  // brakes in ~28 m, which would need a proximity threshold of some 30 m,
+  // stopping the UAV far from anything ahead, the target included.
+  static constexpr double APPROACH_SPEED_MPS = 5.0;
+  // Longest step of simulated time the approach point advances by at once, so
+  // a stalled simulation does not make it jump ahead.
+  static constexpr double APPROACH_MAX_DT_S = 0.5;
   // Altitude, as a fraction of the hover altitude, at which the UAV counts as
   // airborne and the veto begins to apply. Below it the climb-out from the
   // ground -- where every sensor is stale and the altitude is below the floor,
@@ -261,6 +274,8 @@ class UavWorkerNode : public rclcpp::Node {
     // following the target's threat estimate as it updates (see on_threat).
     locked_target_ = m->target_id;
     set_goal_from_enu(m->target_position.x, m->target_position.y);
+    // The approach point starts from where the UAV is (see advance_approach).
+    reseed_approach();
     has_task_ = true;
     mission_ttl_s_ = m->ttl_s;
     last_target_update_ = this->now();
@@ -364,6 +379,9 @@ class UavWorkerNode : public rclcpp::Node {
       msg.position[2] = static_cast<float>(hold_down_);
       msg.yaw = static_cast<float>(hold_yaw_);
     } else {
+      // After a veto hold, the approach point restarts from where the UAV
+      // stopped.
+      if (holding_) reseed_approach();
       holding_ = false;
       // A locked task whose target track has gone stale for longer than the
       // mission TTL is released: the mission expires rather than being flown
@@ -372,6 +390,8 @@ class UavWorkerNode : public rclcpp::Node {
           (this->now() - last_target_update_).seconds() > mission_ttl_s_) {
         has_task_ = false;
         track_active_ = false;
+        // The way back to the hover point starts from where the UAV is.
+        reseed_approach();
         RCLCPP_WARN(this->get_logger(),
                     "Mission on '%s' expired (no track for %.1fs > ttl %.1fs); "
                     "returning to hover.",
@@ -379,24 +399,24 @@ class UavWorkerNode : public rclcpp::Node {
                     (this->now() - last_target_update_).seconds(),
                     mission_ttl_s_);
       }
-      if (has_task_) {
-        msg.position[0] = static_cast<float>(task_north_);
-        msg.position[1] = static_cast<float>(task_east_);
-        msg.position[2] = static_cast<float>(-intercept_altitude_m_);
-      } else {
-        // Default: hold hover over the spawn point.
-        msg.position[0] = 0.0f;
-        msg.position[1] = 0.0f;
-        msg.position[2] = static_cast<float>(-hover_altitude_m_);
-      }
-      // Face the direction of travel while the setpoint is more than a few
-      // metres away, so the single forward lidar looks where the UAV is
-      // going, on a task and on the way back. Near a task goal the heading is
-      // kept; in hover over the spawn point it is 0 (north), so the detection
-      // phase before a task is unchanged.
+      // Where the UAV is going: its task goal, or its hover point over the
+      // spawn point. The setpoint is the approach point, which advances toward
+      // it at APPROACH_SPEED_MPS (see advance_approach), so no transit is flown
+      // at the autopilot's maximum.
+      const double aim_north = has_task_ ? task_north_ : 0.0;
+      const double aim_east = has_task_ ? task_east_ : 0.0;
+      advance_approach(aim_north, aim_east);
+      msg.position[0] = static_cast<float>(approach_north_);
+      msg.position[1] = static_cast<float>(approach_east_);
+      msg.position[2] = static_cast<float>(
+          has_task_ ? -intercept_altitude_m_ : -hover_altitude_m_);
+      // Face the goal while it is more than a few metres away (not the nearby
+      // approach point), so the single forward lidar looks where the UAV is
+      // going. Near a task goal the heading is kept; over the spawn point it
+      // is 0 (north), so the detection phase is unchanged.
       double yaw_cmd = has_task_ ? last_yaw_cmd_ : 0.0;
-      const double dn = msg.position[0] - cur_north_;
-      const double de = msg.position[1] - cur_east_;
+      const double dn = aim_north - cur_north_;
+      const double de = aim_east - cur_east_;
       if (cur_valid_ && std::hypot(dn, de) > HEADING_MIN_DIST_M) {
         yaw_cmd = std::atan2(de, dn);
       }
@@ -420,6 +440,42 @@ class UavWorkerNode : public rclcpp::Node {
       hold_down_ = cur_down_;
     }
     hold_yaw_ = last_yaw_cmd_;
+  }
+
+  /**
+   * @brief Moves the approach point toward (aim_north, aim_east) by at most
+   *        APPROACH_SPEED_MPS times the simulated time since the last call.
+   *
+   * The step is measured on the node clock, which is simulated time, rather
+   * than counted in ticks of the wall-clock control timer: when the
+   * simulation runs slower than real time, a fixed step per tick moves the
+   * point faster than APPROACH_SPEED_MPS in simulated time.
+   */
+  void advance_approach(double aim_north, double aim_east) {
+    const rclcpp::Time now = this->now();
+    const double dt = std::fmin(
+        std::fmax((now - last_approach_t_).seconds(), 0.0), APPROACH_MAX_DT_S);
+    last_approach_t_ = now;
+    const double step = APPROACH_SPEED_MPS * dt;
+    const double gn = aim_north - approach_north_;
+    const double ge = aim_east - approach_east_;
+    const double g = std::hypot(gn, ge);
+    if (g > step) {
+      approach_north_ += gn / g * step;
+      approach_east_ += ge / g * step;
+    } else {
+      approach_north_ = aim_north;
+      approach_east_ = aim_east;
+    }
+  }
+
+  /** @brief Restarts the approach point from the UAV's current position. */
+  void reseed_approach() {
+    if (cur_valid_) {
+      approach_north_ = cur_north_;
+      approach_east_ = cur_east_;
+    }
+    last_approach_t_ = this->now();
   }
 
   /**
@@ -491,6 +547,10 @@ class UavWorkerNode : public rclcpp::Node {
   double hold_north_ = 0.0, hold_east_ = 0.0, hold_down_ = -5.0;
   double hold_yaw_ = 0.0;
   double last_yaw_cmd_ = 0.0;
+  // Bounded-speed approach point, the setpoint the UAV tracks, and the
+  // simulated time at which it was last advanced.
+  double approach_north_ = 0.0, approach_east_ = 0.0;
+  rclcpp::Time last_approach_t_{0, 0, RCL_ROS_TIME};
 };
 
 int main(int argc, char* argv[]) {

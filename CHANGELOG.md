@@ -56,6 +56,17 @@ reproducible release.
   accelerate, so the 30° limit vetoed the interceptor as it accelerated
   toward its target. 60° is the attitude-failure threshold of PX4's failure
   detector (`FD_FAIL_P`, `FD_FAIL_R`). The rover keeps 30°.
+- The UAV workers fly every transit, to a task goal and back to the hover
+  point, at a bounded speed instead of the autopilot's maximum
+  (`uav_worker_node`), and their Safety Boards veto proximity below 10 m
+  instead of 1.5 m
+  (`src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py`). The worker
+  handed PX4 the far goal, which it flew at `MPC_XY_VEL_MAX` (12 m/s): braking
+  from that speed takes ~28 m, which would need a proximity threshold of some
+  30 m and stop the UAV far from anything ahead, its target included. The
+  worker now advances the setpoint toward the goal at `MPC_XY_CRUISE`
+  (5 m/s), measured in simulated time, so the UAV brakes in ~6 m. The rover is
+  unchanged.
 
 ## [0.2.0] - 2026-11-05
 

@@ -118,6 +118,15 @@ INTERCEPT_ALTITUDE_M = 15.0
 # FD_FAIL_R): above the tilts the autopilot commands, below a loss of control.
 UAV_MAX_TILT_DEG = 60.0
 
+# Proximity veto thresholds of the UAV safety boards, metres. The workers fly
+# every transit at 5 m/s (APPROACH_SPEED_MPS in uav_worker_node), which brakes
+# in ~6 m; with up to ~0.3 s from the lidar return to the hold setpoint (~1.5
+# m at 5 m/s) the UAV stops within ~8 m, so tripping at 10 m leaves ~2 m of
+# clearance. The rover keeps the board default (1.5 / 2.5 m). Trip below the
+# first, release above the second (hysteresis).
+UAV_MIN_PROXIMITY_M = 10.0
+UAV_PROXIMITY_RELEASE_M = 12.0
+
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the second value drives along the shore.
 # From X = -60 eastward, the road barrier at X = -8 triggers the veto.
@@ -171,7 +180,9 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
         safety_params.update({"min_altitude_m": -1.0, "max_altitude_m": 999.0})
     else:
         safety_params.update({"max_pitch_deg": UAV_MAX_TILT_DEG,
-                              "max_roll_deg": UAV_MAX_TILT_DEG})
+                              "max_roll_deg": UAV_MAX_TILT_DEG,
+                              "min_proximity_m": UAV_MIN_PROXIMITY_M,
+                              "proximity_release_m": UAV_PROXIMITY_RELEASE_M})
 
     nodes.append(Node(
         package="guarded_swarms_safety",
