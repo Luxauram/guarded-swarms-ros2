@@ -44,6 +44,12 @@
  *     to the target's horizontal position, holding an interception altitude of
  *     its own (intercept_altitude), so it does not descend onto the target.
  *     This is a stand-off interception trajectory in the sense of the paper.
+ *   - While its setpoint is more than a few metres away the UAV faces the
+ *     direction of travel, so the single-ray forward lidar of its Safety
+ *     Board looks where it is going. Near a task goal it keeps its heading;
+ *     in hover over the spawn point it faces north.
+ *   - Under a Safety Board veto, once airborne, it holds the position and
+ *     heading it has when the veto begins (see publish_setpoint()).
  *   - The task's target_position is in world ENU (Gazebo). PX4 wants NED local,
  *     relative to the vehicle's spawn pose, so it is converted here -- the
  *     inverse of the NED->ENU the sensing agents apply.
@@ -58,13 +64,16 @@
  *
  * Topics:
  *   Subscribed:
- *     /vehicle_tasks               (guarded_swarms_msgs/VehicleTask)
- *     /interp_tokens               (guarded_swarms_msgs/InterpToken)
- *     fmu/out/vehicle_status_v1    (px4_msgs/VehicleStatus)
+ *     /vehicle_tasks                     (guarded_swarms_msgs/VehicleTask)
+ *     /interp_tokens                     (guarded_swarms_msgs/InterpToken)
+ *     fmu/out/vehicle_status_v1          (px4_msgs/VehicleStatus)
+ *     fmu/out/vehicle_local_position_v1  (px4_msgs/VehicleLocalPosition)
+ *     actuator_cmd_safe                  (std_msgs/Float32)
  *   Published:
- *     fmu/in/offboard_control_mode (px4_msgs/OffboardControlMode)
- *     fmu/in/trajectory_setpoint   (px4_msgs/TrajectorySetpoint)
- *     fmu/in/vehicle_command       (px4_msgs/VehicleCommand)
+ *     fmu/in/offboard_control_mode       (px4_msgs/OffboardControlMode)
+ *     fmu/in/trajectory_setpoint         (px4_msgs/TrajectorySetpoint)
+ *     fmu/in/vehicle_command             (px4_msgs/VehicleCommand)
+ *     actuator_cmd_raw                   (std_msgs/Float32)
  *
  * @author Luca D'Aurizio
  */
@@ -72,6 +81,7 @@
 #include <px4_msgs/msg/offboard_control_mode.hpp>
 #include <px4_msgs/msg/trajectory_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
+#include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
@@ -128,6 +138,22 @@ class UavWorkerNode : public rclcpp::Node {
                     px4_msgs::msg::VehicleStatus::ARMING_STATE_ARMED);
         });
 
+    // Current position, so a veto holds the UAV where it actually is rather
+    // than re-sending the last goal setpoint (which would keep it flying to
+    // the goal). The PX4 out topics use the same BEST_EFFORT QoS.
+    local_pos_sub_ =
+        this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
+            "fmu/out/vehicle_local_position_v1", status_qos,
+            [this](const px4_msgs::msg::VehicleLocalPosition::SharedPtr m) {
+              if (m->xy_valid) {
+                cur_north_ = m->x;
+                cur_east_ = m->y;
+              }
+              if (m->z_valid) cur_down_ = m->z;
+              cur_valid_ = m->xy_valid && m->z_valid;
+              update_airborne();
+            });
+
     // Tasks are swarm-wide; this worker filters by kind and system id.
     task_sub_ = this->create_subscription<VehicleTask>(
         "/vehicle_tasks", QUEUE_SIZE,
@@ -147,7 +173,8 @@ class UavWorkerNode : public rclcpp::Node {
     // verdict is honoured -- exactly as rover_control_node does for the UGV.
     // A multirotor cannot be stopped by zeroing throttle (it would fall); the
     // aerial equivalent of the rover's zero-throttle stop is a position hold,
-    // implemented in publish_setpoint() by freezing the last commanded setpoint.
+    // implemented in publish_setpoint() by holding the position the UAV has
+    // when the veto begins.
     // The board's independence is unchanged: it decides, the worker obeys. The
     // physical PWM-level cut the paper describes lives inside PX4/hardware and
     // is not reachable from SITL -- the same limitation as the rover.
@@ -157,9 +184,14 @@ class UavWorkerNode : public rclcpp::Node {
           if (msg->data < VETO_CMD_THRESHOLD) {
             vetoed_ = true;
             last_veto_ = this->now();
-          } else if (vetoed_ &&
-                     (this->now() - last_veto_).seconds() > VETO_MIN_HOLD_S) {
-            vetoed_ = false;
+          } else {
+            // A safe verdict while armed means the climb-out is complete, so
+            // the veto may start to apply (see airborne_).
+            if (armed_) airborne_ = true;
+            if (vetoed_ &&
+                (this->now() - last_veto_).seconds() > VETO_MIN_HOLD_S) {
+              vetoed_ = false;
+            }
           }
         });
 
@@ -205,6 +237,16 @@ class UavWorkerNode : public rclcpp::Node {
   static constexpr double VETO_MIN_HOLD_S = 2.0;
   // Below this actuator_cmd_safe value the board's verdict counts as a veto.
   static constexpr float VETO_CMD_THRESHOLD = 0.01f;
+  // A setpoint farther than this (metres, horizontal) turns the UAV toward
+  // it, so its single forward lidar looks along the direction of travel.
+  // Nearer, the heading is kept on a task and is 0 (north) in hover over the
+  // spawn point, so the detection phase before a task is unchanged.
+  static constexpr double HEADING_MIN_DIST_M = 3.0;
+  // Altitude, as a fraction of the hover altitude, at which the UAV counts as
+  // airborne and the veto begins to apply. Below it the climb-out from the
+  // ground -- where every sensor is stale and the altitude is below the floor,
+  // so the board vetoes -- is never frozen.
+  static constexpr double TAKEOFF_ALTITUDE_FRAC = 0.5;
 
   /**
    * @brief Locks onto a UAV task addressed to this vehicle and sets the goal.
@@ -258,6 +300,13 @@ class UavWorkerNode : public rclcpp::Node {
     task_east_ = enu_x - spawn_x_;
   }
 
+  /** @brief Marks the UAV airborne once it has climbed clear of the ground. */
+  void update_airborne() {
+    if (airborne_ || !armed_) return;
+    if (-cur_down_ >= TAKEOFF_ALTITUDE_FRAC * hover_altitude_m_) {
+      airborne_ = true;
+    }
+  }
   /** @brief Main loop: proposes actuation, arms, and publishes the setpoint. */
   void control_loop() {
     // Propose actuation to the analog Safety Board every cycle. The board
@@ -293,20 +342,29 @@ class UavWorkerNode : public rclcpp::Node {
     offboard_mode_pub_->publish(msg);
   }
 
-  /** @brief Publishes the trajectory setpoint, or freezes it under veto. */
+  /** @brief Publishes the trajectory setpoint, holding position under veto. */
   void publish_setpoint() {
     px4_msgs::msg::TrajectorySetpoint msg;
     msg.timestamp = now_us();
-    if (vetoed_) {
-      // Under veto: hold position. Re-publish the last commanded setpoint so
-      // the UAV freezes where it was rather than advancing toward its goal --
-      // the aerial equivalent of the rover's zero-throttle stop. The board has
-      // inhibited motion; the worker does not compute a new goal until the veto
-      // lifts.
-      msg.position[0] = static_cast<float>(last_north_);
-      msg.position[1] = static_cast<float>(last_east_);
-      msg.position[2] = static_cast<float>(last_down_);
+    // The veto applies only once airborne: on the ground the board always
+    // vetoes (stale sensors, altitude below the floor), and holding position
+    // there would keep the UAV from ever taking off.
+    if (vetoed_ && airborne_) {
+      // Hold the UAV where it actually is. The position is captured from
+      // vehicle_local_position when the veto begins, not taken from the goal
+      // setpoint, so the UAV stops instead of flying on to its target -- the
+      // aerial equivalent of the rover's zero-throttle stop. The heading is
+      // held too, so it does not yaw while frozen.
+      if (!holding_) {
+        capture_hold_pose();
+        holding_ = true;
+      }
+      msg.position[0] = static_cast<float>(hold_north_);
+      msg.position[1] = static_cast<float>(hold_east_);
+      msg.position[2] = static_cast<float>(hold_down_);
+      msg.yaw = static_cast<float>(hold_yaw_);
     } else {
+      holding_ = false;
       // A locked task whose target track has gone stale for longer than the
       // mission TTL is released: the mission expires rather than being flown
       // blind toward a last-known position that may no longer be valid.
@@ -331,17 +389,37 @@ class UavWorkerNode : public rclcpp::Node {
         msg.position[1] = 0.0f;
         msg.position[2] = static_cast<float>(-hover_altitude_m_);
       }
-      // Remember what we commanded, so a veto on the next tick can freeze it.
-      last_north_ = msg.position[0];
-      last_east_ = msg.position[1];
-      last_down_ = msg.position[2];
+      // Face the direction of travel while the setpoint is more than a few
+      // metres away, so the single forward lidar looks where the UAV is
+      // going, on a task and on the way back. Near a task goal the heading is
+      // kept; in hover over the spawn point it is 0 (north), so the detection
+      // phase before a task is unchanged.
+      double yaw_cmd = has_task_ ? last_yaw_cmd_ : 0.0;
+      const double dn = msg.position[0] - cur_north_;
+      const double de = msg.position[1] - cur_east_;
+      if (cur_valid_ && std::hypot(dn, de) > HEADING_MIN_DIST_M) {
+        yaw_cmd = std::atan2(de, dn);
+      }
+      msg.yaw = static_cast<float>(yaw_cmd);
+      last_yaw_cmd_ = yaw_cmd;
     }
-    msg.yaw = 0.0f;
     msg.velocity = {NAN, NAN, NAN};
     msg.acceleration = {NAN, NAN, NAN};
     msg.jerk = {NAN, NAN, NAN};
     msg.yawspeed = NAN;
     setpoint_pub_->publish(msg);
+  }
+
+  /** @brief Captures the current pose to hold for the duration of a veto. */
+  void capture_hold_pose() {
+    // Freeze at the real position when available; otherwise keep the previous
+    // hold rather than snapping to the origin.
+    if (cur_valid_) {
+      hold_north_ = cur_north_;
+      hold_east_ = cur_east_;
+      hold_down_ = cur_down_;
+    }
+    hold_yaw_ = last_yaw_cmd_;
   }
 
   /**
@@ -400,8 +478,19 @@ class UavWorkerNode : public rclcpp::Node {
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
   bool vetoed_ = false;
   rclcpp::Time last_veto_;
-  // Last commanded setpoint, frozen under veto to hold position.
-  double last_north_ = 0.0, last_east_ = 0.0, last_down_ = -5.0;
+  bool holding_ = false;  // currently commanding a veto hold pose
+  // The veto takes effect only after take-off; see TAKEOFF_ALTITUDE_FRAC.
+  bool airborne_ = false;
+  // Current vehicle position in NED local, from vehicle_local_position.
+  rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr
+      local_pos_sub_;
+  double cur_north_ = 0.0, cur_east_ = 0.0, cur_down_ = 0.0;
+  bool cur_valid_ = false;
+  // Pose captured when a veto begins and held until it lifts, and the last
+  // yaw commanded (held under veto so the UAV does not rotate while frozen).
+  double hold_north_ = 0.0, hold_east_ = 0.0, hold_down_ = -5.0;
+  double hold_yaw_ = 0.0;
+  double last_yaw_cmd_ = 0.0;
 };
 
 int main(int argc, char* argv[]) {

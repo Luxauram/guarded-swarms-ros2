@@ -37,6 +37,25 @@ reproducible release.
   ConfirmedThreat, which `scripts/experiments/run_campaign.sh` counted as
   valid; a campaign now repeats it. The check is
   `guard_ground_truth_flowing`, in `scripts/pipeline/run_guards.sh`.
+- `uav_worker_node` holds the UAV in place under a Safety Board veto. It
+  re-sent its last setpoint, which during a task is the goal, so the UAV kept
+  flying toward it; it now holds the position and heading it has when the
+  veto begins, read from `fmu/out/vehicle_local_position_v1`. The veto
+  applies once the UAV is airborne (first safe verdict, or half the hover
+  altitude): on the ground the board vetoes for stale sensors and for the
+  altitude floor, and holding the position there would keep the UAV from
+  taking off.
+- `uav_worker_node` faces the direction of travel while its setpoint is more
+  than 3 m away, on a task and on the way back to its hover point, so the
+  single-ray forward lidar of its Safety Board looks ahead. Near a task goal
+  it keeps its heading; in hover over its spawn point it faces north, as
+  before.
+- The Safety Boards of the UAVs veto attitudes beyond 60° instead of 30°
+  (`src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py`). The
+  autopilot tilts a multirotor up to 45° (PX4 `MPC_TILTMAX_AIR`) to
+  accelerate, so the 30° limit vetoed the interceptor as it accelerated
+  toward its target. 60° is the attitude-failure threshold of PX4's failure
+  detector (`FD_FAIL_P`, `FD_FAIL_R`). The rover keeps 30°.
 
 ## [0.2.0] - 2026-11-05
 
@@ -173,6 +192,11 @@ Found after the thesis.
   instead of holding its current position.
 - `uav_worker_node` always commands yaw 0 (north), so the single-ray forward
   lidar does not look along the direction of travel.
+- The Safety Boards of the UAVs veto attitudes beyond 30°, while the
+  autopilot tilts a multirotor up to 45° (PX4 `MPC_TILTMAX_AIR`) to
+  accelerate: an interceptor accelerating toward its target trips the
+  attitude veto. Since the veto does not hold the UAV, these vetoes have no
+  effect.
 - The sensing agents seed their random generators from
   `std::random_device`, so a run cannot be repeated with the same noise.
 - The intruder and the sensing agents advance on the wall clock, while

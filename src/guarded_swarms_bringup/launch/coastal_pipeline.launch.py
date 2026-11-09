@@ -111,6 +111,13 @@ UGV_SPAWN = (-60.0, -14.0)
 # target's horizontal position without descending onto it.
 INTERCEPT_ALTITUDE_M = 15.0
 
+# Attitude limit of the UAV safety boards, degrees. To accelerate, the
+# autopilot tilts a multirotor up to its own limit (PX4 MPC_TILTMAX_AIR, 45
+# deg by default), so a lower board limit vetoes normal flight. 60 deg is the
+# attitude-failure threshold of PX4's own failure detector (FD_FAIL_P,
+# FD_FAIL_R): above the tilts the autopilot commands, below a loss of control.
+UAV_MAX_TILT_DEG = 60.0
+
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the second value drives along the shore.
 # From X = -60 eastward, the road barrier at X = -8 triggers the veto.
@@ -157,9 +164,14 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
 
     # Altitude bounds are meaningful for an aircraft and not for a rover, so
     # the ground vehicle keeps only proximity, attitude and battery vetoes.
+    # The aircraft get an attitude limit above the tilts of normal flight (see
+    # UAV_MAX_TILT_DEG); the rover keeps the board default.
     safety_params = {"sensor_staleness_s": 5.0, "use_sim_time": True}
     if is_ground:
         safety_params.update({"min_altitude_m": -1.0, "max_altitude_m": 999.0})
+    else:
+        safety_params.update({"max_pitch_deg": UAV_MAX_TILT_DEG,
+                              "max_roll_deg": UAV_MAX_TILT_DEG})
 
     nodes.append(Node(
         package="guarded_swarms_safety",
