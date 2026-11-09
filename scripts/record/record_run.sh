@@ -71,6 +71,22 @@ TOPICS=(
   /fmu/out/vehicle_local_position_v1
   /px4_1/fmu/out/vehicle_local_position_v1
   /px4_2/fmu/out/vehicle_local_position_v1
+  # The safety layer of each vehicle: the Safety Board's status and verdict,
+  # and the lidar range it gates on; for the UAVs, the setpoint before and
+  # after the safety gate.
+  /safety_status
+  /px4_1/safety_status
+  /px4_2/safety_status
+  /actuator_cmd_safe
+  /px4_1/actuator_cmd_safe
+  /px4_2/actuator_cmd_safe
+  /drone/proximity
+  /px4_1/drone/proximity
+  /px4_2/drone/proximity
+  /trajectory_setpoint_proposed
+  /px4_1/trajectory_setpoint_proposed
+  /fmu/in/trajectory_setpoint
+  /px4_1/fmu/in/trajectory_setpoint
 )
 
 echo "[record] bag -> ${BAG_DIR}"

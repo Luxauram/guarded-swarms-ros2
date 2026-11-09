@@ -34,6 +34,17 @@ reproducible release.
   `safety_status` reports unsafe or stops arriving for more than 0.5 s, and
   forwards again 2 s after the last unsafe status. Documented in
   `docs/packages/guarded_swarms_control.md`.
+- Fault mode of `uav_worker_node`, for fault-injection runs. With the new
+  parameter `fault` set to `obstacle`, the worker flies its first task to a
+  fault target (`fault_target_x`, `fault_target_y`, `fault_altitude`) instead
+  of the designated target, and from then on ignores the Safety Board veto,
+  later tasks, the updates of the target and the expiry of the mission. Off
+  by default (`none`). Documented in `docs/packages/guarded_swarms_control.md`.
+- Launch arguments `veto_by` (`worker` or `gate`) and `uav_fault` (`none` or
+  `obstacle`) in `src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py`,
+  which `scripts/sim/coastal_up.sh` sets from `VETO_BY` and `UAV_FAULT`. The
+  fault targets of the coastal scenario are the centres of two buildings, one
+  per UAV.
 
 ### Changed
 
@@ -42,8 +53,10 @@ reproducible release.
   coastal scenario the UAV workers publish on `trajectory_setpoint_proposed`,
   and one `px4_safety_gate_node` per UAV passes the setpoints on to PX4
   (`src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py`). Both
-  gates have `veto_by` set to `worker` (`UAV_VETO_BY`), so the UAVs fly as
-  before.
+  gates have `veto_by` set to `worker` by default, so the UAVs fly as before.
+- `scripts/record/record_run.sh` also records the safety layer of each
+  vehicle: `safety_status`, `actuator_cmd_safe` and `drone/proximity`, and for
+  the two UAVs the setpoint before and after the safety gate.
 
 ### Fixed
 

@@ -167,6 +167,10 @@ dispatch log. The metrics come from the bag.
 - the vehicles: `/fmu/out/vehicle_local_position_v1`,
   `/px4_1/fmu/out/vehicle_local_position_v1`,
   `/px4_2/fmu/out/vehicle_local_position_v1`;
+- the safety layer of each vehicle (UAV0 in the root namespace, UAV1 in
+  `/px4_1`, the UGV in `/px4_2`): `safety_status`, `actuator_cmd_safe` and
+  `drone/proximity`, and for the two UAVs the setpoint before and after the
+  safety gate, `trajectory_setpoint_proposed` and `fmu/in/trajectory_setpoint`;
 - the simulation clock, `/clock`.
 
 The recorder runs without `--use-sim-time`, which can stall it at startup.

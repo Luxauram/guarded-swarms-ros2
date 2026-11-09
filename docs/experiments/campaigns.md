@@ -206,8 +206,16 @@ start the scenario without the terminals of `make demo-coastal`:
 ```bash
 ./scripts/sim/coastal_up.sh                 # Gazebo with its window
 HEADLESS=1 ./scripts/sim/coastal_up.sh      # Gazebo without its window
+VETO_BY=gate UAV_FAULT=obstacle ./scripts/sim/coastal_up.sh
 ./scripts/sim/coastal_down.sh
 ```
+
+`VETO_BY` (`worker` or `gate`, default `worker`) and `UAV_FAULT` (`none` or
+`obstacle`, default `none`) set the launch arguments `veto_by` and `uav_fault`
+of `coastal_pipeline.launch.py`: which node enforces the Safety Board veto on
+the UAVs, and the fault mode of the UAV workers (see
+[`guarded_swarms_control`](../packages/guarded_swarms_control.md)).
+`coastal_up.sh` refuses any other value.
 
 `coastal_up.sh` starts every component detached from the terminal, each with
 its own log in `SIM_LOG_DIR`, and PX4 in daemon mode. It refuses to start if a

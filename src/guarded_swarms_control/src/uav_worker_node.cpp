@@ -53,6 +53,13 @@
  *     faces north.
  *   - Under a Safety Board veto, once airborne, it holds the position and
  *     heading it has when the veto begins (see publish_setpoint()).
+ *   - Fault mode, for fault-injection runs (parameter fault, "none" by
+ *     default). With fault = "obstacle", the first task addressed to this
+ *     vehicle turns it into a faulty worker for the rest of the run: it flies
+ *     to (fault_target_x, fault_target_y), a point in world ENU inside a
+ *     building, at fault_altitude, and ignores the Safety Board veto, later
+ *     tasks, target updates and the mission expiry. Speed and heading follow
+ *     the normal rules, so the forward lidar looks at the building.
  *   - The task's target_position is in world ENU (Gazebo). PX4 wants NED local,
  *     relative to the vehicle's spawn pose, so it is converted here -- the
  *     inverse of the NED->ENU the sensing agents apply.
@@ -115,6 +122,21 @@ class UavWorkerNode : public rclcpp::Node {
     // target position. Same values the dispatch and EO nodes use.
     spawn_x_ = this->declare_parameter<double>("spawn_x", -24.0);
     spawn_y_ = this->declare_parameter<double>("spawn_y", -24.0);
+
+    // Fault mode, for fault-injection runs (see the file header). "none" is
+    // the normal worker; "obstacle" flies the first task to the fault target
+    // instead, ignoring the Safety Board veto.
+    fault_ = this->declare_parameter<std::string>("fault", "none");
+    if (fault_ != "none" && fault_ != "obstacle") {
+      RCLCPP_WARN(this->get_logger(),
+                  "fault='%s' is neither 'none' nor 'obstacle'; using 'none'.",
+                  fault_.c_str());
+      fault_ = "none";
+    }
+    fault_target_x_ = this->declare_parameter<double>("fault_target_x", 0.0);
+    fault_target_y_ = this->declare_parameter<double>("fault_target_y", 0.0);
+    fault_altitude_m_ =
+        this->declare_parameter<double>("fault_altitude", 12.0);
 
     offboard_mode_pub_ =
         this->create_publisher<px4_msgs::msg::OffboardControlMode>(
@@ -215,6 +237,13 @@ class UavWorkerNode : public rclcpp::Node {
                 "  hover %.1f m; intercept altitude %.1f m", hover_altitude_m_,
                 intercept_altitude_m_);
     RCLCPP_INFO(this->get_logger(), "  holding hover until a task arrives");
+    if (fault_ != "none") {
+      RCLCPP_WARN(this->get_logger(),
+                  "  FAULT MODE '%s': the first task flies to world ENU "
+                  "(%.1f, %.1f) at %.1f m, ignoring the veto",
+                  fault_.c_str(), fault_target_x_, fault_target_y_,
+                  fault_altitude_m_);
+    }
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
@@ -273,6 +302,26 @@ class UavWorkerNode : public rclcpp::Node {
   void on_task(const VehicleTask::SharedPtr m) {
     if (m->vehicle_kind != VehicleTask::KIND_UAV) return;
     if (m->assigned_system != target_system_) return;
+    // A faulty worker keeps flying to its fault target: later tasks are
+    // ignored.
+    if (fault_active_) return;
+
+    if (fault_ == "obstacle") {
+      // The fault takes over at the first task: the goal is the fault target,
+      // not the designated target, and the veto is no longer honoured (see
+      // publish_setpoint()).
+      fault_active_ = true;
+      set_goal_from_enu(fault_target_x_, fault_target_y_);
+      reseed_approach();
+      has_task_ = true;
+      RCLCPP_WARN(this->get_logger(),
+                  "FAULT '%s': task '%s' ignored; flying to world ENU "
+                  "(%.1f, %.1f), NED (%.1f, %.1f), at %.1f m, ignoring the "
+                  "Safety Board veto",
+                  fault_.c_str(), m->task_id.c_str(), fault_target_x_,
+                  fault_target_y_, task_north_, task_east_, fault_altitude_m_);
+      return;
+    }
 
     // Lock onto the designated target. The task's target_position is the
     // estimate at dispatch time; adopt it as the first goal, then keep
@@ -299,8 +348,9 @@ class UavWorkerNode : public rclcpp::Node {
    * @param m Shared pointer to the received @c InterpToken.
    */
   void on_threat(const InterpToken::SharedPtr m) {
-    // Only follow updates once locked, and only for the designated target.
-    if (!has_task_ || m->target_id != locked_target_) return;
+    // Only follow updates once locked, and only for the designated target. A
+    // faulty worker follows no target.
+    if (fault_active_ || !has_task_ || m->target_id != locked_target_) return;
     if (m->label != InterpToken::LABEL_CONFIRMED_THREAT) return;
 
     // Update the interception goal to the latest sensor estimate of the
@@ -368,8 +418,9 @@ class UavWorkerNode : public rclcpp::Node {
     msg.timestamp = now_us();
     // The veto applies only once airborne: on the ground the board always
     // vetoes (stale sensors, altitude below the floor), and holding position
-    // there would keep the UAV from ever taking off.
-    if (vetoed_ && airborne_) {
+    // there would keep the UAV from ever taking off. A faulty worker ignores
+    // it (fault mode, see the file header).
+    if (vetoed_ && airborne_ && !fault_active_) {
       // Hold the UAV where it actually is. The position is captured from
       // vehicle_local_position when the veto begins, not taken from the goal
       // setpoint, so the UAV stops instead of flying on to its target -- the
@@ -414,7 +465,9 @@ class UavWorkerNode : public rclcpp::Node {
       msg.position[0] = static_cast<float>(approach_north_);
       msg.position[1] = static_cast<float>(approach_east_);
       msg.position[2] = static_cast<float>(
-          has_task_ ? -intercept_altitude_m_ : -hover_altitude_m_);
+          fault_active_ ? -fault_altitude_m_
+          : has_task_   ? -intercept_altitude_m_
+                        : -hover_altitude_m_);
       // Face the goal while it is more than a few metres away (not the nearby
       // approach point), so the single forward lidar looks where the UAV is
       // going. Near a task goal the heading is kept; over the spawn point it
@@ -556,6 +609,12 @@ class UavWorkerNode : public rclcpp::Node {
   // simulated time at which it was last advanced.
   double approach_north_ = 0.0, approach_east_ = 0.0;
   rclcpp::Time last_approach_t_{0, 0, RCL_ROS_TIME};
+  // Fault mode (see the file header): its parameters, and whether the fault
+  // has taken over, which happens at the first task.
+  std::string fault_ = "none";
+  double fault_target_x_ = 0.0, fault_target_y_ = 0.0;
+  double fault_altitude_m_ = 12.0;
+  bool fault_active_ = false;
 };
 
 int main(int argc, char* argv[]) {

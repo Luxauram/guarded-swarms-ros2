@@ -70,8 +70,10 @@ Monitor:
 """
 
 from launch import LaunchDescription
-from launch.actions import LogInfo
+from launch.actions import DeclareLaunchArgument, LogInfo
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 # =============================================================================
 # Scenario constants
@@ -132,10 +134,26 @@ UAV_PROXIMITY_RELEASE_M = 12.0
 # px4_safety_gate_node). Relative, so each UAV namespace gets its own gate.
 PROPOSED_SETPOINT_TOPIC = "trajectory_setpoint_proposed"
 
-# Which node enforces the veto: "worker" (the worker holds position itself, the
-# default and transparent) or "gate" (the gate holds, so a worker that ignores
-# the board cannot bypass it). The fault-injection runs set this to "gate".
-UAV_VETO_BY = "worker"
+# Which node enforces the veto on the UAVs, and the fault mode of the UAV
+# workers, are launch arguments (see generate_launch_description), so that
+# scripts/sim/coastal_up.sh can set them for the fault-injection runs:
+#   veto_by    "worker" (default: the worker holds position itself, and the
+#              gate is transparent) or "gate" (the gate holds, so a worker
+#              that ignores the board cannot bypass it)
+#   uav_fault  "none" (default) or "obstacle": at its first task a UAV worker
+#              flies to its fault target and ignores the veto (see
+#              uav_worker_node)
+#
+# Fault targets, world ENU: the centre of a building, crossed so that each UAV
+# has some 40 m of run-up from its spawn point and reaches the proximity
+# threshold at the full approach speed. No other building lies on either path.
+#   UAV0 (-24, -24) -> building_0_5 (16 x 16 x 18 m): wall at 38.6 m
+#   UAV1 ( 24, -24) -> building_0_4 (22 x 18 x 34 m): wall at 39.6 m
+UAV0_FAULT_TARGET = (17.88, -47.34)
+UAV1_FAULT_TARGET = (-22.53, -47.07)
+# Altitude of the faulty flight, 6 m below the lower roof (18 m), so the
+# forward lidar hits the wall even with the UAV pitched.
+UAV_FAULT_ALTITUDE_M = 12.0
 
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the second value drives along the shore.
@@ -151,7 +169,8 @@ def lidar_topic(model_name):
 
 
 def vehicle_stack(namespace, model_name, system_id, is_ground,
-                  hover_altitude=None, waypoints=None, spawn=None):
+                  hover_altitude=None, waypoints=None, spawn=None,
+                  fault_target=None):
     """Build the per-vehicle node set.
 
     namespace of None means the root namespace, used by PX4 instance 0.
@@ -233,6 +252,11 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
                 "spawn_x": spawn[0],
                 "spawn_y": spawn[1],
                 "setpoint_topic": PROPOSED_SETPOINT_TOPIC,
+                "fault": ParameterValue(LaunchConfiguration("uav_fault"),
+                                        value_type=str),
+                "fault_target_x": fault_target[0],
+                "fault_target_y": fault_target[1],
+                "fault_altitude": UAV_FAULT_ALTITUDE_M,
                 "use_sim_time": True,
             }],
             emulate_tty=True,
@@ -244,7 +268,8 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
             name="px4_safety_gate_node",
             output="screen",
             parameters=[{
-                "veto_by": UAV_VETO_BY,
+                "veto_by": ParameterValue(LaunchConfiguration("veto_by"),
+                                          value_type=str),
                 "use_sim_time": True,
             }],
             emulate_tty=True,
@@ -262,10 +287,10 @@ def generate_launch_description():
 
     uav0 = vehicle_stack(None, UAV0_MODEL, UAV0_SYSTEM_ID,
                          is_ground=False, hover_altitude=UAV0_HOVER_M,
-                         spawn=UAV0_SPAWN)
+                         spawn=UAV0_SPAWN, fault_target=UAV0_FAULT_TARGET)
     uav1 = vehicle_stack(UAV1_NAMESPACE, UAV1_MODEL, UAV1_SYSTEM_ID,
                          is_ground=False, hover_altitude=UAV1_HOVER_M,
-                         spawn=UAV1_SPAWN)
+                         spawn=UAV1_SPAWN, fault_target=UAV1_FAULT_TARGET)
     ugv = vehicle_stack(UGV_NAMESPACE, UGV_MODEL, UGV_SYSTEM_ID,
                         is_ground=True, waypoints=UGV_WAYPOINTS,
                         spawn=UGV_SPAWN)
@@ -275,6 +300,14 @@ def generate_launch_description():
     # =========================================================================
 
     return LaunchDescription([
+        DeclareLaunchArgument(
+            "veto_by", default_value="worker", choices=["worker", "gate"],
+            description="Node that enforces the Safety Board veto on the "
+                        "UAVs: the worker, or the safety gate"),
+        DeclareLaunchArgument(
+            "uav_fault", default_value="none", choices=["none", "obstacle"],
+            description="Fault mode of the UAV workers, for fault-injection "
+                        "runs"),
         LogInfo(msg="============================================================"),
         LogInfo(msg="Guarded Swarms - Coastal Pipeline (2 UAV + 1 UGV)"),
         LogInfo(msg="============================================================"),
@@ -283,6 +316,8 @@ def generate_launch_description():
         LogInfo(msg="UAV 1: instance 1, sys 2, /px4_1/fmu/..., hover 20 m"),
         LogInfo(msg="UGV:   instance 2, sys 3, /px4_2/fmu/..., shore patrol"),
         LogInfo(msg="Coordination is shared; each vehicle vetoes on its own"),
+        LogInfo(msg=["UAV veto by: ", LaunchConfiguration("veto_by"),
+                     "; UAV fault: ", LaunchConfiguration("uav_fault")]),
         LogInfo(msg="------------------------------------------------------------"),
         LogInfo(msg="Monitor:  ros2 topic echo /px4_2/actuator_cmd_safe"),
         LogInfo(msg="          ros2 topic echo /px4_2/drone/proximity"),

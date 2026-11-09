@@ -45,6 +45,11 @@
 #   ./scripts/sim/coastal_up.sh              # Gazebo with its window
 #   HEADLESS=1 ./scripts/sim/coastal_up.sh   # Gazebo without its window
 #
+# VETO_BY and UAV_FAULT set the launch arguments veto_by (worker | gate) and
+# uav_fault (none | obstacle) of coastal_pipeline.launch.py, for the
+# fault-injection runs. By default they are those of 'make demo-coastal'
+# (worker, none).
+#
 # Exit codes: 0 ready; 1 a scenario is already running, a component did not
 # start, or the scenario was not ready within READY_TIMEOUT_S; 130 stopped
 # with Ctrl-C. Whatever was started keeps running: stop it with
@@ -57,6 +62,8 @@ source install/setup.bash
 
 HEADLESS="${HEADLESS:-0}"
 SIM_LOG_DIR="${SIM_LOG_DIR:-/tmp/gs_sim}"
+VETO_BY="${VETO_BY:-worker}"
+UAV_FAULT="${UAV_FAULT:-none}"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
 PX4_BUILD="$PX4_DIR/build/px4_sitl_default"
 
@@ -160,6 +167,14 @@ configure_px4() {
 
 # --- checks --------------------------------------------------------------------
 [ -x "$PX4_BUILD/bin/px4" ] || fail "PX4 not built: $PX4_BUILD/bin/px4 is missing"
+case "$VETO_BY" in
+  worker|gate) ;;
+  *) fail "VETO_BY must be 'worker' or 'gate', not '$VETO_BY'" ;;
+esac
+case "$UAV_FAULT" in
+  none|obstacle) ;;
+  *) fail "UAV_FAULT must be 'none' or 'obstacle', not '$UAV_FAULT'" ;;
+esac
 running=$(scenario_processes)
 if [ -n "$running" ]; then
   log "a scenario is already running:"
@@ -213,11 +228,13 @@ sleep "$NEXT_BOOT_WAIT_S"
 configure_px4 2 ugv
 
 # --- 4. ROS 2 side ---------------------------------------------------------------
-log "[4/4] ROS 2 side of the scenario (coastal_pipeline.launch.py)"
+log "[4/4] ROS 2 side of the scenario (coastal_pipeline.launch.py," \
+    "veto_by=$VETO_BY, uav_fault=$UAV_FAULT)"
 # A fresh ROS 2 daemon, as in demo-coastal: no stale entries in the graph.
 ros2 daemon stop > /dev/null 2>&1
 ros2 daemon start > /dev/null 2>&1
 setsid -f ros2 launch guarded_swarms_bringup coastal_pipeline.launch.py \
+  veto_by:="$VETO_BY" uav_fault:="$UAV_FAULT" \
   > "$SIM_LOG_DIR/coastal_pipeline.log" 2>&1 < /dev/null
 
 # --- wait until ready ------------------------------------------------------------

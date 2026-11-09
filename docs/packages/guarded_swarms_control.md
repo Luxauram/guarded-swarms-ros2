@@ -1,11 +1,11 @@
 # guarded_swarms_control
 
 `guarded_swarms_control` holds the vehicle-side nodes of the system and the
-intruder of the simulation. This page documents `px4_safety_gate_node`; the
-other nodes of the package (`uav_worker_node`, `ugv_worker_node`,
-`px4_safety_bridge_node`, `intruder_node`, `rover_control_node`,
-`offboard_control_node`, `command_bridge_node`) are added as the
-documentation is completed.
+intruder of the simulation. This page documents `px4_safety_gate_node` and
+the fault mode of `uav_worker_node`; the rest of `uav_worker_node` and the
+other nodes of the package (`ugv_worker_node`, `px4_safety_bridge_node`,
+`intruder_node`, `rover_control_node`, `offboard_control_node`,
+`command_bridge_node`) are added as the documentation is completed.
 
 ## px4_safety_gate_node
 
@@ -99,8 +99,9 @@ directly.
 `src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py` starts one gate
 for each UAV, in the namespace of the UAV and on simulated time, and sets the
 `setpoint_topic` parameter of the UAV workers to `trajectory_setpoint_proposed`
-(`PROPOSED_SETPOINT_TOPIC`). `UAV_VETO_BY` sets `veto_by` for both gates, and
-is `worker`. The rover has no gate.
+(`PROPOSED_SETPOINT_TOPIC`). The launch argument `veto_by` sets `veto_by` for
+both gates: `worker` by default, and `scripts/sim/coastal_up.sh` takes it from
+`VETO_BY`. The rover has no gate.
 
 To check the wiring with the scenario up (the first UAV has the root
 namespace, the second `/px4_1`):
@@ -109,4 +110,52 @@ namespace, the second `/px4_1`):
 ros2 node list | grep px4_safety_gate_node      # one gate per UAV
 ros2 topic info -v /fmu/in/trajectory_setpoint  # one publisher: the gate
 ros2 param get /px4_safety_gate_node veto_by    # worker
+```
+
+## uav_worker_node: fault mode
+
+The fault mode turns a UAV worker into a faulty one, for fault-injection
+runs. It is off by default.
+
+| Parameter        | Type   | Default | Meaning                                                                          |
+| ---------------- | ------ | ------- | -------------------------------------------------------------------------------- |
+| `fault`          | string | `none`  | `none` or `obstacle`. Any other value is logged as a warning and taken as `none` |
+| `fault_target_x` | double | `0.0`   | East coordinate of the fault target, world ENU, m                                |
+| `fault_target_y` | double | `0.0`   | North coordinate of the fault target, world ENU, m                               |
+| `fault_altitude` | double | `12.0`  | Altitude of the faulty flight, m                                                 |
+
+With `fault` set to `obstacle`, the worker behaves normally until the first
+task addressed to its vehicle. From then on, for the rest of the run, it:
+
+- flies to the fault target at `fault_altitude`, instead of the designated
+  target;
+- ignores the Safety Board veto, later tasks, the updates of the target and
+  the expiry of the mission.
+
+The rest of the flight is unchanged: the transit at the bounded approach speed
+(5 m/s), and the heading toward the goal, so the forward lidar looks where the
+UAV is going. At start-up, and again at the first task, the worker logs a
+warning with the fault target.
+
+### In the coastal scenario
+
+The launch argument `uav_fault` of `coastal_pipeline.launch.py` sets `fault`
+for both UAV workers, so the fault acts on the UAV that receives the task:
+`none` by default, and `scripts/sim/coastal_up.sh` takes it from `UAV_FAULT`.
+Each fault target is the centre of a building, at 12 m, 6 m below the lower
+roof:
+
+| UAV  | Spawn      | Fault target                     | Size           | Wall along the path |
+| ---- | ---------- | -------------------------------- | -------------- | ------------------- |
+| UAV0 | (-24, -24) | `building_0_5`, (17.88, -47.34)  | 16 × 16 × 18 m | 38.6 m              |
+| UAV1 | (24, -24)  | `building_0_4`, (-22.53, -47.07) | 22 × 18 × 34 m | 39.6 m              |
+
+The targets are crossed, so that each UAV has some 40 m of run-up and reaches
+the proximity threshold of its board (10 m) at the full approach speed. No
+other building lies on either path. At 5 m/s the UAV brakes in about 6 m,
+which the 10 m threshold leaves room for.
+
+```bash
+VETO_BY=worker UAV_FAULT=obstacle ./scripts/sim/coastal_up.sh  # the veto is left to the faulty worker
+VETO_BY=gate UAV_FAULT=obstacle ./scripts/sim/coastal_up.sh    # the safety gate enforces it
 ```
