@@ -85,6 +85,10 @@ reproducible release.
   worker now advances the setpoint toward the goal at `MPC_XY_CRUISE`
   (5 m/s), measured in simulated time, so the UAV brakes in ~6 m. The rover is
   unchanged.
+- `scripts/sim/coastal_down.sh` also matches the node executables whose
+  package or node name contains a digit, such as `px4_safety_bridge_node`
+  and `px4_safety_gate_node`. If one of them survived the stop of the
+  scenario launch, it was neither killed nor reported.
 
 ## [0.2.0] - 2026-11-05
 
@@ -186,6 +190,9 @@ Found after the release.
   `scripts/experiments/run_campaign.sh` counts as a valid run. In the bag of
   such a run, `/clock` and the intruder's ground truth are missing or stop
   early.
+- `scripts/sim/coastal_down.sh` does not match the node executables with a
+  digit in their name, such as `px4_safety_bridge_node`: if one survived the
+  stop of the scenario launch, it would be neither killed nor reported.
 
 ## [0.1.0] - 2026-11-05
 

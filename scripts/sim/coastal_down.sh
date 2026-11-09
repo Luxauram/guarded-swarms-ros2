@@ -51,9 +51,10 @@ SCENARIO_LAUNCH="ros2 launch guarded_swarms_bringup coastal_pipeline\.launch"
 LAUNCH_EXIT_TIMEOUT_S=15   # s for the scenario launch to stop its nodes
 
 # Gazebo, the scenario launch, every Guarded Swarms node and the ros_gz
-# bridges, by command line.
+# bridges, by command line. Package and node names may contain digits
+# (px4_safety_bridge_node).
 SCENARIO_PROCESSES="gz sim|gz_sim_serv|${SCENARIO_LAUNCH}"
-SCENARIO_PROCESSES+="|lib/guarded_swarms_[a-z]+/[a-z_]+_node( |\$)"
+SCENARIO_PROCESSES+="|lib/guarded_swarms_[a-z0-9_]+/[a-z0-9_]+_node( |\$)"
 SCENARIO_PROCESSES+="|lib/ros_gz_bridge/parameter_bridge( |\$)"
 
 log() { echo "[coastal_down] $*"; }
