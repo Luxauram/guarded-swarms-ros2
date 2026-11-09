@@ -28,16 +28,20 @@ printed, as in the [campaigns](../experiments/campaigns.md).
    same checks before it starts the recorder.
 2. **Launch.** The intruder, the sensing layer, the TB-CSPN coordination layer
    (T1–T7) and, unless `MANUAL_AUTH=1`, the scripted supervisor.
-3. **Ground-truth check.** `/intruder/ground_truth` must have exactly one
-   publisher.
+3. **Ground-truth checks.** `/intruder/ground_truth` must have exactly one
+   publisher, and its messages must arrive. The intruder publishes them on
+   simulated time, so they show that `/clock` reaches the nodes of the run.
 4. **First snapshot** of the vehicle positions, while no vehicle has a task.
 5. **Wait for the first ConfirmedThreat**, up to `THREAT_TIMEOUT` seconds.
 6. **Decision.** The scripted supervisor decides `AUTH_DELAY_S` simulated
    seconds after the first ConfirmedThreat; the script waits
    `AUTH_DELAY_S + REACT_S` seconds.
-7. **Report.** Second snapshot, [verdict](#verdict), the supervisor's decision
+7. **End check.** The ground truth must still arrive: `/clock` reached the
+   run through the decision and the reaction. A run without a ConfirmedThreat
+   and the observation of `EXPECT_THREAT=no` end with the same check.
+8. **Report.** Second snapshot, [verdict](#verdict), the supervisor's decision
    and the dispatch log.
-8. **Teardown** on Ctrl-C, or right after the report with `STAY_UP=0` (see
+9. **Teardown** on Ctrl-C, or right after the report with `STAY_UP=0` (see
    [Teardown](#teardown)).
 
 ## Configuration
@@ -89,7 +93,7 @@ draws can meet slightly different positions.
 | `0`   | The run ended on its own after the report (`STAY_UP=0`)                                                                                                                                   |
 | `1`   | No ConfirmedThreat within `THREAT_TIMEOUT` (also: unknown `ATTACK_VECTOR`)                                                                                                                |
 | `2`   | Refused to start: the scenario is down, or an earlier run left processes behind. Nothing of the run was started; `record_run.sh` checks before starting the recorder, so it writes no bag |
-| `3`   | Stopped by a guard: the intruder's ground truth does not have exactly one source. `record_run.sh` keeps the bag for inspection, but **the bag must not be analysed**                      |
+| `3`   | Stopped by a guard: the intruder's ground truth does not have exactly one source, or does not arrive. `record_run.sh` keeps the bag for inspection, but **the bag must not be analysed**  |
 | `130` | Ended with Ctrl-C or SIGTERM: the normal end of a run with `STAY_UP=1`                                                                                                                    |
 
 `record_run.sh` exits with the code of `test_pipeline.sh`.
@@ -99,11 +103,12 @@ draws can meet slightly different positions.
 Defined in `run_guards.sh`. Each prints what is wrong; the calling script then
 stops with the exit code above.
 
-| Guard                       | When                   | Fails if                                                                                                                                                 |
-| --------------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `guard_scenario_running`    | Before anything starts | No `/clock` message within 10 s                                                                                                                          |
-| `guard_no_leftovers`        | Before anything starts | A process of an earlier run is alive; the guard lists them                                                                                               |
-| `guard_single_ground_truth` | After the launches     | `/intruder/ground_truth` has not exactly one publisher. The guard waits up to 15 s for the first one, then 2 s for discovery to settle, and counts again |
+| Guard                        | When                                      | Fails if                                                                                                                                                                               |
+| ---------------------------- | ----------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `guard_scenario_running`     | Before anything starts                    | No `/clock` message within 10 s                                                                                                                                                        |
+| `guard_no_leftovers`         | Before anything starts                    | A process of an earlier run is alive; the guard lists them                                                                                                                             |
+| `guard_single_ground_truth`  | After the launches                        | `/intruder/ground_truth` has not exactly one publisher. The guard waits up to 15 s for the first one, then 2 s for discovery to settle, and counts again                               |
+| `guard_ground_truth_flowing` | After the launches, and before the result | No `/intruder/ground_truth` message within 15 s. The intruder publishes it on simulated time: without a message, the nodes of the run receive no `/clock`, or the intruder has stopped |
 
 `stop_pipeline_processes` performs the teardown: SIGTERM to every process of
 the run, then SIGKILL, with a warning that names them, for any still alive
@@ -128,7 +133,10 @@ They are not matched, and they stay up from one run to the next.
 **Why the guards exist.** In two runs of the thesis campaign, an intruder left
 over from an earlier run was still alive, and the bag recorded the ground truth
 of two intruders at once. Nothing checked for it, and the mixed trajectories
-went into the data.
+went into the data. In a later campaign, the scenario check of one run
+received `/clock`, but the nodes of the run did not: the chain published
+nothing, and the run ended as a run without a ConfirmedThreat, which the
+campaign counted as a valid result.
 
 ## Verdict
 
@@ -193,10 +201,11 @@ Each run overwrites these files:
 
 ## Troubleshooting
 
-| Message                                               | What to do                                                                                                                                |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `[guard] no /clock within 10s`                        | Start `make demo-coastal` and wait until it is ready                                                                                      |
-| `[guard] processes of an earlier run are still alive` | Stop the run that started them (Ctrl-C in its terminal), or `pkill -f <name>` for each listed process                                     |
-| `[guard] /intruder/ground_truth has 2 publisher(s)`   | Another intruder is running: stop it. If none is, the ROS 2 graph cache may still list a killed process: run `ros2 daemon stop` and retry |
-| `[guard] still alive after SIGTERM, killing:`         | A node did not exit within 5 s and was killed. The run is still valid, but the node's shutdown deserves a look                            |
-| `[record] WARNING: a guard stopped the run`           | The bag is kept for inspection. Do not analyse it                                                                                         |
+| Message                                                   | What to do                                                                                                                                                                                   |
+| --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `[guard] no /clock within 10s`                            | Start `make demo-coastal` and wait until it is ready                                                                                                                                         |
+| `[guard] processes of an earlier run are still alive`     | Stop the run that started them (Ctrl-C in its terminal), or `pkill -f <name>` for each listed process                                                                                        |
+| `[guard] /intruder/ground_truth has 2 publisher(s)`       | Another intruder is running: stop it. If none is, the ROS 2 graph cache may still list a killed process: run `ros2 daemon stop` and retry                                                    |
+| `[guard] no message on /intruder/ground_truth within 15s` | The nodes of the run receive no `/clock`, or the intruder has stopped (see `/tmp/gs_intruder.log`). A campaign repeats the attempt by itself; by hand, restart `make demo-coastal` and retry |
+| `[guard] still alive after SIGTERM, killing:`             | A node did not exit within 5 s and was killed. The run is still valid, but the node's shutdown deserves a look                                                                               |
+| `[record] WARNING: a guard stopped the run`               | The bag is kept for inspection. Do not analyse it                                                                                                                                            |

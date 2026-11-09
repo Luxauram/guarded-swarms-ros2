@@ -21,21 +21,25 @@
 # Sourced, not executed: test_pipeline.sh and record_run.sh source it from the
 # repository root, after install/setup.bash. It defines:
 #
-#   guard_scenario_running     the coastal scenario is up (/clock is published)
-#   guard_no_leftovers         no process of an earlier run is still alive
-#   guard_single_ground_truth  the intruder's ground truth has one source only
-#   stop_pipeline_processes    stops every process of a run, and checks it
+#   guard_scenario_running      the coastal scenario is up (/clock is published)
+#   guard_no_leftovers          no process of an earlier run is still alive
+#   guard_single_ground_truth   the intruder's ground truth has one source only
+#   guard_ground_truth_flowing  the intruder's ground truth is arriving
+#   stop_pipeline_processes     stops every process of a run, and checks it
 #
 # The guards print what is wrong and return 1; the caller decides how to stop.
 #
 # Why they exist: two runs of the thesis campaign recorded the ground truth of
 # two intruders at once, because an intruder from an earlier run was still
 # alive. Nothing checked for it, and the mixed trajectories went into the data.
+# In a later campaign the nodes of one run received no /clock: the run recorded
+# nothing of the chain, and it was counted as a run without a threat.
 # ==============================================================================
 
 CLOCK_TIMEOUT_S=10      # s to wait for /clock before declaring the scenario down
 GT_CHECK_TIMEOUT_S=15   # s to wait for the intruder's ground-truth publisher
 GT_SETTLE_S=2           # s to let every ground-truth publisher be discovered
+GT_FLOW_TIMEOUT_S=15    # s to wait for a ground-truth message
 TEARDOWN_TIMEOUT_S=5    # s to wait for the processes of a run to exit
 
 # The processes a run starts, matched on their full command line: the node
@@ -103,6 +107,24 @@ guard_single_ground_truth() {
   if [ "${count:-0}" -ne 1 ]; then
     echo "[guard] /intruder/ground_truth has ${count:-0} publisher(s)," \
          "expected exactly 1."
+    return 1
+  fi
+}
+
+# The intruder's ground truth must arrive. The intruder publishes it on every
+# tick of a timer on simulated time, also before its ingress starts, so a
+# message shows that /clock reaches the nodes of the run, not only the
+# scenario check. Without /clock the whole chain stays frozen, and the run
+# would end as a run without a threat. The message type is given so that the
+# guard always waits for a message: without it, ros2 topic echo stops at once
+# when the topic is not yet in the ROS graph.
+guard_ground_truth_flowing() {
+  if ! timeout "$GT_FLOW_TIMEOUT_S" ros2 topic echo --once \
+       /intruder/ground_truth geometry_msgs/msg/PoseStamped \
+       >/dev/null 2>&1; then
+    echo "[guard] no message on /intruder/ground_truth within" \
+         "${GT_FLOW_TIMEOUT_S}s: the simulated time does not reach the run," \
+         "or the intruder has stopped."
     return 1
   fi
 }

@@ -27,6 +27,17 @@ reproducible release.
   later campaign with the same configuration and seed. Documented in
   `docs/experiments/analysis.md`.
 
+### Fixed
+
+- `scripts/pipeline/test_pipeline.sh` stops a run with exit code 3 when no
+  message of the intruder's ground truth arrives within 15 s, after the
+  launch or before the result. The intruder publishes it on simulated time,
+  so the check fails when the nodes of the run receive no `/clock`. Such a
+  run published nothing of the chain and ended as a run without a
+  ConfirmedThreat, which `scripts/experiments/run_campaign.sh` counted as
+  valid; a campaign now repeats it. The check is
+  `guard_ground_truth_flowing`, in `scripts/pipeline/run_guards.sh`.
+
 ## [0.2.0] - 2026-11-05
 
 ### Added
@@ -116,6 +127,17 @@ reproducible release.
   factor of 0.97) and the agents scanned more often, so latencies measured
   in simulated time depended on the load of the machine. The scripted
   supervisor also checks its pending decisions on simulated time.
+
+### Known issues
+
+Found after the release.
+
+- `scripts/pipeline/test_pipeline.sh` checks `/clock` only before the launch.
+  If the nodes of the run then receive no `/clock`, the chain publishes
+  nothing and the run ends without a ConfirmedThreat (exit code 1), which
+  `scripts/experiments/run_campaign.sh` counts as a valid run. In the bag of
+  such a run, `/clock` and the intruder's ground truth are missing or stop
+  early.
 
 ## [0.1.0] - 2026-11-05
 

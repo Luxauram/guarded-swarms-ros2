@@ -130,8 +130,8 @@ rc=$?
 # Reached when test_pipeline.sh ends on its own: with STAY_UP=0 after the
 # report, or on an error. By default it stays up until Ctrl-C, which ends both
 # scripts through their traps and closes the bag.
-# Exit code 3 means a guard stopped a contaminated run: the bag is kept for
-# inspection, but it must not be analysed.
+# Exit code 3 means a guard stopped a run whose data cannot be used: the bag is
+# kept for inspection, but it must not be analysed.
 if [ "$rc" -eq 3 ]; then
   echo "[record] WARNING: a guard stopped the run; do not analyse ${BAG_DIR}"
 fi

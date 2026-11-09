@@ -32,11 +32,12 @@
 #
 # Everything this script starts, and only that, is torn down on exit. The run
 # refuses to start if the scenario is down or an earlier run left processes
-# behind, and stops if the intruder's ground truth has more than one source
-# (see run_guards.sh). It stays up after the report until Ctrl-C, or ends on
-# its own with STAY_UP=0. Exit codes: 0 report done (STAY_UP=0), 1 no
-# ConfirmedThreat within THREAT_TIMEOUT, 2 refused to start, 3 stopped by a
-# guard; Ctrl-C ends it with 130.
+# behind. It stops if the intruder's ground truth has not exactly one source,
+# or does not arrive after the launch or before the result: the intruder
+# publishes it on simulated time (see run_guards.sh). It stays up after the
+# report until Ctrl-C, or ends on its own with STAY_UP=0. Exit codes: 0 report
+# done (STAY_UP=0), 1 no ConfirmedThreat within THREAT_TIMEOUT, 2 refused to
+# start, 3 stopped by a guard; Ctrl-C ends it with 130.
 # ==============================================================================
 set -o pipefail
 cd "$(dirname "$0")/../.." || exit 1
@@ -214,6 +215,10 @@ fi
 # One intruder only: a second source of ground truth would mix two trajectories
 # in the data.
 guard_single_ground_truth || exit 3
+# Its ground truth must also arrive. The intruder publishes it on simulated
+# time: a run whose nodes receive no /clock stays frozen, and would only time
+# out waiting for a threat.
+guard_ground_truth_flowing || exit 3
 
 # Ground-truth position "x,y,z" of a Gazebo model, or empty if not found.
 pose() {
@@ -238,6 +243,9 @@ if [[ "$EXPECT_THREAT" == "no" ]]; then
   echo "[test] counterfactual run: NOT expecting a ConfirmedThreat."
   echo "[test] letting the pipeline run for ${OBSERVE_S}s..."
   sleep "${OBSERVE_S}"
+  # The ground truth must still arrive: an observation that the simulated time
+  # stopped reaching is not a result.
+  guard_ground_truth_flowing || exit 3
   echo "[test] done observing; the bag holds the (non-)result."
   if [ "$STAY_UP" = "1" ]; then
     echo "[test] leaving everything running so you can watch. Ctrl-C to tear down."
@@ -268,6 +276,8 @@ if wait "$THREAT_WATCH_PID"; then
   got_threat=1
 fi
 if (( got_threat == 0 )); then
+  # No threat counts only if the simulated time reached the run to the end.
+  guard_ground_truth_flowing || exit 3
   echo "[test] FAIL: no ConfirmedThreat within ${THREAT_TIMEOUT}s."
   echo "[test] check /tmp/gs_sensing.log and /tmp/gs_tbcspn.log"
   exit 1
@@ -309,6 +319,10 @@ else
   echo "[test] letting the vehicles react (${AUTH_DELAY_S}s + ${REACT_S}s)..."
   sleep "$(LC_ALL=C awk -v a="${AUTH_DELAY_S}" -v b="${REACT_S}" 'BEGIN { print a + b }')"
 fi
+
+# The simulated time must have reached the run through the decision and the
+# reaction of the vehicles.
+guard_ground_truth_flowing || exit 3
 
 after_uav0=$(pose x500_lidar_front_0)
 after_uav1=$(pose x500_lidar_front_1)
