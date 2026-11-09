@@ -51,6 +51,13 @@ reproducible release.
   `nominal-gate` (the gate enforces it, and no worker is faulty). They record
   30 s after the decision instead of 10. `scripts/metrics/audit_recordings.py`
   expects of them the outcome of the nominal chain.
+- `scripts/metrics/analyze_faults.py`: the tables of the faulty-UAV-worker
+  configurations of a campaign, on the runs that
+  `scripts/metrics/analyze_campaign.py` uses. Impact rate with its 95% Wilson
+  interval, impact speed, closest distance to the wall, the intervention of
+  the safety layer message by message in simulated time, the commands that
+  reached PX4 while the board reported unsafe, and the holds of the gate on
+  the UAVs without a fault. Documented in `docs/experiments/analysis.md`.
 
 ### Changed
 

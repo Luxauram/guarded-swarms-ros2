@@ -1,14 +1,15 @@
 # Analysis
 
-Two scripts turn recorded runs into checked figures. They read the bags,
+Three scripts turn recorded runs into checked figures. They read the bags,
 change none of them, and start no ROS node.
 
-| File                                  | Role                                                                                                         |
-| ------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| `scripts/metrics/analyze_campaign.py` | The tables of a [campaign](campaigns.md), from its manifest and bags, with the clean-run checks on every run |
-| `scripts/metrics/audit_recordings.py` | Checks that recorded runs are clean, and recomputes their time figures on both time axes                     |
+| File                                  | Role                                                                                                                              |
+| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/metrics/analyze_campaign.py` | The tables of a [campaign](campaigns.md), from its manifest and bags, with the clean-run checks on every run                      |
+| `scripts/metrics/analyze_faults.py`   | The tables of the [faulty UAV worker](#faulty-uav-worker) configurations of a campaign, on the same runs as `analyze_campaign.py` |
+| `scripts/metrics/audit_recordings.py` | Checks that recorded runs are clean, and recomputes their time figures on both time axes                                          |
 
-Both build on `scripts/metrics/audit_timing.py`, which reads the bags, maps
+They build on `scripts/metrics/audit_timing.py`, which reads the bags, maps
 receive times to simulated time through the recorded `/clock`, and computes
 the statistics.
 
@@ -17,6 +18,7 @@ the statistics.
 ```bash
 source /opt/ros/humble/setup.bash && source install/setup.bash
 python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign>
+python3 scripts/metrics/analyze_faults.py bags/campaigns/<campaign>
 python3 scripts/metrics/audit_recordings.py bags/<run>... --csv results/audit_recordings.csv
 ```
 
@@ -103,6 +105,46 @@ must pass:
 | The counter at the end of the interpretation ids never goes back                                         | More than one producer per transition    |
 | The ground-truth stamps are in simulated time, and the intruder speed in simulated time is 6.0 ± 0.1 m/s | Mixed clocks                             |
 | At most one supervisor decision for the target                                                           | More than one supervisor                 |
+
+## Faulty UAV worker
+
+`analyze_faults.py` reads one campaign folder and analyses its
+configurations that set `UAV_FAULT` or `VETO_BY` in `configurations.conf`
+(`fault-worker`, `fault-gate`, `nominal-gate`). Each run uses the attempt
+that `analyze_campaign.py` uses, and a run whose recording is not
+[clean](#clean-runs) is left out and listed. It prints the tables and writes
+them to `--out` (default `results/<campaign>/`):
+
+| File         | Content                                   |
+| ------------ | ----------------------------------------- |
+| `faults.md`  | The tables, as printed                    |
+| `faults.csv` | One line per run, with every figure below |
+
+The faulty UAV is the UAV of the first UAV task of the run. With
+`UAV_FAULT=obstacle` it flies into its fault building (see
+[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode)):
+
+| Figure               | Definition                                                                                                                                                                                                   |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Impact               | Its centre comes within 0.5 m (`CONTACT_M`) of the footprint of its fault building, below the roof. Its position from PX4 after an impact is not used: the estimate of a crashed vehicle is not its position |
+| Impact speed         | Horizontal speed of the last position before the impact                                                                                                                                                      |
+| Closest to the wall  | Smallest horizontal distance to the footprint after the task, in the runs without impact                                                                                                                     |
+| Distance at the end  | At the last position of the recording, in the runs without impact                                                                                                                                            |
+| Intervention         | First lidar range below the proximity threshold of the board (10 m, `TRIP_M`) after the task → first unsafe `safety_status` → first hold of the gate at PX4                                                  |
+| Commands let through | Setpoints that reached PX4 while the last `safety_status` was unsafe and were not holds, from the task to the impact or to the end                                                                           |
+| Held to the end      | Every setpoint at PX4 after the first hold is a hold                                                                                                                                                         |
+
+For the UAVs without a fault (both UAVs of `nominal-gate`, the UAV without
+the task otherwise) it counts the holds of the gate, and the unsafe
+`safety_status` samples while the UAV is above 3 m (`AIRBORNE_M`).
+
+A setpoint at PX4 is a hold when its position matches none of the setpoints
+the worker proposed within 0.5 s of it (`PAIR_WINDOW_S`), since the gate
+forwards a setpoint unchanged. Every time is in simulated time: the receive
+time of each message mapped onto the recorded `/clock`, because the lidar
+range and the safety status carry no usable stamp. The resolution is that of
+the recording. The spawn points and the fault buildings are constants of the
+script, as in `coastal_pipeline.launch.py` and `coastal.sdf`.
 
 ## Auditing recordings
 
