@@ -138,6 +138,22 @@ ament_target_dependencies(ugv_worker_node
 target_compile_features(ugv_worker_node PUBLIC c_std_99 cxx_std_17)
 
 # ============================================================================
+# Executable: px4_safety_gate_node
+# Gate on the setpoint path of a UAV, between its worker and PX4: forwards the
+# worker's setpoints, or holds the UAV while its Safety Board reports unsafe
+# (parameter veto_by).
+# ============================================================================
+add_executable(px4_safety_gate_node src/px4_safety_gate_node.cpp)
+target_include_directories(px4_safety_gate_node PUBLIC
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+ament_target_dependencies(px4_safety_gate_node
+  rclcpp px4_msgs std_msgs
+)
+target_compile_features(px4_safety_gate_node PUBLIC c_std_99 cxx_std_17)
+
+# ============================================================================
 # Install
 # ============================================================================
 install(TARGETS
@@ -148,6 +164,7 @@ install(TARGETS
   intruder_node
   uav_worker_node
   ugv_worker_node
+  px4_safety_gate_node
 DESTINATION lib/${PROJECT_NAME}
 )
 

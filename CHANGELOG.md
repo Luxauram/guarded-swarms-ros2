@@ -26,6 +26,24 @@ reproducible release.
   run that is not clean is left out and listed, and can be repeated in a
   later campaign with the same configuration and seed. Documented in
   `docs/experiments/analysis.md`.
+- `px4_safety_gate_node`, in `guarded_swarms_control`: a node on the setpoint
+  path of a UAV, between its worker and PX4. With `veto_by` set to `worker`,
+  the default, it forwards the setpoints of the worker unchanged. With
+  `gate`, it enforces the Safety Board veto whatever the worker proposes:
+  once the UAV is 3 m up, it holds it at its position while
+  `safety_status` reports unsafe or stops arriving for more than 0.5 s, and
+  forwards again 2 s after the last unsafe status. Documented in
+  `docs/packages/guarded_swarms_control.md`.
+
+### Changed
+
+- `uav_worker_node` publishes its setpoints on the topic of the new
+  `setpoint_topic` parameter, `fmu/in/trajectory_setpoint` by default. In the
+  coastal scenario the UAV workers publish on `trajectory_setpoint_proposed`,
+  and one `px4_safety_gate_node` per UAV passes the setpoints on to PX4
+  (`src/guarded_swarms_bringup/launch/coastal_pipeline.launch.py`). Both
+  gates have `veto_by` set to `worker` (`UAV_VETO_BY`), so the UAVs fly as
+  before.
 
 ### Fixed
 

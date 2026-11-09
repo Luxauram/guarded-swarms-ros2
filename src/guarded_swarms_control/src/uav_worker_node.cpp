@@ -74,7 +74,7 @@
  *     actuator_cmd_safe                  (std_msgs/Float32)
  *   Published:
  *     fmu/in/offboard_control_mode       (px4_msgs/OffboardControlMode)
- *     fmu/in/trajectory_setpoint         (px4_msgs/TrajectorySetpoint)
+ *     <setpoint_topic>                   (px4_msgs/TrajectorySetpoint)
  *     fmu/in/vehicle_command             (px4_msgs/VehicleCommand)
  *     actuator_cmd_raw                   (std_msgs/Float32)
  *
@@ -119,9 +119,14 @@ class UavWorkerNode : public rclcpp::Node {
     offboard_mode_pub_ =
         this->create_publisher<px4_msgs::msg::OffboardControlMode>(
             "fmu/in/offboard_control_mode", QUEUE_SIZE);
-    setpoint_pub_ =
-        this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
-            "fmu/in/trajectory_setpoint", QUEUE_SIZE);
+    // The setpoint goes to PX4 directly by default; in the coastal scenario it
+    // is routed to the safety gate (px4_safety_gate_node), which forwards it to
+    // fmu/in/trajectory_setpoint, so a separate node can hold the UAV even when
+    // this worker is bypassed. A parameter, so other launches are unchanged.
+    setpoint_pub_ = this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
+        this->declare_parameter<std::string>("setpoint_topic",
+                                              "fmu/in/trajectory_setpoint"),
+        QUEUE_SIZE);
     // Proposed-actuation channel into this vehicle's analog Safety Board
     // (relative topic: stays within the vehicle namespace). The board answers
     // on actuator_cmd_safe.

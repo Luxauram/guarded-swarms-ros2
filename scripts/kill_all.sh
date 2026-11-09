@@ -75,6 +75,7 @@ pkill -9 -f "dispatch_transition_node" 2>/dev/null || true
 # Worker agents and the intruder.
 pkill -9 -f "uav_worker_node" 2>/dev/null || true
 pkill -9 -f "ugv_worker_node" 2>/dev/null || true
+pkill -9 -f "px4_safety_gate_node" 2>/dev/null || true
 pkill -9 -f "rover_control_node" 2>/dev/null || true
 pkill -9 -f "intruder_node" 2>/dev/null || true
 

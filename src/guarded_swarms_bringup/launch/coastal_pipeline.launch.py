@@ -127,6 +127,16 @@ UAV_MAX_TILT_DEG = 60.0
 UAV_MIN_PROXIMITY_M = 10.0
 UAV_PROXIMITY_RELEASE_M = 12.0
 
+# The UAV worker publishes its setpoint here; the safety gate forwards it to
+# fmu/in/trajectory_setpoint, holding position when the board is unsafe (see
+# px4_safety_gate_node). Relative, so each UAV namespace gets its own gate.
+PROPOSED_SETPOINT_TOPIC = "trajectory_setpoint_proposed"
+
+# Which node enforces the veto: "worker" (the worker holds position itself, the
+# default and transparent) or "gate" (the gate holds, so a worker that ignores
+# the board cannot bypass it). The fault-injection runs set this to "gate".
+UAV_VETO_BY = "worker"
+
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
 # NED East = Gazebo X, so varying the second value drives along the shore.
 # From X = -60 eastward, the road barrier at X = -8 triggers the veto.
@@ -222,6 +232,19 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
                 "intercept_altitude": INTERCEPT_ALTITUDE_M,
                 "spawn_x": spawn[0],
                 "spawn_y": spawn[1],
+                "setpoint_topic": PROPOSED_SETPOINT_TOPIC,
+                "use_sim_time": True,
+            }],
+            emulate_tty=True,
+            **ns,
+        ))
+        nodes.append(Node(
+            package="guarded_swarms_control",
+            executable="px4_safety_gate_node",
+            name="px4_safety_gate_node",
+            output="screen",
+            parameters=[{
+                "veto_by": UAV_VETO_BY,
                 "use_sim_time": True,
             }],
             emulate_tty=True,

@@ -5,9 +5,10 @@ The pages in this folder document each part of the project in detail.
 
 ## Packages
 
-| Package                                                              | Description                                                                         |
-| -------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md) | Scripted supervisor that issues the authorisation decisions of T6 in automated runs |
+| Package                                                              | Description                                                                                              |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`guarded_swarms_control`](packages/guarded_swarms_control.md)       | Vehicle-side nodes and the simulated intruder, including the safety gate between the UAV workers and PX4 |
+| [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md) | Scripted supervisor that issues the authorisation decisions of T6 in automated runs                      |
 
 ## Scripts
 
