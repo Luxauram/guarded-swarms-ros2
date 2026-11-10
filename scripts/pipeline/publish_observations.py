@@ -31,14 +31,16 @@ nothing and changes no vehicle.
 
 The three ObsToken streams copy the fields that radar_agent_node,
 rf_agent_node and eo_agent_node publish, so interpretation_node treats the
-injected stream exactly as it treats a real one. As the forged-mission
-publisher does, this node avoids the discovery race that a short-lived
-publisher can lose: it waits for interpretation_node to subscribe before it
-starts, and it confirms that its target reaches a ConfirmedThreat by listening
-on /interp_tokens. It streams until the threat has held for --hold seconds, or
-until --window seconds pass, and exits non-zero if no ConfirmedThreat for the
-target ever forms, which test_pipeline.sh turns into a guard-stop so
-run_campaign.sh repeats the run with the same seed.
+injected stream exactly as it treats a real one. A publisher that starts late
+is matched by each subscriber in its own time, so this node publishes nothing
+until every subscriber of /obs_tokens - interpretation_node and the recorder
+among them - has matched it: the recording then holds the whole forged stream
+from its first observation. It confirms that its target reaches a
+ConfirmedThreat by listening on /interp_tokens, streams until the threat has
+held for --hold seconds or until --window seconds pass, and exits non-zero if
+no ConfirmedThreat for the target forms. In a run, test_pipeline.sh detects a
+missing threat itself and stops the run (exit 3), so run_campaign.sh repeats
+it with the same seed.
 
 Usage (run by test_pipeline.sh when FORGE_OBS is set):
     source /opt/ros/humble/setup.bash && source install/setup.bash
@@ -145,16 +147,36 @@ class ForgedObservations(Node):
 
     # -- discovery -------------------------------------------------------------
     def _await_ready(self):
-        """Wait for a subscriber on /obs_tokens and for simulated time."""
+        """Wait until every subscriber of /obs_tokens has matched us.
+
+        Publishing at the first match would let a subscriber matched later -
+        the recorder - miss the first observations, which the chain has
+        already used. So wait until the subscriptions matched to this
+        publisher are as many as the graph shows on the topic, and have stayed
+        so for --settle seconds, with simulated time running.
+        """
+        a = self.args
         clk = self.get_clock()
-        deadline = time.time() + self.args.ready_timeout
+        deadline = time.time() + a.ready_timeout
+        since = None    # wall instant the full match was first seen
         while rclpy.ok() and time.time() < deadline:
             rclpy.spin_once(self, timeout_sec=0.05)
-            if self.pub.get_subscription_count() > 0 and clk.now().nanoseconds > 0:
-                return True
+            known = self.count_subscribers("/obs_tokens")
+            matched = self.pub.get_subscription_count()
+            if known > 0 and matched >= known and clk.now().nanoseconds > 0:
+                if since is None:
+                    since = time.time()
+                if time.time() - since >= a.settle:
+                    self.get_logger().info(
+                        "{} subscriber(s) of /obs_tokens matched".format(matched))
+                    return True
+            else:
+                since = None
         self.get_logger().warn(
-            "starting without full discovery (subscribers={}, clock={})".format(
-                self.pub.get_subscription_count(), clk.now().nanoseconds))
+            "starting without full discovery (matched={}, known={}, clock={})"
+            .format(self.pub.get_subscription_count(),
+                    self.count_subscribers("/obs_tokens"),
+                    clk.now().nanoseconds))
         return False
 
     # -- main loop -------------------------------------------------------------
@@ -233,6 +255,8 @@ def main():
                    help="keep streaming this long after the threat confirms")
     p.add_argument("--ready-timeout", type=float, default=15.0,
                    help="wall-clock seconds to wait for discovery")
+    p.add_argument("--settle", type=float, default=2.0,
+                   help="wall-clock seconds every subscriber must stay matched")
     args = p.parse_args()
 
     rclpy.init()
