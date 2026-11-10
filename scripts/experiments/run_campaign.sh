@@ -122,6 +122,7 @@ declare -A KNOBS=(
   [AUTH_DELAY_S]="$NUMBER"       [AUTH_TTL_S]="$NUMBER"
   [THREAT_TIMEOUT]="$NUMBER"     [REACT_S]="$NUMBER"
   [VETO_BY]='worker|gate'        [UAV_FAULT]='none|obstacle'
+  [FORGE_MISSION]='none|obstacle'
 )
 
 # Only the configuration file sets the scenario: a value left exported in this

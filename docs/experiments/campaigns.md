@@ -53,39 +53,48 @@ its post, the rover at the start of its patrol.
 ## Configurations
 
 `configurations.conf` holds one configuration per line: a name, then the
-variables that make it differ from the nominal run. It defines fourteen
+variables that make it differ from the nominal run. It defines sixteen
 configurations:
 
-| Name            | Variables                                         | What it tests                                                        |
-| --------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
-| `nominal`       | (none)                                            | The full chain                                                       |
-| `deny`          | `DECISION=deny`                                   | Authorisation withheld                                               |
-| `stale-eo`      | `EO_DELAY_S=12`                                   | EO confirmation arriving after the threat TTL (10 s)                 |
-| `civilian`      | `RF_LABEL=LikelyCivilianTraffic EXPECT_THREAT=no` | Conflicting RF evidence                                              |
-| `vec-frontal`   | `ATTACK_VECTOR=frontal`                           | Frontal ingress                                                      |
-| `vec-east-deep` | `ATTACK_VECTOR=east-deep`                         | Deep ingress from the east                                           |
-| `vec-rear`      | `ATTACK_VECTOR=rear`                              | Ingress from the rear                                                |
-| `loss-radar`    | `RADAR_ENABLED=false`                             | Loss of the radar                                                    |
-| `loss-rf`       | `RF_ENABLED=false`                                | Loss of the RF sensor                                                |
-| `loss-acoustic` | `ACOUSTIC_ENABLED=false`                          | Loss of the acoustic sensor                                          |
-| `loss-eo`       | `EO_ENABLED=false`                                | Loss of the EO camera                                                |
-| `fault-worker`  | `VETO_BY=worker UAV_FAULT=obstacle REACT_S=30`    | A faulty UAV worker flies into a building; the veto is left to it    |
-| `fault-gate`    | `VETO_BY=gate UAV_FAULT=obstacle REACT_S=30`      | The same faulty worker, with the safety gate enforcing the veto      |
-| `nominal-gate`  | `VETO_BY=gate REACT_S=30`                         | The full chain, with the safety gate enforcing the veto and no fault |
+| Name            | Variables                                                        | What it tests                                                        |
+| --------------- | ---------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `nominal`       | (none)                                                           | The full chain                                                       |
+| `deny`          | `DECISION=deny`                                                  | Authorisation withheld                                               |
+| `stale-eo`      | `EO_DELAY_S=12`                                                  | EO confirmation arriving after the threat TTL (10 s)                 |
+| `civilian`      | `RF_LABEL=LikelyCivilianTraffic EXPECT_THREAT=no`                | Conflicting RF evidence                                              |
+| `vec-frontal`   | `ATTACK_VECTOR=frontal`                                          | Frontal ingress                                                      |
+| `vec-east-deep` | `ATTACK_VECTOR=east-deep`                                        | Deep ingress from the east                                           |
+| `vec-rear`      | `ATTACK_VECTOR=rear`                                             | Ingress from the rear                                                |
+| `loss-radar`    | `RADAR_ENABLED=false`                                            | Loss of the radar                                                    |
+| `loss-rf`       | `RF_ENABLED=false`                                               | Loss of the RF sensor                                                |
+| `loss-acoustic` | `ACOUSTIC_ENABLED=false`                                         | Loss of the acoustic sensor                                          |
+| `loss-eo`       | `EO_ENABLED=false`                                               | Loss of the EO camera                                                |
+| `fault-worker`  | `VETO_BY=worker UAV_FAULT=obstacle REACT_S=30`                   | A faulty UAV worker flies into a building; the veto is left to it    |
+| `fault-gate`    | `VETO_BY=gate UAV_FAULT=obstacle REACT_S=30`                     | The same faulty worker, with the safety gate enforcing the veto      |
+| `nominal-gate`  | `VETO_BY=gate REACT_S=30`                                        | The full chain, with the safety gate enforcing the veto and no fault |
+| `forge-worker`  | `VETO_BY=worker DECISION=deny FORGE_MISSION=obstacle REACT_S=30` | An unauthorised mission is injected; the honest worker holds the UAV |
+| `forge-gate`    | `VETO_BY=gate DECISION=deny FORGE_MISSION=obstacle REACT_S=30`   | The same injection, with the safety gate enforcing the veto          |
 
 `nominal` and `vec-frontal` set the same scenario, since the frontal vector is
 the default, but they are separate configurations, each with its own runs.
 
-The last three configurations record 30 s after the decision (`REACT_S=30`)
+The last five configurations record 30 s after the decision (`REACT_S=30`)
 instead of 10. With the faulty worker, the flight reaches the building about
 10 s after the task, and the rest of the recording shows the impact or the
 hold; `nominal-gate` records as long, so that the three compare. The faulty
 worker and its targets are described in
 [`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode).
 
+The `forge-worker` and `forge-gate` configurations run with the authorisation
+withheld (`DECISION=deny`), so no mission is released through the chain, and
+`FORGE_MISSION=obstacle` instead publishes one unauthorised `MissionToken`
+directly, to check that the safety layer holds the UAV it is dispatched to.
+`forge-worker` leaves the veto to the worker, `forge-gate` to the safety gate.
+
 The variables are those of the
-[pipeline run scripts](../scripts/pipeline.md#configuration), plus `VETO_BY`
-and `UAV_FAULT` of [`coastal_up.sh`](#starting-and-stopping-the-scenario).
+[pipeline run scripts](../scripts/pipeline.md#configuration), including
+`FORGE_MISSION` of `test_pipeline.sh`, plus `VETO_BY` and `UAV_FAULT` of
+[`coastal_up.sh`](#starting-and-stopping-the-scenario).
 The campaign accepts only those, each with the values it allows, and checks
 the whole file before the first run: a typo stops the campaign at once
 instead of producing runs of the wrong scenario. A variable set in the

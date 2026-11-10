@@ -109,8 +109,9 @@ must pass:
 ## Faulty UAV worker
 
 `analyze_faults.py` reads one campaign folder and analyses its
-configurations that set `UAV_FAULT` or `VETO_BY` in `configurations.conf`
-(`fault-worker`, `fault-gate`, `nominal-gate`). Each run uses the attempt
+configurations that set `UAV_FAULT`, `FORGE_MISSION` or `VETO_BY` in
+`configurations.conf` (`fault-worker`, `fault-gate`, `nominal-gate`,
+`forge-worker`, `forge-gate`). Each run uses the attempt
 that `analyze_campaign.py` uses, and a run whose recording is not
 [clean](#clean-runs) is left out and listed. It prints the tables and writes
 them to `--out` (default `results/<campaign>/`):
@@ -120,9 +121,12 @@ them to `--out` (default `results/<campaign>/`):
 | `faults.md`  | The tables, as printed                    |
 | `faults.csv` | One line per run, with every figure below |
 
-The faulty UAV is the UAV of the first UAV task of the run. With
-`UAV_FAULT=obstacle` it flies into its fault building (see
-[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode)):
+The subject UAV is the UAV of the first UAV task of the run. With
+`UAV_FAULT=obstacle` the faulty worker flies it into its fault building (see
+[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode));
+with `FORGE_MISSION=obstacle` the worker is honest and the subject is the UAV
+dispatched the injected mission, whose building is the one nearest the injected
+target:
 
 | Figure               | Definition                                                                                                                                                                                                   |
 | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |

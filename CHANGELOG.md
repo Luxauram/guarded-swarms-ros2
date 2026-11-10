@@ -58,6 +58,22 @@ reproducible release.
   the safety layer message by message in simulated time, the commands that
   reached PX4 while the board reported unsafe, and the holds of the gate on
   the UAVs without a fault. Documented in `docs/experiments/analysis.md`.
+- `scripts/pipeline/publish_mission.py`: a small command-line node that
+  publishes one `MissionToken` to `/mission_tokens`, with the fields given on
+  the command line, to place a mission on the dispatch topic directly. It
+  republishes and watches `/vehicle_tasks` until the dispatch transition turns
+  the mission into a task, and exits non-zero if that does not happen within a
+  timeout, so `scripts/pipeline/test_pipeline.sh` stops the run (exit 3) and the
+  campaign repeats it with the same seed.
+- Two configurations for a forged-mission test in
+  `scripts/experiments/configurations.conf`: `forge-worker` and `forge-gate`.
+  Both run with the authorisation withheld (`DECISION=deny`) and, through the
+  new `FORGE_MISSION=obstacle` of `scripts/pipeline/test_pipeline.sh`, publish
+  one unauthorised `MissionToken` after the decision, to check that the safety
+  layer holds the UAV it is dispatched to. `forge-worker` leaves the veto to
+  the worker, `forge-gate` to the safety gate.
+  `scripts/metrics/analyze_faults.py` covers them alongside the faulty-worker
+  configurations.
 
 ### Changed
 
@@ -70,9 +86,14 @@ reproducible release.
 - `scripts/record/record_run.sh` also records the safety layer of each
   vehicle: `safety_status`, `actuator_cmd_safe` and `drone/proximity`, and for
   the two UAVs the setpoint before and after the safety gate.
-- `scripts/experiments/run_campaign.sh` accepts `VETO_BY` and `UAV_FAULT` in a
-  configuration, and passes the variables of the configuration to
-  `scripts/sim/coastal_up.sh` as well as to `scripts/record/record_run.sh`.
+- `scripts/experiments/run_campaign.sh` accepts `VETO_BY`, `UAV_FAULT` and
+  `FORGE_MISSION` in a configuration, and passes the variables of the
+  configuration to `scripts/sim/coastal_up.sh` as well as to
+  `scripts/record/record_run.sh`.
+- `scripts/pipeline/test_pipeline.sh` accepts `FORGE_MISSION` (`none` or
+  `obstacle`): with `obstacle` it publishes one unauthorised `MissionToken`
+  after the supervisor's decision, to exercise the safety layer. Off by
+  default, so every other run is unchanged.
 
 ### Fixed
 

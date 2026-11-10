@@ -15,18 +15,26 @@
 # limitations under the License.
 # ==============================================================================
 """
-analyze_faults.py - the tables of the faulty-UAV-worker runs of a campaign.
+analyze_faults.py - the tables of the obstacle-injection runs of a campaign.
 
 Read-only: it reads the manifest and the bags of a campaign recorded by
 scripts/experiments/run_campaign.sh, and writes tables and a CSV file.
 
+It covers the runs in which a UAV is commanded toward a building, to check
+that the analogue Safety Board keeps it clear:
+  - UAV_FAULT=obstacle: a faulty worker flies to its own fault building and
+    ignores the veto (the digital-control failure);
+  - FORGE_MISSION=obstacle: an unauthorised MissionToken, published straight
+    onto /mission_tokens, names a building as the target; the honest worker
+    flies there (the unauthenticated-bus failure).
 The configurations analysed are those of configurations.conf that set
-UAV_FAULT or VETO_BY. Each run uses the attempt that analyze_campaign.py
-uses: the first valid attempt whose recording passes its checks. A run
-without one is left out and listed.
+UAV_FAULT, FORGE_MISSION or VETO_BY. Each run uses the attempt that
+analyze_campaign.py uses: the first valid attempt whose recording passes its
+checks. A run without one is left out and listed.
 
-The faulty UAV is the one that received the task (the first UAV task of the
-bag). With UAV_FAULT=obstacle it flies into its fault building:
+The subject UAV is the one that received the task (the first UAV task of the
+bag). It is measured against a building -- its own with UAV_FAULT, the one the
+task points at with FORGE_MISSION:
   - impact: its centre comes within CONTACT_M of the footprint of the
     building (horizontal distance, below the roof). The impact speed is the
     horizontal speed of the last position before it. After an impact the
@@ -38,10 +46,11 @@ bag). With UAV_FAULT=obstacle it flies into its fault building:
     proximity threshold of the board (TRIP_M), first unsafe safety_status,
     first hold of the safety gate at PX4;
   - commands let through: setpoints that reached PX4 while the board
-    reported unsafe and were not holds.
-For the UAVs without a fault (both UAVs of a configuration without
-UAV_FAULT, the UAV without the task otherwise): the holds of the gate, and
-the unsafe safety_status samples while airborne (above AIRBORNE_M).
+    reported unsafe and commanded the UAV closer to the wall (a live motion
+    command past the veto, not a position hold).
+For the other UAVs (the one without the task, and both UAVs of a control
+configuration): the holds of the gate, and the unsafe safety_status samples
+while airborne (above AIRBORNE_M).
 
 Times are in simulated time: the receive time of every message mapped onto
 the recorded /clock, as in audit_recordings.py (the lidar range and the
@@ -98,12 +107,19 @@ UAVS: Dict[int, Tuple[str, Tuple[float, float], Building]] = {
     2: ("/px4_1", (24.0, -24.0),
         Building("building_0_4", -22.53, -47.07, -0.017, 22.0, 18.0, 34.0)),
 }
+# The buildings the obstacle runs aim a UAV at. With UAV_FAULT the faulty
+# worker flies to its own (above). With FORGE_MISSION the forged mission names
+# one as the task target, and the honest worker flies there; the building
+# measured is then the one the task points at (nearest_building).
+BUILDINGS: List[Building] = [b for _, _, b in UAVS.values()]
 TRIP_M = 10.0          # proximity threshold of the UAV boards
 CONTACT_M = 0.5        # centre this close to a wall: impact (x500 ~0.35 m)
 STATUS_UNSAFE = 0.5    # safety_status below this: unsafe
 AIRBORNE_M = 3.0       # above this altitude a UAV is airborne
 PAIR_WINDOW_S = 0.5    # a forwarded setpoint has a proposed twin this close
 SAME_M = 1e-3          # positions this close are the same setpoint
+HOLD_EPS_M = 1.0       # a setpoint nearer the wall than the UAV by more than
+                       # this is a motion command, not a position hold
 
 POSITION = "fmu/out/vehicle_local_position_v1"
 PROXIMITY = "drone/proximity"
@@ -168,6 +184,11 @@ def wall_m(x: float, y: float, b: Building) -> float:
                       max(abs(v) - b.size_y / 2, 0.0))
 
 
+def nearest_building(x: float, y: float) -> Building:
+    """The building whose footprint is closest to (x, y), world ENU."""
+    return min(BUILDINGS, key=lambda b: wall_m(x, y, b))
+
+
 def last_before(times: List[float], values: list, t: float):
     """Value of the last sample at or before t, or None."""
     i = bisect.bisect_right(times, t) - 1
@@ -186,7 +207,9 @@ class FaultRun:
     problems: str = ""
     veto_by: str = "worker"
     fault: str = "none"
+    forge: str = "none"
     uav: Optional[int] = None          # system id of the UAV with the task
+    subject_building: str = ""         # the building that UAV was sent at
     impact: Optional[bool] = None
     impact_s: Optional[float] = None
     impact_speed_mps: Optional[float] = None
@@ -209,7 +232,8 @@ class UavTrack:
     """The safety layer of one UAV in simulated time."""
 
     def __init__(self, data: Dict[str, list], clk: ClockMap, sid: int):
-        ns, spawn, self.building = UAVS[sid]
+        ns, self.spawn, self.building = UAVS[sid]
+        spawn = self.spawn
 
         def mapped(topic: str, value) -> Tuple[List[float], list]:
             pairs = [(clk(rx), value(m)) for rx, m in data[ns + "/" + topic]
@@ -225,8 +249,14 @@ class UavTrack:
         self.status = mapped(STATUS, lambda m: m.data)
         self.proposed = mapped(PROPOSED, lambda m: tuple(m.position))
         to_px4 = mapped(TO_PX4, lambda m: tuple(m.position))
-        # Each setpoint at PX4 with whether it is a hold of the gate.
-        self.px4 = [(t, self.is_hold(t, p)) for t, p in zip(*to_px4)]
+        # Each setpoint at PX4: its commanded world-ENU (x, y), and whether it
+        # is a hold of the gate (position not among the worker's proposals).
+        self.px4 = [(t, self.world_xy(p), self.is_hold(t, p))
+                    for t, p in zip(*to_px4)]
+
+    def world_xy(self, position) -> Tuple[float, float]:
+        """World-ENU (x, y) of a setpoint position (NED north, east, down)."""
+        return self.spawn[0] + position[1], self.spawn[1] + position[0]
 
     def is_hold(self, t: float, p: tuple) -> bool:
         times, values = self.proposed
@@ -256,12 +286,14 @@ class UavTrack:
 
 
 def first_task(data: Dict[str, list], clk: ClockMap
-               ) -> Tuple[Optional[int], Optional[float]]:
-    """System id and simulated time of the first UAV task of the run."""
+               ) -> Tuple[Optional[int], Optional[float],
+                          Optional[Tuple[float, float]]]:
+    """System id, simulated time and target (x, y) of the first UAV task."""
     for rx, m in data["/vehicle_tasks"]:
         if m.assigned_system in UAVS and clk.inside(rx):
-            return m.assigned_system, clk(rx)
-    return None, None
+            return (m.assigned_system, clk(rx),
+                    (m.target_position.x, m.target_position.y))
+    return None, None, None
 
 
 def ms(a: Optional[float], b: Optional[float]) -> Optional[float]:
@@ -275,26 +307,34 @@ def analyze_faults(a: Attempt, r: FaultRun) -> None:
     if not clk.ok():
         r.clean, r.problems = False, "no /clock: no simulated time"
         return
-    sid, t_task = first_task(data, clk)
+    sid, t_task, target = first_task(data, clk)
     if sid is None:
         r.clean, r.problems = False, "no UAV task in the run"
         return
     r.uav = sid
     tracks = {s: UavTrack(data, clk, s) for s in UAVS}
-    faulty = tracks[sid] if r.fault != "none" else None
+    # The subject is the UAV sent toward a building: the faulty worker
+    # (UAV_FAULT) or the honest worker following a forged mission
+    # (FORGE_MISSION). With neither (a control run) there is no subject.
+    subject = tracks[sid] if (r.fault != "none" or r.forge != "none") else None
 
     for s, tr in tracks.items():
-        if tr is faulty:
+        if tr is subject:
             continue
-        r.healthy_holds += sum(1 for _, hold in tr.px4 if hold)
+        r.healthy_holds += sum(1 for _, _, hold in tr.px4 if hold)
         r.healthy_unsafe_airborne += tr.unsafe_airborne()
-    if faulty is None:
+    if subject is None:
         return
 
-    tr, b = faulty, faulty.building
+    tr = subject
+    # The building measured: the faulty worker's own, or, for a forged mission,
+    # the one the task points at (the honest worker flies to the task target).
+    b = tr.building if r.fault != "none" else (
+        nearest_building(*target) if target else tr.building)
+    r.subject_building = b.name
     flight = [(t, p) for t, p in zip(*tr.pos) if t >= t_task]
     if not flight:
-        r.clean, r.problems = False, "no position of the faulty UAV"
+        r.clean, r.problems = False, "no position of the subject UAV"
         return
     t_impact = next((t for t, p in flight
                      if wall_m(p[0], p[1], b) <= CONTACT_M
@@ -314,7 +354,7 @@ def analyze_faults(a: Attempt, r: FaultRun) -> None:
 
     t_lidar = tr.first(tr.lidar, t_task, lambda v: v < TRIP_M, t_end)
     t_unsafe = tr.first(tr.status, t_task, lambda v: v < STATUS_UNSAFE, t_end)
-    holds = [t for t, hold in tr.px4 if hold and t >= t_task]
+    holds = [t for t, _, hold in tr.px4 if hold and t >= t_task]
     t_hold = holds[0] if holds and holds[0] < t_end else None
     r.lidar_trip_s = None if t_lidar is None else t_lidar - t_task
     r.unsafe_s = None if t_unsafe is None else t_unsafe - t_task
@@ -323,15 +363,23 @@ def analyze_faults(a: Attempt, r: FaultRun) -> None:
     r.unsafe_to_hold_ms = ms(t_unsafe, t_hold)
     r.lidar_to_hold_ms = ms(t_lidar, t_hold)
 
+    # Commands let through: a setpoint reaching PX4 while the board is unsafe
+    # that commands the UAV meaningfully closer to the wall than it is now --
+    # a live motion command past the veto, not a position hold. In 2b the
+    # faulty worker's advancing setpoints count; an honest worker's hold (2a,
+    # veto_by=worker) does not, since it commands the UAV's own position.
     r.let_through = 0
-    for t, hold in tr.px4:
+    for t, wxy, hold in tr.px4:
         if t < t_task or t >= t_end or hold:
             continue
         st = last_before(tr.status[0], tr.status[1], t)
-        if st is not None and st < STATUS_UNSAFE:
+        cur = last_before(tr.pos[0], tr.pos[1], t)
+        if st is None or st >= STATUS_UNSAFE or cur is None:
+            continue
+        if wall_m(wxy[0], wxy[1], b) < wall_m(cur[0], cur[1], b) - HOLD_EPS_M:
             r.let_through += 1
     if t_hold is not None:
-        r.held_to_end = all(hold for t, hold in tr.px4 if t >= t_hold)
+        r.held_to_end = all(hold for t, _, hold in tr.px4 if t >= t_hold)
 
 
 # =============================================================================
@@ -410,15 +458,22 @@ def cell(v, prec: int = 2) -> str:
 
 def report(name: str, runs: List[FaultRun], order: List[str],
            missing: List[str]) -> List[str]:
-    out = ["# Faulty UAV worker: {}".format(name), ""]
+    out = ["# Safety layer under obstacle injection: {}".format(name), "",
+           "A UAV is sent toward a building, by a faulty worker "
+           "(`UAV_FAULT`) or by a forged mission on the unauthenticated "
+           "`/mission_tokens` topic (`FORGE_MISSION`). The question is "
+           "whether the analogue Safety Board keeps it clear of the "
+           "building.", ""]
     by_conf = {c: [r for r in runs if r.configuration == c] for c in order}
     clean = {c: [r for r in rs if r.clean] for c, rs in by_conf.items()}
 
-    faulty = [c for c in order if any(r.fault != "none" for r in by_conf[c])]
-    if faulty:
-        out += ["## Faulty worker", ""]
+    subject = [c for c in order
+               if any(r.fault != "none" or r.forge != "none"
+                      for r in by_conf[c])]
+    if subject:
+        out += ["## Safety outcome", ""]
         rows = []
-        for c in faulty:
+        for c in subject:
             rs = clean[c]
             hit = [r for r in rs if r.impact]
             miss = [r for r in rs if r.impact is False]
@@ -445,7 +500,7 @@ def report(name: str, runs: List[FaultRun], order: List[str],
 
         out += ["## Intervention (ms, simulated time)", ""]
         rows = []
-        for c in faulty:
+        for c in subject:
             rs = clean[c]
             rows.append([c] + [
                 "{} [{}]".format(mean_sd(vals, 0), span(vals, 0))
@@ -458,9 +513,10 @@ def report(name: str, runs: List[FaultRun], order: List[str],
                          "Unsafe status → first hold at PX4",
                          lidar + " → first hold at PX4"], rows)
 
-    out += ["## UAVs without a fault", "",
-            "Both UAVs in a configuration without a fault; the UAV without "
-            "the task otherwise.", ""]
+    out += ["## Other UAVs", "",
+            "The UAV not sent at a building, and both UAVs in a control "
+            "configuration. These should never hold or report unsafe in "
+            "flight.", ""]
     rows = []
     for c in order:
         rs = clean[c]
@@ -478,17 +534,18 @@ def report(name: str, runs: List[FaultRun], order: List[str],
 
     out += ["## Runs", ""]
     rows = [[r.configuration, str(r.run), str(r.seed),
-             "UAV{}".format(r.uav - 1) if r.uav else "—", cell(r.clean),
+             "UAV{}".format(r.uav - 1) if r.uav else "—",
+             r.subject_building or "—", cell(r.clean),
              cell(r.impact), cell(r.impact_speed_mps),
              cell(r.closest_wall_m), cell(r.lidar_to_unsafe_ms, 0),
              cell(r.unsafe_to_hold_ms, 0), cell(r.let_through),
              cell(r.held_to_end), str(r.healthy_holds)]
             for r in runs]
     out += md_table(["Configuration", "Run", "Seed", "UAV with the task",
-                     "Clean", "Impact", "Impact speed (m/s)", "Closest (m)",
-                     "Lidar → unsafe (ms)", "Unsafe → hold (ms)",
-                     "Let through", "Held to the end",
-                     "Holds, UAVs without a fault"], rows)
+                     "Building", "Clean", "Impact", "Impact speed (m/s)",
+                     "Closest (m)", "Lidar → unsafe (ms)",
+                     "Unsafe → hold (ms)", "Let through", "Held to the end",
+                     "Holds, other UAVs"], rows)
 
     left = [r for r in runs if not r.clean]
     if left or missing:
@@ -514,7 +571,7 @@ def write_csv(path: str, runs: List[FaultRun]) -> None:
 def main() -> int:
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser(
-        description="Tables of the faulty-UAV-worker runs of a campaign "
+        description="Tables of the obstacle-injection runs of a campaign "
                     "(read-only).")
     ap.add_argument("campaign", help="campaign folder, e.g. "
                                      "bags/campaigns/faults")
@@ -538,11 +595,11 @@ def main() -> int:
     for a in attempts:
         if a.configuration not in present:
             present.append(a.configuration)
-    order = [c for c in conf_vars if c in present and (
-        "UAV_FAULT" in conf_vars[c] or "VETO_BY" in conf_vars[c])]
+    order = [c for c in conf_vars if c in present and any(
+        k in conf_vars[c] for k in ("UAV_FAULT", "FORGE_MISSION", "VETO_BY"))]
     if not order:
-        print("{}: no configuration sets UAV_FAULT or VETO_BY".format(d),
-              file=sys.stderr)
+        print("{}: no configuration sets UAV_FAULT, FORGE_MISSION or "
+              "VETO_BY".format(d), file=sys.stderr)
         return 1
 
     print("[faults] {}: {} ...".format(name, ", ".join(order)),
@@ -553,6 +610,7 @@ def main() -> int:
         v = conf_vars[r.configuration]
         r.veto_by = v.get("VETO_BY", "worker")
         r.fault = v.get("UAV_FAULT", "none")
+        r.forge = v.get("FORGE_MISSION", "none")
         if r.clean:
             analyze_faults(a, r)
         runs.append(r)

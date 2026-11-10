@@ -122,6 +122,14 @@ THREAT_TIMEOUT="${THREAT_TIMEOUT:-60}"
 # Seconds to let the vehicles react after an automatic authorisation.
 REACT_S="${REACT_S:-10}"
 
+# none | obstacle. obstacle places one mission directly on the dispatch topic
+# after the decision (scripts/pipeline/publish_mission.py), to exercise the UAV
+# safety layer. FORGE_X/FORGE_Y is the target, the centre of a building in the
+# world frame, so the UAV dispatched to it flies toward that building.
+FORGE_MISSION="${FORGE_MISSION:-none}"
+FORGE_X="${FORGE_X:--22.53}"
+FORGE_Y="${FORGE_Y:--47.07}"
+
 # Metres a vehicle must travel between the two pose snapshots to count as
 # MOVED. The hover alone jitters by about 0.1 m.
 MOVE_THRESHOLD_M="${MOVE_THRESHOLD_M:-0.5}"
@@ -316,6 +324,16 @@ else
   # AUTH_DELAY_S simulated seconds after the first ConfirmedThreat. The script
   # only waits for the decision and for the vehicles' reaction.
   echo "[test] scripted supervisor: '${DECISION}' ${AUTH_DELAY_S}s after the first ConfirmedThreat."
+  if [ "$FORGE_MISSION" != none ]; then
+    echo "[test] FORGE_MISSION=${FORGE_MISSION}: placing a mission on the dispatch topic (${FORGE_X}, ${FORGE_Y})..."
+    # A target_id with no live track: the honest worker then flies to the given
+    # position (the building) instead of following the real intruder.
+    if ! python3 scripts/pipeline/publish_mission.py --target-id forged-1 \
+         --x "${FORGE_X}" --y "${FORGE_Y}" --z 12.0 --ttl 30.0; then
+      echo "[test] the forged mission was not dispatched; stopping the run (exit 3)."
+      exit 3
+    fi
+  fi
   echo "[test] letting the vehicles react (${AUTH_DELAY_S}s + ${REACT_S}s)..."
   sleep "$(LC_ALL=C awk -v a="${AUTH_DELAY_S}" -v b="${REACT_S}" 'BEGIN { print a + b }')"
 fi
