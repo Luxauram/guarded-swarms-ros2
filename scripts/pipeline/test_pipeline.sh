@@ -134,8 +134,8 @@ FORGE_Y="${FORGE_Y:--47.07}"
 # forged radar, RF and EO observations of a target that is not there on
 # /obs_tokens. Use it with the four sensing agents off, so the forged stream is
 # the only evidence: the chain fuses it into a ConfirmedThreat, and the mission
-# forms only if the supervisor authorises it (the forged-observation experiment,
-# Sec 5.3). Started before the threat wait, below.
+# forms only if the supervisor authorises it. Started before the threat wait,
+# below.
 FORGE_OBS="${FORGE_OBS:-none}"
 
 # Metres a vehicle must travel between the two pose snapshots to count as

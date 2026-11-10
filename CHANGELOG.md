@@ -75,6 +75,23 @@ reproducible release.
   the worker, `forge-gate` to the safety gate.
   `scripts/metrics/analyze_faults.py` covers them alongside the faulty-worker
   configurations.
+- `scripts/pipeline/publish_observations.py`: a command-line node that
+  publishes forged `ObsToken` messages to `/obs_tokens` for a target that is
+  not there - a radar track, an RF signature and an EO fix that share one
+  target_id - with the fields of the four sensing agents. Run with those
+  agents off, the injected stream is the only evidence, and the chain fuses it
+  into a ConfirmedThreat. It publishes only once every subscriber of
+  `/obs_tokens` has matched it, so the recording holds the whole stream from
+  its first observation, and confirms the ConfirmedThreat on `/interp_tokens`.
+- Two configurations for a forged-observation test in
+  `scripts/experiments/configurations.conf`: `forge-obs-authorise` and
+  `forge-obs-deny`. Both switch the four sensing agents off and, through the
+  new `FORGE_OBS=ghost` of `scripts/pipeline/test_pipeline.sh`, inject forged
+  observations so a ConfirmedThreat forms from them alone; the supervisor then
+  authorises (`forge-obs-authorise`) or withholds it (`forge-obs-deny`). They
+  check that a mission forms only under authorisation.
+  `scripts/metrics/audit_recordings.py` expects of them a mission and a threat
+  without a mission.
 
 ### Changed
 
@@ -87,14 +104,18 @@ reproducible release.
 - `scripts/record/record_run.sh` also records the safety layer of each
   vehicle: `safety_status`, `actuator_cmd_safe` and `drone/proximity`, and for
   the two UAVs the setpoint before and after the safety gate.
-- `scripts/experiments/run_campaign.sh` accepts `VETO_BY`, `UAV_FAULT` and
-  `FORGE_MISSION` in a configuration, and passes the variables of the
-  configuration to `scripts/sim/coastal_up.sh` as well as to
+- `scripts/experiments/run_campaign.sh` accepts `VETO_BY`, `UAV_FAULT`,
+  `FORGE_MISSION` and `FORGE_OBS` in a configuration, and passes the variables
+  of the configuration to `scripts/sim/coastal_up.sh` as well as to
   `scripts/record/record_run.sh`.
 - `scripts/pipeline/test_pipeline.sh` accepts `FORGE_MISSION` (`none` or
   `obstacle`): with `obstacle` it publishes one unauthorised `MissionToken`
   after the supervisor's decision, to exercise the safety layer. Off by
   default, so every other run is unchanged.
+- `scripts/pipeline/test_pipeline.sh` accepts `FORGE_OBS` (`none` or `ghost`):
+  with `ghost` it injects forged observations before the wait for the threat,
+  through `scripts/pipeline/publish_observations.py`, and turns a missing
+  threat into a guard-stop so the campaign repeats the run. Off by default.
 
 ### Fixed
 

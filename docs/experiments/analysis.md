@@ -81,6 +81,8 @@ The expected outcome of each configuration of
 | `loss-radar`, `loss-rf`                      | No CandidateTarget                                                                           |
 | `loss-eo`                                    | CandidateTarget, no EO confirmation, no ConfirmedThreat                                      |
 | `fault-worker`, `fault-gate`, `nominal-gate` | ConfirmedThreat and mission: the faulty worker and the gate change the flight, not the chain |
+| `forge-obs-authorise`                        | ConfirmedThreat from forged observations, and a mission                                      |
+| `forge-obs-deny`                             | ConfirmedThreat from forged observations, no mission                                         |
 
 The `forge-worker` and `forge-gate` configurations have no expected outcome
 here: their mission is published outside the chain. `analyze_faults.py`
