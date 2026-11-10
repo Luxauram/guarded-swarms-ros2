@@ -123,6 +123,7 @@ declare -A KNOBS=(
   [THREAT_TIMEOUT]="$NUMBER"     [REACT_S]="$NUMBER"
   [VETO_BY]='worker|gate'        [UAV_FAULT]='none|obstacle'
   [FORGE_MISSION]='none|obstacle'
+  [FORGE_OBS]='none|ghost'
 )
 
 # Only the configuration file sets the scenario: a value left exported in this

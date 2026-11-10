@@ -130,6 +130,14 @@ FORGE_MISSION="${FORGE_MISSION:-none}"
 FORGE_X="${FORGE_X:--22.53}"
 FORGE_Y="${FORGE_Y:--47.07}"
 
+# none | ghost. ghost runs scripts/pipeline/publish_observations.py, which puts
+# forged radar, RF and EO observations of a target that is not there on
+# /obs_tokens. Use it with the four sensing agents off, so the forged stream is
+# the only evidence: the chain fuses it into a ConfirmedThreat, and the mission
+# forms only if the supervisor authorises it (the forged-observation experiment,
+# Sec 5.3). Started before the threat wait, below.
+FORGE_OBS="${FORGE_OBS:-none}"
+
 # Metres a vehicle must travel between the two pose snapshots to count as
 # MOVED. The hover alone jitters by about 0.1 m.
 MOVE_THRESHOLD_M="${MOVE_THRESHOLD_M:-0.5}"
@@ -262,6 +270,18 @@ if [[ "$EXPECT_THREAT" == "no" ]]; then
   exit 0
 fi
 
+# Forged observations: start the injector now, before the wait, so the forged
+# ConfirmedThreat forms from injected evidence alone (run this configuration
+# with the four sensing agents off). It streams in the background through the
+# supervisor's decision and exits on its own; the wait below then detects the
+# threat it creates, exactly as it would a real one.
+if [ "$FORGE_OBS" != none ]; then
+  echo "[test] FORGE_OBS=${FORGE_OBS}: injecting forged observations on /obs_tokens..."
+  python3 scripts/pipeline/publish_observations.py --target-id ghost-1 \
+    >/tmp/gs_forge_obs.log 2>&1 &
+  PIDS+=($!)
+fi
+
 echo "[test] waiting for a ConfirmedThreat (up to ${THREAT_TIMEOUT}s)..."
 got_threat=0
 # Stream /interp_tokens continuously and stop at the first ConfirmedThreat.
@@ -288,6 +308,10 @@ if (( got_threat == 0 )); then
   guard_ground_truth_flowing || exit 3
   echo "[test] FAIL: no ConfirmedThreat within ${THREAT_TIMEOUT}s."
   echo "[test] check /tmp/gs_sensing.log and /tmp/gs_tbcspn.log"
+  # With forged observations the ConfirmedThreat is expected to form from the
+  # injected stream; its absence is a failed injection, not a valid outcome, so
+  # stop the run (exit 3) and let the campaign repeat it with the same seed.
+  [ "$FORGE_OBS" != none ] && exit 3
   exit 1
 fi
 echo "[test] ConfirmedThreat is up."
