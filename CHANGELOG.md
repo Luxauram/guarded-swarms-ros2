@@ -92,6 +92,25 @@ reproducible release.
   check that a mission forms only under authorisation.
   `scripts/metrics/audit_recordings.py` expects of them a mission and a threat
   without a mission.
+- `scripts/pipeline/publish_clock.py`: a command-line node that publishes
+  `/clock` for the Safety Board bench, advancing simulated time at a fixed
+  rate and, with `--freeze-at`, holding it at a chosen instant. It is the
+  board's clock source when no simulator is running.
+- `scripts/pipeline/publish_sensors.py`: a command-line node that feeds the
+  Safety Board its four readings and a constant command on the wall clock,
+  independently of the clock the board reads. `--stop-at` stops the sensor
+  streams at an instant; `--danger-at` turns the proximity reading unsafe.
+- `scripts/experiments/run_clock_bench.sh`: a campaign that exercises the
+  Safety Board in isolation under clock denial, over two arms with the same
+  healthy sensors - the clock advancing (the board clears the command) and the
+  clock held at zero (the board fails safe and vetoes every command, blocking
+  the vehicle) - RUNS runs each, recording every run to its own bag with a
+  manifest. Documented in `docs/experiments/clock.md`.
+- `scripts/metrics/analyze_clock.py`: the tables of a clock-denial bench, from
+  its bags: per arm, the share of runs that met the expected outcome with its
+  95% Wilson interval, the share of the run the board denied the command and
+  reported unsafe, and whether the simulated clock advanced. Documented in
+  `docs/experiments/clock.md`.
 
 ### Changed
 
