@@ -3,11 +3,11 @@
 Three scripts turn recorded runs into checked figures. They read the bags,
 change none of them, and start no ROS node.
 
-| File                                  | Role                                                                                                                              |
-| ------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `scripts/metrics/analyze_campaign.py` | The tables of a [campaign](campaigns.md), from its manifest and bags, with the clean-run checks on every run                      |
-| `scripts/metrics/analyze_faults.py`   | The tables of the [faulty UAV worker](#faulty-uav-worker) configurations of a campaign, on the same runs as `analyze_campaign.py` |
-| `scripts/metrics/audit_recordings.py` | Checks that recorded runs are clean, and recomputes their time figures on both time axes                                          |
+| File                                  | Role                                                                                                                                                                    |
+| ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `scripts/metrics/analyze_campaign.py` | The tables of a [campaign](campaigns.md), from its manifest and bags, with the clean-run checks on every run                                                            |
+| `scripts/metrics/analyze_faults.py`   | The tables of the [obstacle-injection](#obstacle-injection) configurations of a campaign (faulty UAV worker, forged mission), on the same runs as `analyze_campaign.py` |
+| `scripts/metrics/audit_recordings.py` | Checks that recorded runs are clean, and recomputes their time figures on both time axes                                                                                |
 
 They build on `scripts/metrics/audit_timing.py`, which reads the bags, maps
 receive times to simulated time through the recorded `/clock`, and computes
@@ -82,6 +82,10 @@ The expected outcome of each configuration of
 | `loss-eo`                                    | CandidateTarget, no EO confirmation, no ConfirmedThreat                                      |
 | `fault-worker`, `fault-gate`, `nominal-gate` | ConfirmedThreat and mission: the faulty worker and the gate change the flight, not the chain |
 
+The `forge-worker` and `forge-gate` configurations have no expected outcome
+here: their mission is published outside the chain. `analyze_faults.py`
+analyses them (see [Obstacle injection](#obstacle-injection)).
+
 ## Clean runs
 
 A pipeline run is clean when nothing outside the run took part in it and its
@@ -106,49 +110,70 @@ must pass:
 | The ground-truth stamps are in simulated time, and the intruder speed in simulated time is 6.0 ± 0.1 m/s | Mixed clocks                             |
 | At most one supervisor decision for the target                                                           | More than one supervisor                 |
 
-## Faulty UAV worker
+## Obstacle injection
 
-`analyze_faults.py` reads one campaign folder and analyses its
-configurations that set `UAV_FAULT`, `FORGE_MISSION` or `VETO_BY` in
-`configurations.conf` (`fault-worker`, `fault-gate`, `nominal-gate`,
-`forge-worker`, `forge-gate`). Each run uses the attempt
-that `analyze_campaign.py` uses, and a run whose recording is not
-[clean](#clean-runs) is left out and listed. It prints the tables and writes
-them to `--out` (default `results/<campaign>/`):
+`analyze_faults.py` analyses the runs in which a UAV is sent toward a building,
+to check that the Safety Board keeps it clear:
+
+- with `UAV_FAULT=obstacle`, a faulty worker flies its UAV into its fault
+  building and ignores the veto (see
+  [`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode));
+- with `FORGE_MISSION=obstacle`, an unauthorised `MissionToken` on
+  `/mission_tokens` names a building as the target, and the honest worker flies
+  there.
+
+It reads one campaign folder and analyses the configurations that set
+`UAV_FAULT`, `FORGE_MISSION` or `VETO_BY` in `configurations.conf`
+(`fault-worker`, `fault-gate`, `nominal-gate`, `forge-worker`, `forge-gate`).
+Each run uses the attempt that `analyze_campaign.py` uses, and a run whose
+recording is not [clean](#clean-runs) is left out and listed. It prints the
+tables and writes them to `--out` (default `results/<campaign>/`):
 
 | File         | Content                                   |
 | ------------ | ----------------------------------------- |
 | `faults.md`  | The tables, as printed                    |
 | `faults.csv` | One line per run, with every figure below |
 
-The subject UAV is the UAV of the first UAV task of the run. With
-`UAV_FAULT=obstacle` the faulty worker flies it into its fault building (see
-[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode));
-with `FORGE_MISSION=obstacle` the worker is honest and the subject is the UAV
-dispatched the injected mission, whose building is the one nearest the injected
-target:
+The subject UAV is the UAV of the first UAV task of the run. It is measured
+against its building: its fault building with `UAV_FAULT`, the building
+nearest the task target with `FORGE_MISSION`.
 
-| Figure               | Definition                                                                                                                                                                                                   |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Impact               | Its centre comes within 0.5 m (`CONTACT_M`) of the footprint of its fault building, below the roof. Its position from PX4 after an impact is not used: the estimate of a crashed vehicle is not its position |
-| Impact speed         | Horizontal speed of the last position before the impact                                                                                                                                                      |
-| Closest to the wall  | Smallest horizontal distance to the footprint after the task, in the runs without impact                                                                                                                     |
-| Distance at the end  | At the last position of the recording, in the runs without impact                                                                                                                                            |
-| Intervention         | First lidar range below the proximity threshold of the board (10 m, `TRIP_M`) after the task → first unsafe `safety_status` → first hold of the gate at PX4                                                  |
-| Commands let through | Setpoints that reached PX4 while the last `safety_status` was unsafe and were not holds, from the task to the impact or to the end                                                                           |
-| Held to the end      | Every setpoint at PX4 after the first hold is a hold                                                                                                                                                         |
+| Figure                  | Definition                                                                                                                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Impact                  | Its centre comes within 0.5 m (`CONTACT_M`) of the footprint of the building, below the roof. Its position from PX4 after an impact is not used: the estimate of a crashed vehicle is not its position |
+| Impact speed            | Horizontal speed of the last position before the impact                                                                                                                                                |
+| Closest to the wall     | Smallest horizontal distance to the footprint after the task, in the runs without impact                                                                                                               |
+| Distance at the end     | At the last position of the recording, in the runs without impact                                                                                                                                      |
+| Intervention            | First lidar range below the proximity threshold of the board (10 m, `TRIP_M`) after the task, the lidar trip → first unsafe `safety_status` → first hold at PX4                                        |
+| Speed at the lidar trip | Horizontal speed of the UAV at the lidar trip                                                                                                                                                          |
+| First hold at PX4       | From the lidar trip on, the first setpoint at PX4 that no longer drives the UAV toward the wall                                                                                                        |
+| Commands let through    | Setpoints that reached PX4 while the last `safety_status` was unsafe and drove the UAV toward the wall, from the task to the impact or to the end                                                      |
+| Held to the end         | After the first hold, no setpoint at PX4 drives the UAV toward the wall again                                                                                                                          |
 
-For the UAVs without a fault (both UAVs of `nominal-gate`, the UAV without
-the task otherwise) it counts the holds of the gate, and the unsafe
-`safety_status` samples while the UAV is above 3 m (`AIRBORNE_M`).
+A setpoint drives the UAV toward the wall when it is nearer the wall than the
+UAV, at that moment, by more than 1 m (`HOLD_EPS_M`); a point inside the
+footprint is nearer than any point outside. The first hold is the veto taking
+effect at PX4, whichever node applied it: the gate, or the worker when it holds
+the UAV itself, as an honest worker does (with `veto_by=worker` the gate
+forwards its hold unchanged). The worker takes the verdict from
+`actuator_cmd_safe`, the board's reply to its own command, which can come
+before the periodic `safety_status`: the interval from the status to the hold
+can then be negative. The interval from the lidar trip to the hold is the
+reaction of the whole safety layer.
 
-A setpoint at PX4 is a hold when its position matches none of the setpoints
-the worker proposed within 0.5 s of it (`PAIR_WINDOW_S`), since the gate
-forwards a setpoint unchanged. Every time is in simulated time: the receive
-time of each message mapped onto the recorded `/clock`, because the lidar
-range and the safety status carry no usable stamp. The resolution is that of
-the recording. The spawn points and the fault buildings are constants of the
-script, as in `coastal_pipeline.launch.py` and `coastal.sdf`.
+For the other UAVs (both UAVs of `nominal-gate`, the UAV without the task
+otherwise) it counts the holds of the gate, and the unsafe `safety_status`
+samples while the UAV is above 3 m (`AIRBORNE_M`). A setpoint at PX4 is a hold
+of the gate when its position matches none of the setpoints the worker proposed
+within 0.5 s of it (`PAIR_WINDOW_S`), since the gate forwards a setpoint
+unchanged. A setpoint with no proposal recorded that close is not judged: the
+recorder did not have the topic of the proposals yet, or dropped them.
+
+Every time is in simulated time: the receive time of each message mapped onto
+the recorded `/clock`, because the lidar range and the safety status carry no
+usable stamp. The resolution is that of the recording. The spawn points and
+the fault buildings are constants of the script, as in
+`coastal_pipeline.launch.py` and `coastal.sdf`.
 
 ## Auditing recordings
 

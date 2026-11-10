@@ -43,20 +43,32 @@ task points at with FORGE_MISSION:
   - closest distance to the wall, and distance at the end of the recording
     for a UAV that did not hit;
   - intervention, message by message: first lidar range below the
-    proximity threshold of the board (TRIP_M), first unsafe safety_status,
-    first hold of the safety gate at PX4;
+    proximity threshold of the board (TRIP_M), and the speed of the UAV at
+    that moment; first unsafe safety_status; first hold at PX4, the first
+    setpoint from the lidar trip on that no longer drives the UAV toward the
+    wall. It is the veto taking effect, whichever node applied it: the gate,
+    or with veto_by=worker the worker, whose hold the gate forwards. The
+    worker takes the verdict from actuator_cmd_safe, which can come before
+    the periodic safety_status: the status-to-hold interval can then be
+    negative;
   - commands let through: setpoints that reached PX4 while the board
-    reported unsafe and commanded the UAV closer to the wall (a live motion
-    command past the veto, not a position hold).
+    reported unsafe and drove the UAV toward the wall (a live motion command
+    past the veto, not a position hold);
+  - held to the end: after the first hold, no setpoint at PX4 drives the UAV
+    toward the wall again.
+A setpoint drives the UAV toward the wall when it is nearer the wall than the
+UAV, at that moment, by more than HOLD_EPS_M.
 For the other UAVs (the one without the task, and both UAVs of a control
 configuration): the holds of the gate, and the unsafe safety_status samples
 while airborne (above AIRBORNE_M).
 
 Times are in simulated time: the receive time of every message mapped onto
 the recorded /clock, as in audit_recordings.py (the lidar range and the
-safety status carry no usable stamp). A setpoint at PX4 is a hold when its
-position matches none of the setpoints the worker proposed within
-PAIR_WINDOW_S of it, since the gate forwards a setpoint unchanged.
+safety status carry no usable stamp). A setpoint at PX4 is a hold of the gate
+when its position matches none of the setpoints the worker proposed within
+PAIR_WINDOW_S of it, since the gate forwards a setpoint unchanged. A setpoint
+with no proposal recorded that close is not judged: the recorder did not have
+the topic of the proposals yet, or dropped them.
 
 Usage:
     source /opt/ros/humble/setup.bash && source install/setup.bash
@@ -176,12 +188,15 @@ def read_bag(bag_dir: str) -> Dict[str, list]:
 # One run
 # =============================================================================
 def wall_m(x: float, y: float, b: Building) -> float:
-    """Horizontal distance from (x, y) to the footprint of b, 0 inside."""
+    """Horizontal distance from (x, y) to the footprint of b; inside, minus
+    the depth from the nearest wall. A setpoint beyond the wall is then still
+    nearer the wall than a UAV just outside it."""
     c, s = math.cos(-b.yaw), math.sin(-b.yaw)
-    u = c * (x - b.x) - s * (y - b.y)
-    v = s * (x - b.x) + c * (y - b.y)
-    return math.hypot(max(abs(u) - b.size_x / 2, 0.0),
-                      max(abs(v) - b.size_y / 2, 0.0))
+    u = abs(c * (x - b.x) - s * (y - b.y)) - b.size_x / 2
+    v = abs(s * (x - b.x) + c * (y - b.y)) - b.size_y / 2
+    if u < 0 and v < 0:
+        return max(u, v)
+    return math.hypot(max(u, 0.0), max(v, 0.0))
 
 
 def nearest_building(x: float, y: float) -> Building:
@@ -216,6 +231,7 @@ class FaultRun:
     closest_wall_m: Optional[float] = None
     end_wall_m: Optional[float] = None
     top_speed_mps: Optional[float] = None
+    trip_speed_mps: Optional[float] = None
     lidar_trip_s: Optional[float] = None
     unsafe_s: Optional[float] = None
     hold_s: Optional[float] = None
@@ -250,7 +266,8 @@ class UavTrack:
         self.proposed = mapped(PROPOSED, lambda m: tuple(m.position))
         to_px4 = mapped(TO_PX4, lambda m: tuple(m.position))
         # Each setpoint at PX4: its commanded world-ENU (x, y), and whether it
-        # is a hold of the gate (position not among the worker's proposals).
+        # is a hold of the gate (position not among the worker's proposals;
+        # None when no proposal was recorded close enough to tell).
         self.px4 = [(t, self.world_xy(p), self.is_hold(t, p))
                     for t, p in zip(*to_px4)]
 
@@ -258,10 +275,15 @@ class UavTrack:
         """World-ENU (x, y) of a setpoint position (NED north, east, down)."""
         return self.spawn[0] + position[1], self.spawn[1] + position[0]
 
-    def is_hold(self, t: float, p: tuple) -> bool:
+    def is_hold(self, t: float, p: tuple) -> Optional[bool]:
+        """Whether the setpoint p at PX4 at t is a hold of the gate: no
+        proposal within PAIR_WINDOW_S has its position. None when no proposal
+        was recorded that close, so the setpoint cannot be judged."""
         times, values = self.proposed
         lo = bisect.bisect_left(times, t - PAIR_WINDOW_S)
         hi = bisect.bisect_right(times, t + PAIR_WINDOW_S)
+        if lo == hi:
+            return None
         return not any(all(abs(a - b) <= SAME_M for a, b in zip(p, q))
                        for q in values[lo:hi])
 
@@ -352,34 +374,48 @@ def analyze_faults(a: Attempt, r: FaultRun) -> None:
     if before:
         r.top_speed_mps = max(p[3] for _, p in before)
 
+    def toward_wall(t: float, wxy: Tuple[float, float]) -> bool:
+        """The setpoint drives the UAV toward the wall: it is nearer the wall
+        than the UAV is at t by more than HOLD_EPS_M (a motion command, not a
+        position hold)."""
+        cur = last_before(tr.pos[0], tr.pos[1], t)
+        return cur is not None and (wall_m(wxy[0], wxy[1], b)
+                                    < wall_m(cur[0], cur[1], b) - HOLD_EPS_M)
+
     t_lidar = tr.first(tr.lidar, t_task, lambda v: v < TRIP_M, t_end)
     t_unsafe = tr.first(tr.status, t_task, lambda v: v < STATUS_UNSAFE, t_end)
-    holds = [t for t, _, hold in tr.px4 if hold and t >= t_task]
-    t_hold = holds[0] if holds and holds[0] < t_end else None
+    # First hold at PX4: from the lidar trip on, the first setpoint that no
+    # longer drives the UAV toward the wall -- the veto taking effect,
+    # whichever node applied it (the gate, or with veto_by=worker the worker,
+    # whose hold the transparent gate forwards unchanged).
+    t_trip = t_lidar if t_lidar is not None else t_unsafe
+    t_hold = None if t_trip is None else next(
+        (t for t, wxy, _ in tr.px4
+         if t_trip <= t < t_end and not toward_wall(t, wxy)), None)
     r.lidar_trip_s = None if t_lidar is None else t_lidar - t_task
     r.unsafe_s = None if t_unsafe is None else t_unsafe - t_task
     r.hold_s = None if t_hold is None else t_hold - t_task
     r.lidar_to_unsafe_ms = ms(t_lidar, t_unsafe)
     r.unsafe_to_hold_ms = ms(t_unsafe, t_hold)
     r.lidar_to_hold_ms = ms(t_lidar, t_hold)
+    if t_lidar is not None:
+        p = last_before(tr.pos[0], tr.pos[1], t_lidar)
+        r.trip_speed_mps = None if p is None else p[3]
 
     # Commands let through: a setpoint reaching PX4 while the board is unsafe
-    # that commands the UAV meaningfully closer to the wall than it is now --
-    # a live motion command past the veto, not a position hold. In 2b the
-    # faulty worker's advancing setpoints count; an honest worker's hold (2a,
-    # veto_by=worker) does not, since it commands the UAV's own position.
+    # that still drives the UAV toward the wall -- a live motion command past
+    # the veto. In 2b the faulty worker's advancing setpoints count; an honest
+    # worker's hold (2a) does not, since it commands the UAV's own position.
     r.let_through = 0
     for t, wxy, hold in tr.px4:
         if t < t_task or t >= t_end or hold:
             continue
         st = last_before(tr.status[0], tr.status[1], t)
-        cur = last_before(tr.pos[0], tr.pos[1], t)
-        if st is None or st >= STATUS_UNSAFE or cur is None:
-            continue
-        if wall_m(wxy[0], wxy[1], b) < wall_m(cur[0], cur[1], b) - HOLD_EPS_M:
+        if st is not None and st < STATUS_UNSAFE and toward_wall(t, wxy):
             r.let_through += 1
     if t_hold is not None:
-        r.held_to_end = all(hold for t, _, hold in tr.px4 if t >= t_hold)
+        r.held_to_end = not any(toward_wall(t, wxy) for t, wxy, _ in tr.px4
+                                if t_hold <= t < t_end)
 
 
 # =============================================================================
@@ -498,20 +534,27 @@ def report(name: str, runs: List[FaultRun], order: List[str],
                          "Commands let through while unsafe",
                          "Held to the end"], rows)
 
-        out += ["## Intervention (ms, simulated time)", ""]
+        out += ["## Intervention (simulated time)", ""]
         rows = []
         for c in subject:
             rs = clean[c]
-            rows.append([c] + [
+            rows.append([c, mean_sd([r.trip_speed_mps for r in rs])] + [
                 "{} [{}]".format(mean_sd(vals, 0), span(vals, 0))
                 if describe(vals) else "—"
                 for vals in ([r.lidar_to_unsafe_ms for r in rs],
                              [r.unsafe_to_hold_ms for r in rs],
                              [r.lidar_to_hold_ms for r in rs])])
         lidar = "Lidar below {:.0f} m".format(TRIP_M)
-        out += md_table(["Configuration", lidar + " → unsafe status",
-                         "Unsafe status → first hold at PX4",
-                         lidar + " → first hold at PX4"], rows)
+        out += md_table(["Configuration", "Speed at the lidar trip (m/s)",
+                         lidar + " → unsafe status (ms)",
+                         "Unsafe status → first hold at PX4 (ms)",
+                         lidar + " → first hold at PX4 (ms)"], rows)
+        out += ["First hold at PX4: the first setpoint, from the lidar trip "
+                "on, that no longer drives the UAV toward the wall, whichever "
+                "node applied the veto. With the veto left to the worker, the "
+                "worker takes the verdict from `actuator_cmd_safe`, which can "
+                "come before the periodic `safety_status`: the interval from "
+                "the status to the hold can then be negative.", ""]
 
     out += ["## Other UAVs", "",
             "The UAV not sent at a building, and both UAVs in a control "
