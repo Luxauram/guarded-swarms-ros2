@@ -140,6 +140,10 @@ EXPECTED = {
     "fault-worker": "mission",
     "fault-gate": "mission",
     "nominal-gate": "mission",
+    # Forged observations: the threat forms from injected evidence; the mission
+    # forms only under authorisation.
+    "forge-obs-authorise": "mission",
+    "forge-obs-deny": "no-mission",
 }
 OUTCOMES: Dict[str, Callable] = {
     # ConfirmedThreat and mission.
