@@ -30,6 +30,9 @@ pass:
     simulated time, and its speed in simulated time is the commanded one
     (INTRUDER_SPEED_MPS, within SPEED_TOLERANCE_MPS);
   - at most one supervisor decision for the target.
+A configuration that sets T3_WINDOW_S in configurations.conf adds a fourth:
+T3 ran with that window, as it logged it at start-up (logs/gs_tbcspn.log next
+to the bag).
 The first valid attempt that is clean is used. A run with no clean attempt is
 left out of the tables and listed with the reasons.
 
@@ -39,7 +42,11 @@ that run: this is how a run is repeated after its valid attempt turned out
 not to be clean. The attempts set aside are listed.
 
 Every time comes from the token stamps, in simulated time. Binary outcomes
-are given with their 95% Wilson score interval.
+are given with their 95% Wilson score interval. A ConfirmedThreat is valid
+from its stamp for its ttl_s, and so is an authorisation: T6 releases a
+mission when the two are valid at the same time. The threat window of a run
+is made of the spans in which a ConfirmedThreat was valid, and tells whether
+the authorisation, while valid, met one.
 
 Usage:
     source /opt/ros/humble/setup.bash && source install/setup.bash
@@ -59,19 +66,27 @@ import argparse
 import csv
 import math
 import os
+import re
 import sys
 from collections import Counter
 from dataclasses import dataclass, field, fields
 from typing import Callable, Dict, List, Optional, Tuple
 
 from audit_recordings import (EXPECTED, OUTCOMES, ChainRun, audit_chain,
-                              by_label, first_stamp, read_run)
-from audit_timing import SOURCES, describe, diff
+                              by_label, clock_of, first_stamp, read_run)
+from audit_timing import AUTHORISE, SOURCES, describe, diff, stamp_s
 
 INTRUDER_SPEED_MPS = 6.0    # commanded intruder speed
 SPEED_TOLERANCE_MPS = 0.1   # allowed gap from it, in simulated time
 LOW_RTF = 0.9               # a lower real-time factor is noted
 Z95 = 1.959963984540054     # two-sided 95% normal quantile
+
+# The line T3 logs at start-up with its synchronisation window (one decimal),
+# in the log of the coordination layer that the campaign keeps with the bag.
+T3_LOG = "gs_tbcspn.log"
+T3_WINDOW_LINE = re.compile(
+    r"\[t3_candidate\]:\s+sync threshold ths:\s*([0-9]+(?:\.[0-9]+)?)\s*s")
+ANSI_CODE = re.compile(r"\x1b\[[0-9;]*m")
 
 OUTCOME_LABELS = {
     "mission": "mission",
@@ -138,6 +153,22 @@ def read_env(path: str) -> Dict[str, str]:
     return env
 
 
+def configuration_vars(path: str) -> Dict[str, Dict[str, str]]:
+    """Variables of each configuration of configurations.conf (empty if the
+    file is missing)."""
+    out: Dict[str, Dict[str, str]] = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                tokens = line.split("#", 1)[0].split()
+                if tokens:
+                    out[tokens[0]] = dict(t.split("=", 1) for t in tokens[1:]
+                                          if "=" in t)
+    except OSError:
+        pass
+    return out
+
+
 def configuration_order(path: str) -> List[str]:
     """Configuration names in the order of configurations.conf."""
     names: List[str] = []
@@ -175,14 +206,49 @@ class RunResult:
     decision_to_mission: Optional[float] = None
     mission_to_task: Optional[float] = None
     modalities: int = 0
+    # The threat window: from the first ConfirmedThreat to the last, and to
+    # the end of the first span in which one was valid; the number of spans;
+    # whether the authorisation, while valid, met a valid threat.
+    threat_confirmed_for: Optional[float] = None
+    threat_valid_for: Optional[float] = None
+    threat_spans: int = 0
+    auth_meets_threat: Optional[bool] = None
+    t3_window: Optional[float] = None    # as T3 logged it, s
 
 
 def split(text: str) -> List[str]:
     return [p for p in text.split("; ") if p]
 
 
-def analyze_run(a: Attempt, commit: str) -> RunResult:
-    """Read, audit and time one valid attempt of a run."""
+def valid_spans(intervals: List[Tuple[float, float]]
+                ) -> List[Tuple[float, float]]:
+    """The union of (start, end) intervals, as disjoint spans in time order."""
+    spans: List[List[float]] = []
+    for s, e in sorted(intervals):
+        if spans and s <= spans[-1][1]:
+            spans[-1][1] = max(spans[-1][1], e)
+        else:
+            spans.append([s, e])
+    return [(s, e) for s, e in spans]
+
+
+def t3_window_of(log_path: str) -> Optional[float]:
+    """The window T3 logged at start-up, in seconds, or None if not found."""
+    try:
+        with open(log_path, errors="replace") as f:
+            for line in f:
+                m = T3_WINDOW_LINE.search(ANSI_CODE.sub("", line))
+                if m:
+                    return float(m.group(1))
+    except OSError:
+        pass
+    return None
+
+
+def analyze_run(a: Attempt, commit: str,
+                t3_window: Optional[float] = None) -> RunResult:
+    """Read, audit and time one valid attempt of a run. t3_window is the
+    T3_WINDOW_S of its configuration, if it sets one."""
     res = RunResult(attempt=a, run=a.run)
     bag = bag_of(a)
     if not os.path.isfile(os.path.join(bag, "metadata.yaml")):
@@ -257,6 +323,43 @@ def analyze_run(a: Attempt, commit: str) -> RunResult:
     res.mission_to_task = diff(t_mission, first_stamp(mine("task")))
     res.modalities = sum(1 for s in SOURCES if getattr(r, "obs_" + s) > 0)
 
+    # --- the threat window -------------------------------------------------------
+    # T6 keeps a ConfirmedThreat and an authorisation each for its ttl_s from
+    # its stamp, and releases a mission when the two are valid at the same
+    # time. The validity intervals of the ConfirmedThreats merge into the spans
+    # in which one was valid; the authorisation meets a valid threat if its own
+    # interval overlaps one of them.
+    cts = sorted((stamp_s(m.t), stamp_s(m.t) + float(m.ttl_s))
+                 for _, m in mine("interp")
+                 if m.label == "ConfirmedThreat"
+                 and clock_of(stamp_s(m.t)) == "sim")
+    spans = valid_spans(cts)
+    if spans:
+        res.threat_confirmed_for = cts[-1][0] - cts[0][0]
+        res.threat_valid_for = spans[0][1] - spans[0][0]
+        res.threat_spans = len(spans)
+        auths = sorted((stamp_s(m.t), max(0.0, float(m.ttl_s)))
+                       for _, m in mine("auth")
+                       if m.decision in AUTHORISE
+                       and clock_of(stamp_s(m.t)) == "sim")
+        if auths:
+            ta, ttl = auths[0]
+            res.auth_meets_threat = any(s <= ta + ttl and ta <= e
+                                        for s, e in spans)
+
+    # --- the window of T3 --------------------------------------------------------
+    res.t3_window = t3_window_of(
+        os.path.join(os.path.dirname(bag), "logs", T3_LOG))
+    if t3_window is not None:
+        if res.t3_window is None:
+            res.problems.append(
+                "no T3 window in logs/{}: the T3_WINDOW_S of the run cannot "
+                "be checked".format(T3_LOG))
+        elif abs(res.t3_window - round(t3_window, 1)) > 0.05:
+            res.problems.append(
+                "T3 ran with a {:.1f} s window, the configuration sets "
+                "{:g} s".format(res.t3_window, t3_window))
+
     res.clean = not res.problems
     return res
 
@@ -321,7 +424,11 @@ TIMES: List[Tuple[str, str, Callable]] = [
     ("mission_to_task", "mission → first task",
      lambda x: x.mission_to_task),
 ] + [("first_" + s, "first obs → first " + MODALITY_LABELS[s],
-      lambda x, s=s: getattr(x.audit, "first_" + s)) for s in SOURCES]
+      lambda x, s=s: getattr(x.audit, "first_" + s)) for s in SOURCES] + [
+    ("threat_confirmed_for", "threat confirmed for",
+     lambda x: x.threat_confirmed_for),
+    ("threat_valid_for", "threat valid for", lambda x: x.threat_valid_for),
+]
 
 
 def binary(clean: List[RunResult], test: Callable) -> Tuple[int, int]:
@@ -409,6 +516,39 @@ def report(name: str, envs: Dict[str, Dict[str, str]],
                      "Mission after authorise", "ConfirmedThreat → decision",
                      "decision → mission"], rows)
 
+    out.append("## Threat window")
+    out.append("")
+    out.append("Runs with an authorise decision. A ConfirmedThreat is valid "
+               "from its stamp for its TTL, and so is the authorisation; T6 "
+               "releases a mission when the two are valid at the same time. "
+               "Threat confirmed for: from the first ConfirmedThreat to the "
+               "last. Threat valid for: from the first ConfirmedThreat to the "
+               "end of the first span in which one was valid (mean ± sample "
+               "sd, s).")
+    out.append("")
+    mission = {key: test for key, _, test in BINARY}["mission"]
+    rows = []
+    for c in order:
+        clean = [x for x in results[c] if x.clean]
+        decided = [x for x in clean if x.auth_meets_threat is not None]
+        if not decided:
+            continue
+        k, n = binary(decided, mission)
+        rows.append([
+            c, str(len(decided)),
+            time_cell([x.threat_confirmed_for for x in decided]),
+            time_cell([x.threat_valid_for for x in decided]),
+            "{}/{}".format(sum(1 for x in decided if x.threat_spans > 1),
+                           len(decided)),
+            time_cell([x.threat_to_decision for x in decided]),
+            "{}/{}".format(sum(1 for x in decided if x.auth_meets_threat),
+                           len(decided)),
+            rate_cell(k, n)])
+    out += md_table(["Configuration", "Runs", "Threat confirmed for",
+                     "Threat valid for", "Threat valid again after a lapse",
+                     "ConfirmedThreat → authorisation",
+                     "Authorisation meets a valid threat", "Mission"], rows)
+
     out.append("## Detection by modality")
     out.append("")
     out.append("Runs in which the modality observed the target, and its "
@@ -439,15 +579,19 @@ def report(name: str, envs: Dict[str, Dict[str, str]],
         clean = [x for x in results[c] if x.clean]
         rtf = describe([x.audit.rtf for x in clean])
         v = describe([x.audit.v_sim for x in clean])
+        t3 = Counter(x.t3_window for x in clean if x.t3_window is not None)
         rows.append([c, str(len(results[c])), str(len(clean)),
                      str(len(results[c]) - len(clean)),
                      "—" if rtf is None else "{:.3f} ({:.3f})".format(
                          rtf["mean"], rtf["min"]),
                      "—" if v is None else "{:.2f} ({:.2f}–{:.2f})".format(
-                         v["mean"], v["min"], v["max"])])
+                         v["mean"], v["min"], v["max"]),
+                     ", ".join("{:.1f} ({})".format(w, k)
+                               for w, k in sorted(t3.items())) or "—"])
     out += md_table(["Configuration", "Valid", "Clean", "Left out",
                      "Real-time factor, mean (min)",
-                     "Intruder speed in simulated time, m/s"], rows)
+                     "Intruder speed in simulated time, m/s",
+                     "T3 window, s (runs)"], rows)
 
     out.append("## Runs left out")
     out.append("")
@@ -493,7 +637,9 @@ def write_csvs(out_dir: str, order: List[str],
                     "commit", "folder", "clean", "problems", "notes",
                     "modalities",
                     "threat_to_decision", "decision_to_mission",
-                    "mission_to_task"] + audit_fields)
+                    "mission_to_task", "threat_confirmed_for",
+                    "threat_valid_for", "threat_spans", "auth_meets_threat",
+                    "t3_window"] + audit_fields)
         for c in order:
             for x in results[c]:
                 a = x.attempt
@@ -501,7 +647,9 @@ def write_csvs(out_dir: str, order: List[str],
                        a.commit, a.folder, x.clean, "; ".join(x.problems),
                        "; ".join(x.notes), x.modalities,
                        num(x.threat_to_decision), num(x.decision_to_mission),
-                       num(x.mission_to_task)]
+                       num(x.mission_to_task), num(x.threat_confirmed_for),
+                       num(x.threat_valid_for), x.threat_spans,
+                       num(x.auth_meets_threat), num(x.t3_window)]
                 row += [num(getattr(x.audit, n)) if x.audit else ""
                         for n in audit_fields]
                 w.writerow(row)
@@ -518,6 +666,13 @@ def write_csvs(out_dir: str, order: List[str],
                     continue
                 lo, hi = wilson(k, n)
                 w.writerow([c, key, k, n, num(k / n), num(lo), num(hi)])
+            got = [x.auth_meets_threat for x in clean
+                   if x.auth_meets_threat is not None]
+            if got:
+                k, n = sum(got), len(got)
+                lo, hi = wilson(k, n)
+                w.writerow([c, "auth_meets_threat", k, n, num(k / n),
+                            num(lo), num(hi)])
 
     with open(os.path.join(out_dir, "latencies.csv"), "w", newline="") as f:
         w = csv.writer(f)
@@ -544,7 +699,8 @@ def main() -> int:
                     help="output folder (default: results/<first campaign>)")
     ap.add_argument("--configurations", default=os.path.join(
         here, "..", "experiments", "configurations.conf"),
-        help="configurations.conf, for the order of the tables")
+        help="configurations.conf, for the order of the tables and the "
+             "T3_WINDOW_S of each configuration")
     args = ap.parse_args()
 
     dirs = [os.path.normpath(c) for c in args.campaigns]
@@ -569,6 +725,7 @@ def main() -> int:
             seen.append(a.configuration)
     order = [c for c in configuration_order(args.configurations) if c in seen]
     order += [c for c in seen if c not in order]
+    conf_vars = configuration_vars(args.configurations)
     groups = sorted(runs.items(), key=lambda kv: (order.index(kv[0][0]),
                                                   kv[1][0].run))
 
@@ -588,10 +745,12 @@ def main() -> int:
                         a.attempt, a.campaign, a.outcome) for a in tries)))
             continue
         # The first valid attempt that is clean; if none is, the last one.
+        t3 = conf_vars.get(c, {}).get("T3_WINDOW_S")
         analysed: List[RunResult] = []
         for a in valid:
             analysed.append(analyze_run(
-                a, envs[a.campaign_dir].get("COMMIT", "")))
+                a, envs[a.campaign_dir].get("COMMIT", ""),
+                t3_window=float(t3) if t3 else None))
             if analysed[-1].clean:
                 break
         used = analysed[-1]

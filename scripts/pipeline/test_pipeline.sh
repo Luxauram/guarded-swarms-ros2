@@ -96,6 +96,15 @@ export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
 # counterfactual (C3).
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 
+# The synchronisation window of T3 alone, in seconds. Empty: T3 shares
+# sync_threshold_s with T5 and T6 (3 s). Exported, because tbcspn.launch.py
+# reads it from the environment, as it reads RF_LABEL.
+export T3_WINDOW_S="${T3_WINDOW_S:-}"
+if [ -n "$T3_WINDOW_S" ] && ! [[ "$T3_WINDOW_S" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
+  echo "[test] T3_WINDOW_S must be a number of seconds, got '$T3_WINDOW_S'."
+  exit 2
+fi
+
 # yes | no. no = do not wait for a ConfirmedThreat (it must NOT come, as in the
 # C3 conflict run); instead let the pipeline run for OBSERVE_S and just record.
 EXPECT_THREAT="${EXPECT_THREAT:-yes}"
@@ -193,9 +202,10 @@ ros2 launch guarded_swarms_sensing sensing.launch.py \
   >/tmp/gs_sensing.log 2>&1 &
 PIDS+=($!)
 
-echo "[test] launching TB-CSPN layer (T1-T7)..."
-# RF_LABEL is exported above; tbcspn.launch.py reads it from the environment
-# (a launch-argument substitution inside a parameter dict did not resolve).
+echo "[test] launching TB-CSPN layer (T1-T7)${T3_WINDOW_S:+, T3 window ${T3_WINDOW_S} s}..."
+# RF_LABEL and T3_WINDOW_S are exported above; tbcspn.launch.py reads them from
+# the environment (a launch-argument substitution inside a parameter dict did
+# not resolve).
 ros2 launch guarded_swarms_tbcspn tbcspn.launch.py \
   >/tmp/gs_tbcspn.log 2>&1 &
 PIDS+=($!)

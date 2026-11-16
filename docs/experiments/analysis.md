@@ -62,8 +62,9 @@ python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign> bags/campa
 | Outcomes              | Per configuration, the rate of its expected outcome and of CandidateTarget, EO confirmation, ConfirmedThreat and mission |
 | Times                 | First observation → CandidateTarget → ConfirmedThreat → supervisor decision → mission → first task, mean ± sample sd     |
 | Authorisation         | Runs with a supervisor decision, missions after an authorise decision, and the times of the decision path                |
+| Threat window         | Runs with an authorise decision: how long the threat was confirmed and valid, and whether the authorisation met it       |
 | Detection by modality | Runs in which each modality observed the target, and its first observation after the first observation of any modality   |
-| Runs                  | Valid, clean and left-out runs, real-time factor, intruder speed in simulated time                                       |
+| Runs                  | Valid, clean and left-out runs, real-time factor, intruder speed in simulated time, window of T3                         |
 
 The lists that follow name the runs left out, the runs repeated, the runs
 without a valid attempt, and the notes on single runs.
@@ -86,7 +87,27 @@ The expected outcome of each configuration of
 
 The `forge-worker` and `forge-gate` configurations have no expected outcome
 here: their mission is published outside the chain. `analyze_faults.py`
-analyses them (see [Obstacle injection](#obstacle-injection)).
+analyses them (see [Obstacle injection](#obstacle-injection)). The
+`auth-delay-*` and `t3-window-*` configurations have none either: their
+outcome is what they measure.
+
+### Threat window
+
+T6 keeps a ConfirmedThreat and an authorisation, each for its TTL from its
+stamp (10 s and 15 s), and releases a mission when the two are valid at the
+same time. The threat window table merges the validity intervals of the
+ConfirmedThreats of a run into spans, and gives:
+
+| Column                             | Content                                                       |
+| ---------------------------------- | ------------------------------------------------------------- |
+| Threat confirmed for               | From the first ConfirmedThreat to the last                    |
+| Threat valid for                   | From the first ConfirmedThreat to the end of the first span   |
+| Threat valid again after a lapse   | Runs with more than one span                                  |
+| ConfirmedThreat → authorisation    | From the first ConfirmedThreat to the authorisation           |
+| Authorisation meets a valid threat | Runs in which the authorisation, while valid, overlaps a span |
+
+The last column applies the rule of T6 to the recording, so it agrees with
+the mission column; a run where the two disagree is one to inspect.
 
 ## Clean runs
 
@@ -111,6 +132,7 @@ must pass:
 | The counter at the end of the interpretation ids never goes back                                         | More than one producer per transition    |
 | The ground-truth stamps are in simulated time, and the intruder speed in simulated time is 6.0 ± 0.1 m/s | Mixed clocks                             |
 | At most one supervisor decision for the target                                                           | More than one supervisor                 |
+| A configuration that sets `T3_WINDOW_S`: T3 logged that window at start-up, in `logs/gs_tbcspn.log`      | T3 did not run with the window asked     |
 
 ## Obstacle injection
 

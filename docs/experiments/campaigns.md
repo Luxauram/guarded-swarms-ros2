@@ -53,7 +53,7 @@ its post, the rover at the start of its patrol.
 ## Configurations
 
 `configurations.conf` holds one configuration per line: a name, then the
-variables that make it differ from the nominal run. It defines eighteen
+variables that make it differ from the nominal run. It defines twenty-five
 configurations:
 
 | Name                  | Variables                                                                                                               | What it tests                                                        |
@@ -76,6 +76,13 @@ configurations:
 | `forge-gate`          | `VETO_BY=gate DECISION=deny FORGE_MISSION=obstacle REACT_S=30`                                                          | The same injection, with the safety gate enforcing the veto          |
 | `forge-obs-authorise` | `RADAR_ENABLED=false RF_ENABLED=false ACOUSTIC_ENABLED=false EO_ENABLED=false FORGE_OBS=ghost REACT_S=15`               | Forged observations fuse into a threat; the supervisor authorises    |
 | `forge-obs-deny`      | `RADAR_ENABLED=false RF_ENABLED=false ACOUSTIC_ENABLED=false EO_ENABLED=false FORGE_OBS=ghost DECISION=deny REACT_S=15` | The same forgery, with the authorisation withheld                    |
+| `auth-delay-5s`       | `AUTH_DELAY_S=5 REACT_S=20`                                                                                             | The supervisor decides 5 s after the first ConfirmedThreat           |
+| `auth-delay-10s`      | `AUTH_DELAY_S=10 REACT_S=20`                                                                                            | The supervisor decides 10 s after the first ConfirmedThreat          |
+| `auth-delay-20s`      | `AUTH_DELAY_S=20 REACT_S=20`                                                                                            | The supervisor decides 20 s after the first ConfirmedThreat          |
+| `t3-window-500ms`     | `T3_WINDOW_S=0.5`                                                                                                       | Window of T3 at 0.5 s; T5 and T6 keep 3 s                            |
+| `t3-window-1s`        | `T3_WINDOW_S=1`                                                                                                         | Window of T3 at 1 s                                                  |
+| `t3-window-2s`        | `T3_WINDOW_S=2`                                                                                                         | Window of T3 at 2 s                                                  |
+| `t3-window-4s`        | `T3_WINDOW_S=4`                                                                                                         | Window of T3 at 4 s                                                  |
 
 `nominal` and `vec-frontal` set the same scenario, since the frontal vector is
 the default, but they are separate configurations, each with its own runs.
@@ -100,10 +107,21 @@ ConfirmedThreat from the injected evidence alone. The mission then forms only
 if the supervisor authorises it: `forge-obs-authorise` authorises,
 `forge-obs-deny` withholds it (`DECISION=deny`).
 
+The `auth-delay-*` configurations delay the supervisor decision: it comes
+`AUTH_DELAY_S` simulated seconds after the first ConfirmedThreat, instead of
+at once as in `nominal`. The decision stays valid for `AUTH_TTL_S` (15 s), and
+T6 releases the mission if a ConfirmedThreat is valid at some point in that
+time, so these configurations record 20 s after the decision (`REACT_S=20`).
+
+The `t3-window-*` configurations set the synchronisation window of T3 alone,
+through `T3_WINDOW_S`. T5 and T6 keep the shared window of 3 s, which is also
+the window of T3 in `nominal`.
+
 The variables are those of the
 [pipeline run scripts](../scripts/pipeline.md#configuration), including
-`FORGE_MISSION` and `FORGE_OBS` of `test_pipeline.sh`, plus `VETO_BY` and
-`UAV_FAULT` of [`coastal_up.sh`](#starting-and-stopping-the-scenario).
+`FORGE_MISSION`, `FORGE_OBS` and `T3_WINDOW_S` of `test_pipeline.sh`, plus
+`VETO_BY` and `UAV_FAULT` of
+[`coastal_up.sh`](#starting-and-stopping-the-scenario).
 The campaign accepts only those, each with the values it allows, and checks
 the whole file before the first run: a typo stops the campaign at once
 instead of producing runs of the wrong scenario. A variable set in the

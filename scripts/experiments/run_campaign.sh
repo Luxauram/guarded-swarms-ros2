@@ -121,6 +121,7 @@ declare -A KNOBS=(
   [DECISION]='authorise|deny|none'
   [AUTH_DELAY_S]="$NUMBER"       [AUTH_TTL_S]="$NUMBER"
   [THREAT_TIMEOUT]="$NUMBER"     [REACT_S]="$NUMBER"
+  [T3_WINDOW_S]="$NUMBER"
   [VETO_BY]='worker|gate'        [UAV_FAULT]='none|obstacle'
   [FORGE_MISSION]='none|obstacle'
   [FORGE_OBS]='none|ghost'
@@ -169,7 +170,7 @@ while IFS= read -r line || [ -n "$line" ]; do
   [ -z "${CONF_VARS[$name]+set}" ] || die "$where: '$name' is defined twice."
   read -ra tokens <<< "$rest"
   for tok in "${tokens[@]}"; do
-    [[ "$tok" =~ ^([A-Z_]+)=(.*)$ ]] || die "$where: '$tok' is not VARIABLE=value."
+    [[ "$tok" =~ ^([A-Z_][A-Z0-9_]*)=(.*)$ ]] || die "$where: '$tok' is not VARIABLE=value."
     var="${BASH_REMATCH[1]}"
     value="${BASH_REMATCH[2]}"
     [ -n "${KNOBS[$var]+set}" ] \

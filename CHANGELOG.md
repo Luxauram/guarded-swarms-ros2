@@ -11,6 +11,35 @@ reproducible release.
 
 ### Added
 
+- `T3_WINDOW_S` in `scripts/pipeline/test_pipeline.sh` and
+  `tbcspn.launch.py`: the synchronisation window of T3 alone, in seconds,
+  read from the environment as `RF_LABEL` is, so that the CandidateTarget
+  join can be varied while T5 and T6 keep the shared `sync_threshold_s`
+  (3 s). Unset, T3 shares it as before. `test_pipeline.sh` refuses a value
+  that is not a number (exit 2), and `scripts/experiments/run_campaign.sh`
+  accepts it as a scenario variable.
+- Seven configurations in `scripts/experiments/configurations.conf`:
+  `auth-delay-5s`, `auth-delay-10s` and `auth-delay-20s` delay the supervisor
+  decision after the first ConfirmedThreat and record 20 s after it
+  (`REACT_S=20`); `t3-window-500ms`, `t3-window-1s`, `t3-window-2s` and
+  `t3-window-4s` set the window of T3.
+- A threat-window table in `scripts/metrics/analyze_campaign.py`: for the
+  runs with an authorise decision, how long the threat was confirmed and
+  valid, and whether the authorisation, while valid, met a valid
+  ConfirmedThreat, which is when T6 releases a mission. A configuration that
+  sets `T3_WINDOW_S` adds a clean-run check, that T3 logged that window at
+  start-up, and the Runs table gives the window T3 ran with. Documented in
+  `docs/experiments/analysis.md`.
+
+### Changed
+
+- `scripts/experiments/run_campaign.sh` accepts digits after the first
+  character in the variable names of a configuration, as in `T3_WINDOW_S`.
+
+## [0.3.0] - 2026-11-11
+
+### Added
+
 - `scripts/metrics/audit_recordings.py`: checks that recorded runs are clean
   (one intruder ground-truth source, a `/clock` that never goes back, one
   producer per token stream, one target, no stray supervisor decision, every
