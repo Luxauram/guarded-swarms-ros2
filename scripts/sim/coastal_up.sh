@@ -40,7 +40,9 @@
 # patrol altitude, every PX4 instance is armed and not in failsafe (as
 # scripts/world/check_coastal.sh checks them), and every vehicle publishes a
 # proximity reading: without it there is no lidar, and the Safety Boards would
-# veto every command.
+# veto every command. A PX4 instance that reports its battery unhealthy stops
+# the start-up at once: its Safety Board would get no battery status and veto
+# every command of the vehicle.
 #
 # Usage:
 #   ./scripts/sim/coastal_up.sh              # Gazebo with its window
@@ -63,7 +65,9 @@
 # grow with them.
 #
 # Exit codes: 0 ready; 1 a scenario is already running, a component did not
-# start, or the scenario was not ready within READY_TIMEOUT_S; 130 stopped
+# start, px4_configure.sh failed or took more than CONFIGURE_TIMEOUT_S, a PX4
+# instance reports its battery unhealthy, or the scenario was not ready within
+# READY_TIMEOUT_S; 130 stopped
 # with Ctrl-C. Whatever was started keeps running: stop it with
 # scripts/sim/coastal_down.sh.
 # ==============================================================================
@@ -100,6 +104,7 @@ UAV_BOOT_WAIT_S="${UAV_BOOT_WAIT_S:-15}"      # s for PX4 instance 0 to boot
 NEXT_BOOT_WAIT_S="${NEXT_BOOT_WAIT_S:-12}"    # s for each later instance
 READY_TIMEOUT_S="${READY_TIMEOUT_S:-120}"     # s for the vehicles to be ready
 READY_POLL_S="${READY_POLL_S:-5}"             # s between two readiness checks
+CONFIGURE_TIMEOUT_S="${CONFIGURE_TIMEOUT_S:-60}"  # s for px4_configure.sh, per instance
 ECHO_TIMEOUT_S=5                              # s for a single ros2 topic echo
 
 log() { echo "[coastal_up] $*"; }
@@ -169,23 +174,41 @@ armed() {
   grep -q "Armed" <<< "$state" && grep -q "in failsafe: no" <<< "$state"
 }
 
-# Starts one PX4 instance in daemon mode, detached, as demo-coastal does.
+# Starts one PX4 instance in daemon mode, detached, as demo-coastal does, but
+# with its uXRCE-DDS client on its own agent from the start: the PX4 startup
+# script takes the port from PX4_UXRCE_DDS_PORT. Started on 8888 and moved
+# later, as px4_configure.sh does otherwise, every instance would first load
+# the agent of UAV0, and the restart of its client can hang.
 start_px4() {
   local instance="$1" airframe="$2" model="$3" pose="$4"
   ( cd "$PX4_BUILD" && \
     PX4_GZ_STANDALONE=1 PX4_GZ_NO_FOLLOW=1 \
     PX4_SYS_AUTOSTART="$airframe" PX4_SIM_MODEL="$model" \
     PX4_GZ_WORLD="$WORLD" PX4_GZ_MODEL_POSE="$pose" \
+    PX4_UXRCE_DDS_PORT=$((8888 + instance)) \
     GZ_SIM_RESOURCE_PATH="$GZ_RESOURCE_PATH" \
     setsid -f ./bin/px4 -i "$instance" -d \
       > "$SIM_LOG_DIR/px4_$instance.log" 2>&1 < /dev/null )
 }
 
-# Configures a running PX4 instance (parameters, DDS port), as in the demo.
+# Configures a running PX4 instance (parameters), as in the demo. The same
+# PX4_UXRCE_DDS_PORT as at the start tells px4_configure.sh that the client is
+# already on its port, so it is not restarted. A PX4 client command can block
+# on an instance that does not answer: after CONFIGURE_TIMEOUT_S the start-up
+# fails, and a campaign starts it again.
 configure_px4() {
-  bash scripts/sim/px4_configure.sh "$1" "$2" \
+  PX4_UXRCE_DDS_PORT=$((8888 + $1)) \
+    timeout "$CONFIGURE_TIMEOUT_S" bash scripts/sim/px4_configure.sh "$1" "$2" \
     >> "$SIM_LOG_DIR/px4_configure.log" 2>&1 \
-    || fail "px4_configure.sh $1 $2 (see px4_configure.log)"
+    || fail "px4_configure.sh $1 $2 failed or took more than ${CONFIGURE_TIMEOUT_S}s (see px4_configure.log)"
+}
+
+# True once a PX4 instance has reported its simulated battery unhealthy. From
+# then on the Safety Board of the vehicle receives no battery status and
+# vetoes all its commands, so the vehicle cannot fly the run: the scenario has
+# to be started again.
+battery_unhealthy() {
+  grep -q "Battery unhealthy" "$SIM_LOG_DIR/px4_$1.log" 2>/dev/null
 }
 
 # The number of UAVs in the fleet file.
@@ -321,6 +344,9 @@ while :; do
     fi
     armed "$instance" || missing+=("PX4 $instance armed")
     publishing "$ns/drone/proximity" || missing+=("$ns/drone/proximity")
+    if battery_unhealthy "$instance"; then
+      fail "PX4 $instance reports its battery unhealthy (see px4_$instance.log): its Safety Board would veto every command"
+    fi
   done
   if [ "${#missing[@]}" -eq 0 ]; then
     log "ready in $((SECONDS - START))s"

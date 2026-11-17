@@ -62,6 +62,19 @@ reproducible release.
 
 ### Fixed
 
+- `scripts/sim/coastal_up.sh` started every PX4 instance with its uXRCE-DDS
+  client on port 8888, the agent of UAV0, and `scripts/sim/px4_configure.sh`
+  then moved the client to its own port by restarting it. With many instances
+  the restart could hang, and the start-up with it. Each instance now starts
+  on its own port (`PX4_UXRCE_DDS_PORT` of the PX4 startup script), and
+  `px4_configure.sh`, given the same variable, leaves its client running;
+  `make demo-coastal` keeps the restart. `coastal_up.sh` also stops when
+  `px4_configure.sh` takes more than `CONFIGURE_TIMEOUT_S` (60 s).
+- A PX4 instance at times reports its simulated battery unhealthy at start-up:
+  the Safety Board of the vehicle then receives no battery status and vetoes
+  all its commands, so the vehicle stays put for the whole run.
+  `scripts/sim/coastal_up.sh` now stops the start-up at once when the log of a
+  PX4 instance reports it, and a campaign starts the scenario again.
 - `scripts/pipeline/test_pipeline.sh` waited `AUTH_DELAY_S + REACT_S` after
   the threat, and `OBSERVE_S` with `EXPECT_THREAT=no`, on the real clock. With
   the simulation slower than real time, the recording then covered less

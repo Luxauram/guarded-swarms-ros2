@@ -283,8 +283,10 @@ the UAVs, and the fault mode of the UAV workers (see
 needs `N_UAVS=2`: the faulty flights are defined for the first two UAVs.
 
 `coastal_up.sh` starts every component detached from the terminal, each with
-its own log in `SIM_LOG_DIR`, and PX4 in daemon mode. It refuses to start if a
-scenario is already running. The scenario is **ready** when:
+its own log in `SIM_LOG_DIR`, and PX4 in daemon mode, each instance with its
+uXRCE-DDS client on its own agent from the start (`PX4_UXRCE_DDS_PORT`). It
+refuses to start if a scenario is already running. The scenario is **ready**
+when:
 
 - `/clock` is published;
 - every UAV hovers within 1 m of its patrol altitude (12 m or 20 m, see
@@ -295,10 +297,18 @@ scenario is already running. The scenario is **ready** when:
   `/px4_1/drone/proximity`, `/px4_2/drone/proximity` and so on): without it
   there is no lidar, and the Safety Boards would veto every command.
 
+A PX4 instance that reports its battery unhealthy (`Battery unhealthy` in
+`px4_<instance>.log`) stops the start-up at once: from then on the Safety
+Board of that vehicle receives no battery status and vetoes all its commands,
+so the vehicle could not fly the run. A campaign then starts the scenario
+again.
+
 It exits with 0 once the scenario is ready, with 1 if a component did not
-start or the scenario was not ready within `READY_TIMEOUT_S` (120 s of real
-time by default; the message lists what is missing), and with 130 on Ctrl-C.
-Whatever it started keeps running until `coastal_down.sh`.
+start, `px4_configure.sh` failed or took more than `CONFIGURE_TIMEOUT_S`
+(60 s), a PX4 instance reports its battery unhealthy, or the scenario was not
+ready within `READY_TIMEOUT_S` (120 s of real time by default; the message
+lists what is missing), and with 130 on Ctrl-C. Whatever it started keeps
+running until `coastal_down.sh`.
 
 `coastal_down.sh` stops what is left of a run (`stop_pipeline_processes`),
 the ROS 2 side of the scenario with SIGINT, then PX4, the DDS agents, Gazebo
@@ -355,4 +365,6 @@ have no faulty flight.
 | `STOPPED: two runs in a row failed 3 times each`            | The set-up is failing, not a single run. Read the logs of the last attempt, fix the cause and run the same command                                         |
 | `STOPPED: the scenario did not stop cleanly`                | Run `./scripts/sim/coastal_down.sh` until it reports `nothing left`, then run the same command                                                             |
 | `not ready within 120s; missing: ...` (in `coastal_up.log`) | The listed items did not come up. Check `px4_<instance>.log` and `coastal_pipeline.log` in the same folder                                                 |
+| `PX4 <instance> reports its battery unhealthy`              | That vehicle could not have flown the run. A campaign starts the scenario again by itself; by hand, run `./scripts/sim/coastal_down.sh` and start again    |
+| `px4_configure.sh ... took more than 60s`                   | A PX4 instance did not answer its configuration: see `px4_configure.log`. A campaign starts the scenario again by itself                                   |
 | `WARNING: only N GB free`                                   | Each run leaves a bag and its logs: free some space before a long session                                                                                  |

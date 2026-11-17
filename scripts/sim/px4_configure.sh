@@ -26,6 +26,12 @@
 #
 # Usage: px4_configure.sh <instance> <uav|ugv>
 #
+# The uXRCE-DDS client of an instance other than 0 starts on port 8888 and is
+# moved to its own port, 8888 + instance, by a restart, as 'make demo-coastal'
+# needs. An instance started with PX4_UXRCE_DDS_PORT set to its port, as
+# scripts/sim/coastal_up.sh starts them, already has its client there: with
+# the same PX4_UXRCE_DDS_PORT in the environment, the client is left running.
+#
 # UAV parameters disable the RC / data-link failsafes that would otherwise
 # refuse arming with "no connection to the GCS" (VehicleCommandAck result 1),
 # since offboard control is commanded from ROS 2 with no RC and no GCS.
@@ -82,7 +88,11 @@ case "$VEHICLE" in
         ;;
 esac
 
-if [ "$INSTANCE" != "0" ]; then
+if [ "$INSTANCE" != "0" ] && [ "${PX4_UXRCE_DDS_PORT:-}" = "$DDS_PORT" ]; then
+    # The PX4 startup script has already started the client on this port,
+    # with the per-instance namespace.
+    echo "[px4_configure] instance $INSTANCE: uXRCE-DDS client already on port $DDS_PORT"
+elif [ "$INSTANCE" != "0" ]; then
     echo "[px4_configure] instance $INSTANCE: uXRCE-DDS port $DDS_PORT"
     param set UXRCE_DDS_PRT "$DDS_PORT"
     param save
