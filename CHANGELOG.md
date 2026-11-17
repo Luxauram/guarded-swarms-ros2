@@ -36,6 +36,14 @@ reproducible release.
 - `scripts/experiments/run_campaign.sh` accepts digits after the first
   character in the variable names of a configuration, as in `T3_WINDOW_S`.
 
+### Fixed
+
+- `scripts/bench/bench_vehicles.sh` spawned its vehicles on a line through the
+  first row of town blocks of the coastal world: two inside a building, three
+  within 2 m of one. They now spawn on free ground along the UAV launch pads,
+  the first two on the pads of the scenario, each at least 10 m from any
+  building or obstacle. `MAX` is at most 9, one spawn point per vehicle.
+
 ## [0.3.0] - 2026-11-11
 
 ### Added

@@ -58,10 +58,17 @@ HEADLESS="${HEADLESS:-1}"
 SETTLE_S="${SETTLE_S:-15}"      # time for an instance to boot and stabilise
 SAMPLES="${SAMPLES:-5}"          # RTF samples averaged per data point
 
-# Fleet geometry: instance i spawns on a line at x = i*SPAWN_STEP_M + SPAWN_X0_M.
-SPAWN_STEP_M=15
-SPAWN_X0_M=-40
-SPAWN_Y_M=-40
+# Fleet geometry, Gazebo ENU: instance i spawns at (SPAWN_X[i], SPAWN_Y_M), on
+# free ground along the UAV launch pads. The first two are the pads of the
+# coastal scenario; the others lie east of them and, past the warehouses, west,
+# at least 10 m from any building or obstacle. A spawn inside a building would
+# load the physics with its contacts and inflate the measured cost.
+SPAWN_X=(-24 24 48 72 96 120 144 168 -150)
+SPAWN_Y_M=-24
+if [ "$MAX" -gt "${#SPAWN_X[@]}" ]; then
+    echo "MAX must be at most ${#SPAWN_X[@]}: one spawn point per vehicle."
+    exit 1
+fi
 
 GZ_BOOT_S=12         # wait for Gazebo to come up before the first measurement
 RTF_SAMPLE_TIMEOUT_S=10  # per-sample timeout when reading the world stats
@@ -123,7 +130,7 @@ echo "  0 vehicles: RTF $BASE"
 RESULTS+=("0 $BASE")
 
 for i in $(seq 0 $((MAX - 1))); do
-    pose="$((i * SPAWN_STEP_M + SPAWN_X0_M)),${SPAWN_Y_M},0"
+    pose="${SPAWN_X[$i]},${SPAWN_Y_M},0"
     # stdin redirected from /dev/null: a backgrounded PX4 tries to read its
     # pxh> prompt, receives SIGTTIN and is suspended. A suspended client is
     # still attached to the lockstep, so it stalls Gazebo and the measurement
