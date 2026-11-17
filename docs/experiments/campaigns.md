@@ -34,11 +34,11 @@ To continue a campaign, run the same command again.
 ## What a run does
 
 1. **Start the scenario** with `coastal_up.sh`: the same sequence and
-   settings as `make demo-coastal` (Gazebo, three uXRCE-DDS agents, PX4
-   instances 0, 1 and 2 configured by `px4_configure.sh`, then
-   `coastal_pipeline.launch.py`), with no terminals, and with the `VETO_BY`
-   and `UAV_FAULT` of the configuration. It returns once the scenario is
-   [ready](#starting-and-stopping-the-scenario).
+   settings as `make demo-coastal` (Gazebo, one uXRCE-DDS agent and one PX4
+   instance per vehicle, each configured by `px4_configure.sh`, then
+   `coastal_pipeline.launch.py`), with no terminals, and with the `VETO_BY`,
+   `UAV_FAULT`, `N_UAVS` and `READY_TIMEOUT_S` of the configuration. It
+   returns once the scenario is [ready](#starting-and-stopping-the-scenario).
 2. **Record the run** with `record_run.sh`, with the variables of the
    configuration, the seed of the run, `STAY_UP=0` (the run ends on its own
    after the report) and `BAG_DIR` set to the folder of the attempt.
@@ -53,7 +53,7 @@ its post, the rover at the start of its patrol.
 ## Configurations
 
 `configurations.conf` holds one configuration per line: a name, then the
-variables that make it differ from the nominal run. It defines twenty-five
+variables that make it differ from the nominal run. It defines twenty-nine
 configurations:
 
 | Name                  | Variables                                                                                                               | What it tests                                                        |
@@ -83,6 +83,10 @@ configurations:
 | `t3-window-1s`        | `T3_WINDOW_S=1`                                                                                                         | Window of T3 at 1 s                                                  |
 | `t3-window-2s`        | `T3_WINDOW_S=2`                                                                                                         | Window of T3 at 2 s                                                  |
 | `t3-window-4s`        | `T3_WINDOW_S=4`                                                                                                         | Window of T3 at 4 s                                                  |
+| `uav-2`               | `N_UAVS=2`                                                                                                              | The full chain with two UAVs and the UGV                             |
+| `uav-4`               | `N_UAVS=4 THREAT_TIMEOUT=120 READY_TIMEOUT_S=240`                                                                       | The full chain with four UAVs and the UGV                            |
+| `uav-6`               | `N_UAVS=6 THREAT_TIMEOUT=180 READY_TIMEOUT_S=360`                                                                       | The full chain with six UAVs and the UGV                             |
+| `uav-8`               | `N_UAVS=8 THREAT_TIMEOUT=300 READY_TIMEOUT_S=600`                                                                       | The full chain with eight UAVs and the UGV                           |
 
 `nominal` and `vec-frontal` set the same scenario, since the frontal vector is
 the default, but they are separate configurations, each with its own runs.
@@ -117,10 +121,17 @@ The `t3-window-*` configurations set the synchronisation window of T3 alone,
 through `T3_WINDOW_S`. T5 and T6 keep the shared window of 3 s, which is also
 the window of T3 in `nominal`.
 
+The `uav-*` configurations run the whole chain with `N_UAVS` UAVs and the UGV
+(see [The fleet](#the-fleet)). `uav-2` is the fleet of `nominal`, run with the
+others so that the four fleet sizes are compared in the same sessions. More
+UAVs slow the simulation down below real time, so these configurations raise
+the two waits counted in real seconds: `THREAT_TIMEOUT` of `test_pipeline.sh`
+(60 s by default) and `READY_TIMEOUT_S` of `coastal_up.sh` (120 s by default).
+
 The variables are those of the
 [pipeline run scripts](../scripts/pipeline.md#configuration), including
 `FORGE_MISSION`, `FORGE_OBS` and `T3_WINDOW_S` of `test_pipeline.sh`, plus
-`VETO_BY` and `UAV_FAULT` of
+`VETO_BY`, `UAV_FAULT`, `N_UAVS` and `READY_TIMEOUT_S` of
 [`coastal_up.sh`](#starting-and-stopping-the-scenario).
 The campaign accepts only those, each with the values it allows, and checks
 the whole file before the first run: a typo stops the campaign at once
@@ -255,6 +266,7 @@ start the scenario without the terminals of `make demo-coastal`:
 ```bash
 ./scripts/sim/coastal_up.sh                 # Gazebo with its window
 HEADLESS=1 ./scripts/sim/coastal_up.sh      # Gazebo without its window
+N_UAVS=8 READY_TIMEOUT_S=600 ./scripts/sim/coastal_up.sh   # eight UAVs and the UGV
 VETO_BY=gate UAV_FAULT=obstacle ./scripts/sim/coastal_up.sh
 ./scripts/sim/coastal_down.sh
 ```
@@ -266,22 +278,27 @@ the UAVs, and the fault mode of the UAV workers (see
 [`guarded_swarms_control`](../packages/guarded_swarms_control.md)).
 `coastal_up.sh` refuses any other value.
 
+`N_UAVS` is the number of UAVs, from 2 (the default, the fleet of
+`make demo-coastal`) to 8 (see [The fleet](#the-fleet)). `UAV_FAULT=obstacle`
+needs `N_UAVS=2`: the faulty flights are defined for the first two UAVs.
+
 `coastal_up.sh` starts every component detached from the terminal, each with
 its own log in `SIM_LOG_DIR`, and PX4 in daemon mode. It refuses to start if a
 scenario is already running. The scenario is **ready** when:
 
 - `/clock` is published;
-- UAV0 and UAV1 hover within 1 m of their patrol altitudes (12 m and 20 m);
-- the three PX4 instances are armed and not in failsafe, as
+- every UAV hovers within 1 m of its patrol altitude (12 m or 20 m, see
+  [The fleet](#the-fleet));
+- every PX4 instance is armed and not in failsafe, as
   `scripts/world/check_coastal.sh` checks them;
-- the three vehicles publish a proximity reading (`/drone/proximity`,
-  `/px4_1/drone/proximity`, `/px4_2/drone/proximity`): without it there is no
-  lidar, and the Safety Boards would veto every command.
+- every vehicle publishes a proximity reading (`/drone/proximity`,
+  `/px4_1/drone/proximity`, `/px4_2/drone/proximity` and so on): without it
+  there is no lidar, and the Safety Boards would veto every command.
 
 It exits with 0 once the scenario is ready, with 1 if a component did not
-start or the scenario was not ready within `READY_TIMEOUT_S` (120 s; the
-message lists what is missing), and with 130 on Ctrl-C. Whatever it started
-keeps running until `coastal_down.sh`.
+start or the scenario was not ready within `READY_TIMEOUT_S` (120 s of real
+time by default; the message lists what is missing), and with 130 on Ctrl-C.
+Whatever it started keeps running until `coastal_down.sh`.
 
 `coastal_down.sh` stops what is left of a run (`stop_pipeline_processes`),
 the ROS 2 side of the scenario with SIGINT, then PX4, the DDS agents, Gazebo
@@ -290,6 +307,41 @@ exits with 0 if nothing is left, and with 1, listing the survivors,
 otherwise. It matches the processes precisely (PX4 and the DDS agents by
 name, the rest by command line), so an editor open on a node's source file
 is left alone; `scripts/kill_all.sh` would kill it.
+
+### The fleet
+
+The vehicles of the scenario are listed in
+`src/guarded_swarms_bringup/config/coastal_fleet.yaml`: for each, its PX4
+instance, its spawn pose in the world frame and, for a UAV, its hover
+altitude. `coastal_up.sh` starts the UGV and the first `N_UAVS` UAVs of the
+file, `coastal_pipeline.launch.py` brings up their nodes, and
+`tbcspn.launch.py` gives the same UAVs to the dispatch transition (T7), which
+sends the nearest one to intercept. All three read `N_UAVS` from the
+environment, so the chain must run with the `N_UAVS` of the scenario:
+`test_pipeline.sh` refuses to start otherwise (exit 2).
+
+| Vehicle | PX4 instance | System ID | Namespace | Spawn (x, y) | Hover  |
+| ------- | ------------ | --------- | --------- | ------------ | ------ |
+| UAV0    | 0            | 1         | (root)    | (-24, -24)   | 12 m   |
+| UAV1    | 1            | 2         | `/px4_1`  | (24, -24)    | 20 m   |
+| UGV     | 2            | 3         | `/px4_2`  | (-60, -14)   | (none) |
+| UAV2    | 3            | 4         | `/px4_3`  | (48, -24)    | 12 m   |
+| UAV3    | 4            | 5         | `/px4_4`  | (72, -24)    | 20 m   |
+| UAV4    | 5            | 6         | `/px4_5`  | (96, -24)    | 12 m   |
+| UAV5    | 6            | 7         | `/px4_6`  | (120, -24)   | 20 m   |
+| UAV6    | 7            | 8         | `/px4_7`  | (144, -24)   | 12 m   |
+| UAV7    | 8            | 9         | `/px4_8`  | (168, -24)   | 20 m   |
+
+The UAVs stand on the launch pads along y = -24, 24 m apart and at least 10 m
+from any building, and neighbouring UAVs hover at different altitudes. The DDS
+agent of each instance listens on UDP 8888 plus the instance. The UAVs past
+the first two are interceptors only: they carry the same nodes as UAV0 and
+UAV1 (lidar bridge, safety bridge, Safety Board, worker and safety gate) but
+no sensor of the chain, so the sensing is the same for every fleet, and they
+have no faulty flight.
+
+`make demo-coastal` starts the first two UAVs and the UGV with the poses of
+`make/vars.mk`, which must stay in sync with the file.
 
 ## Troubleshooting
 

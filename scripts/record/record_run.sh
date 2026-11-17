@@ -88,6 +88,19 @@ TOPICS=(
   /fmu/in/trajectory_setpoint
   /px4_1/fmu/in/trajectory_setpoint
 )
+# The same topics for each UAV past the first two, instances 3 and up, when the
+# scenario flies more than two (N_UAVS, see scripts/sim/coastal_up.sh).
+for instance in $(seq 3 "${N_UAVS:-2}"); do
+  ns="/px4_${instance}"
+  TOPICS+=(
+    "$ns/fmu/out/vehicle_local_position_v1"
+    "$ns/safety_status"
+    "$ns/actuator_cmd_safe"
+    "$ns/drone/proximity"
+    "$ns/trajectory_setpoint_proposed"
+    "$ns/fmu/in/trajectory_setpoint"
+  )
+done
 
 echo "[record] bag -> ${BAG_DIR}"
 echo "[record] starting rosbag on ${#TOPICS[@]} topics..."

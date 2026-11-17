@@ -30,14 +30,49 @@ reproducible release.
   sets `T3_WINDOW_S` adds a clean-run check, that T3 logged that window at
   start-up, and the Runs table gives the window T3 ran with. Documented in
   `docs/experiments/analysis.md`.
+- `N_UAVS`: the coastal scenario flies from 2 to 8 UAVs, with the UGV. The
+  fleet is described in `src/guarded_swarms_bringup/config/coastal_fleet.yaml`
+  (PX4 instance, spawn pose and hover altitude of each vehicle), installed
+  with the package and read by `scripts/sim/coastal_up.sh`,
+  `coastal_pipeline.launch.py` and `tbcspn.launch.py`, which gives the UAVs to
+  the dispatch transition (T7). `coastal_up.sh` starts one uXRCE-DDS agent and
+  one PX4 instance per vehicle and waits for all of them, and
+  `coastal_pipeline.launch.py` brings up the same nodes for every UAV. The
+  UAVs past the first two are interceptors only. With the default of 2 the
+  scenario, T7 and `make demo-coastal` are as before. `test_pipeline.sh`
+  refuses to start (exit 2) unless one PX4 instance runs for each UAV and one
+  for the UGV, and `scripts/record/record_run.sh` records the position, the
+  safety layer and the setpoints of every UAV. Documented in
+  `docs/experiments/campaigns.md`.
+- Four configurations in `scripts/experiments/configurations.conf`, `uav-2`,
+  `uav-4`, `uav-6` and `uav-8`: the whole chain with that many UAVs, with
+  `THREAT_TIMEOUT` and `READY_TIMEOUT_S` raised for the slower simulation.
+  `scripts/experiments/run_campaign.sh` accepts `N_UAVS` and
+  `READY_TIMEOUT_S` as scenario variables.
+- `scripts/pipeline/sim_sleep.py`: waits a number of seconds of simulated
+  time on `/clock`, and gives up if the clock stops advancing. Documented in
+  `docs/scripts/pipeline.md`.
 
 ### Changed
 
 - `scripts/experiments/run_campaign.sh` accepts digits after the first
   character in the variable names of a configuration, as in `T3_WINDOW_S`.
+- `guarded_swarms_tbcspn` depends on `guarded_swarms_bringup` at run time:
+  `tbcspn.launch.py` reads the fleet file.
 
 ### Fixed
 
+- `scripts/pipeline/test_pipeline.sh` waited `AUTH_DELAY_S + REACT_S` after
+  the threat, and `OBSERVE_S` with `EXPECT_THREAT=no`, on the real clock. With
+  the simulation slower than real time, the recording then covered less
+  simulated time than asked, in proportion to the real-time factor. The waits
+  are now in simulated time, through `scripts/pipeline/sim_sleep.py`, and a
+  clock that stops during a wait stops the run (exit 3).
+- `scripts/sim/coastal_up.sh` waited for Gazebo by subscribing to the world
+  statistics (`gz topic -e`), and that command at times crashed with a
+  segmentation fault while the server was starting: the wait went on, but the
+  crash was printed. It now asks for the publishers of the topic
+  (`gz topic -i`), without subscribing.
 - `scripts/bench/bench_vehicles.sh` spawned its vehicles on a line through the
   first row of town blocks of the coastal world: two inside a building, three
   within 2 m of one. They now spawn on free ground along the UAV launch pads,

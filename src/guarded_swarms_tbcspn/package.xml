@@ -12,6 +12,8 @@
   <depend>rclcpp</depend>
   <depend>guarded_swarms_msgs</depend>
   <depend>px4_msgs</depend>
+  <!-- tbcspn.launch.py reads the fleet file of the coastal scenario. -->
+  <exec_depend>guarded_swarms_bringup</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

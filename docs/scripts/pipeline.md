@@ -1,6 +1,6 @@
 # Pipeline run scripts
 
-Three scripts drive one end-to-end run of the coastal pipeline against a
+Four scripts drive one end-to-end run of the coastal pipeline against a
 running scenario:
 
 | Script                              | Role                                                                                                    |
@@ -8,6 +8,7 @@ running scenario:
 | `scripts/pipeline/test_pipeline.sh` | Launches the run, waits for the threat and the supervisor's decision, and reports which vehicles moved  |
 | `scripts/record/record_run.sh`      | Records the same run into a rosbag for the metric scripts; it drives the run through `test_pipeline.sh` |
 | `scripts/pipeline/run_guards.sh`    | Checks shared by the two scripts; sourced, not executed                                                 |
+| `scripts/pipeline/sim_sleep.py`     | Waits a number of seconds of simulated time, for the waits of `test_pipeline.sh`                        |
 
 ## Quick start
 
@@ -25,17 +26,21 @@ printed, as in the [campaigns](../experiments/campaigns.md).
 
 1. **Pre-run checks.** The scenario must be up and no process of an earlier
    run may still be alive (see [Guards](#guards)). `record_run.sh` runs the
-   same checks before it starts the recorder.
+   same checks before it starts the recorder. `test_pipeline.sh` also checks
+   that one PX4 instance runs for each of the `N_UAVS` UAVs and one for the
+   UGV.
 2. **Launch.** The intruder, the sensing layer, the TB-CSPN coordination layer
    (T1–T7) and, unless `MANUAL_AUTH=1`, the scripted supervisor.
 3. **Ground-truth checks.** `/intruder/ground_truth` must have exactly one
    publisher, and its messages must arrive. The intruder publishes them on
    simulated time, so they show that `/clock` reaches the nodes of the run.
 4. **First snapshot** of the vehicle positions, while no vehicle has a task.
-5. **Wait for the first ConfirmedThreat**, up to `THREAT_TIMEOUT` seconds.
+5. **Wait for the first ConfirmedThreat**, up to `THREAT_TIMEOUT` seconds of
+   real time.
 6. **Decision.** The scripted supervisor decides `AUTH_DELAY_S` simulated
    seconds after the first ConfirmedThreat; the script waits
-   `AUTH_DELAY_S + REACT_S` seconds.
+   `AUTH_DELAY_S + REACT_S` simulated seconds (see
+   [Simulated-time waits](#simulated-time-waits)).
 7. **End check.** The ground truth must still arrive: `/clock` reached the
    run through the decision and the reaction. A run without a ConfirmedThreat
    and the observation of `EXPECT_THREAT=no` end with the same check.
@@ -62,14 +67,15 @@ SEED=1000 DECISION=deny ./scripts/record/record_run.sh withheld
 | `EO_DELAY_S`                                                    | `0`                       | Delay of EO delivery, seconds                                                                                            |
 | `RF_LABEL`                                                      | `LikelyDroneLink`         | Label emitted by T2                                                                                                      |
 | `T3_WINDOW_S`                                                   | unset                     | Window of T3 alone, seconds. Unset: T3 shares `sync_threshold_s` (3 s) with T5 and T6. Not a number: exit `2`            |
+| `N_UAVS`                                                        | `2`                       | Number of UAVs of the scenario, as given to `coastal_up.sh`; T7 dispatches to them. Not a whole number: exit `2`         |
 | `EXPECT_THREAT`                                                 | `yes`                     | `no`: do not wait for a ConfirmedThreat; let the pipeline run for `OBSERVE_S` seconds instead                            |
-| `OBSERVE_S`                                                     | `90`                      | Observation time when `EXPECT_THREAT=no`, seconds                                                                        |
+| `OBSERVE_S`                                                     | `90`                      | Observation time when `EXPECT_THREAT=no`, simulated seconds                                                              |
 | `DECISION`                                                      | `authorise`               | Scripted supervisor: `authorise`, `deny` (explicit refusal) or `none` (no decision)                                      |
 | `AUTH_DELAY_S`                                                  | `0`                       | Supervisor decision time after the first ConfirmedThreat, simulated seconds                                              |
 | `AUTH_TTL_S`                                                    | `15`                      | Validity of the decision, seconds                                                                                        |
 | `MANUAL_AUTH`                                                   | `0`                       | `1`: the supervisor decides from the console (`console/decision_panel.html`), and the scripted supervisor is not started |
-| `THREAT_TIMEOUT`                                                | `60`                      | Seconds to wait for a ConfirmedThreat                                                                                    |
-| `REACT_S`                                                       | `10`                      | Seconds to let the vehicles react after an automatic decision                                                            |
+| `THREAT_TIMEOUT`                                                | `60`                      | Seconds of real time to wait for a ConfirmedThreat; to be raised when the simulation runs slower than real time          |
+| `REACT_S`                                                       | `10`                      | Simulated seconds to let the vehicles react after an automatic decision                                                  |
 | `FORGE_MISSION`                                                 | `none`                    | `obstacle`: publish an unauthorised `MissionToken` after the decision, to exercise the safety layer (default `none`)     |
 | `FORGE_X`, `FORGE_Y`                                            | `-22.53`, `-47.07`        | Target of the forged mission, the centre of a building in the world frame                                                |
 | `FORGE_OBS`                                                     | `none`                    | `ghost`: inject forged radar, RF and EO observations before the threat wait, with the agents off (default `none`)        |
@@ -92,13 +98,13 @@ draws can meet slightly different positions.
 
 ## Exit codes
 
-| Code  | Meaning                                                                                                                                                                                   |
-| ----- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `0`   | The run ended on its own after the report (`STAY_UP=0`)                                                                                                                                   |
-| `1`   | No ConfirmedThreat within `THREAT_TIMEOUT` (also: unknown `ATTACK_VECTOR`)                                                                                                                |
-| `2`   | Refused to start: the scenario is down, or an earlier run left processes behind. Nothing of the run was started; `record_run.sh` checks before starting the recorder, so it writes no bag |
-| `3`   | Stopped by a guard: the intruder's ground truth does not have exactly one source, or does not arrive. `record_run.sh` keeps the bag for inspection, but **the bag must not be analysed**  |
-| `130` | Ended with Ctrl-C or SIGTERM: the normal end of a run with `STAY_UP=1`                                                                                                                    |
+| Code  | Meaning                                                                                                                                                                                                                                                                  |
+| ----- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `0`   | The run ended on its own after the report (`STAY_UP=0`)                                                                                                                                                                                                                  |
+| `1`   | No ConfirmedThreat within `THREAT_TIMEOUT` (also: unknown `ATTACK_VECTOR`)                                                                                                                                                                                               |
+| `2`   | Refused to start: the scenario is down, an earlier run left processes behind, or the PX4 instances running are not one per UAV of `N_UAVS` and one for the UGV. Nothing of the run was started; `record_run.sh` checks before starting the recorder, so it writes no bag |
+| `3`   | Stopped by a guard: the intruder's ground truth does not have exactly one source, or does not arrive, or the simulated time stopped during a wait. `record_run.sh` keeps the bag for inspection, but **the bag must not be analysed**                                    |
+| `130` | Ended with Ctrl-C or SIGTERM: the normal end of a run with `STAY_UP=1`                                                                                                                                                                                                   |
 
 `record_run.sh` exits with the code of `test_pipeline.sh`.
 
@@ -142,6 +148,29 @@ received `/clock`, but the nodes of the run did not: the chain published
 nothing, and the run ended as a run without a ConfirmedThreat, which the
 campaign counted as a valid result.
 
+## Simulated-time waits
+
+The waits of a run after the threat are in simulated time:
+`AUTH_DELAY_S + REACT_S` after the first ConfirmedThreat, and `OBSERVE_S`
+with `EXPECT_THREAT=no`. `test_pipeline.sh` waits through
+`scripts/pipeline/sim_sleep.py`, which returns once `/clock` has advanced by
+the seconds asked:
+
+```bash
+python3 scripts/pipeline/sim_sleep.py 10    # 10 s of simulated time
+```
+
+With more vehicles the simulation runs slower than real time, and a wait on
+the real clock would then record less of the run after the decision. The wait
+starts at the first `/clock` message the script receives, about half a second
+of real time after it is called. If `/clock` does not advance for 30 s of real
+time (`--stall`), the script exits with 1 and `test_pipeline.sh` stops the run
+with exit `3`: the simulation has stopped, and the run cannot be used.
+
+`THREAT_TIMEOUT` stays in real time: it bounds a run whose threat never comes,
+also when the simulation has stopped. A campaign raises it with the number of
+UAVs.
+
 ## Verdict
 
 The script compares each vehicle's position before and after the decision:
@@ -159,7 +188,9 @@ default; the hover alone jitters by about 0.1 m). It is `still` otherwise, and
 The verdict is a quick visual check, not a metric. It is meaningful for the
 UAVs, which hold their hover until they get a task. The UGV patrols the shore,
 so it normally reads `MOVED` with or without a task; its task shows in the
-dispatch log. The metrics come from the bag.
+dispatch log. With more than two UAVs (`N_UAVS`), the verdict still lists
+UAV0, UAV1 and the UGV, and the dispatch log names the UAV that took the task.
+The metrics come from the bag.
 
 ## Recording
 
@@ -175,6 +206,9 @@ dispatch log. The metrics come from the bag.
   `/px4_1`, the UGV in `/px4_2`): `safety_status`, `actuator_cmd_safe` and
   `drone/proximity`, and for the two UAVs the setpoint before and after the
   safety gate, `trajectory_setpoint_proposed` and `fmu/in/trajectory_setpoint`;
+- with more than two UAVs (`N_UAVS`), the same topics for each UAV past the
+  first two, in its namespace `/px4_<instance>`, instances 3 and up: its local
+  position, its safety layer and its setpoints;
 - the simulation clock, `/clock`.
 
 The recorder runs without `--use-sim-time`, which can stall it at startup.

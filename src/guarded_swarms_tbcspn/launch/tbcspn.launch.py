@@ -66,6 +66,15 @@ t0 + ttl, and two tokens fuse when abs((t0'+ttl') - (t0+ttl)) <= sync_threshold.
 Raw-observation TTLs are deliberately NOT here: they belong to the sensing
 model and live in src/guarded_swarms_sensing/config/*.yaml.
 
+THE FLEET OF T7
+===============
+T7 dispatches to the UAVs of the coastal fleet and sends the UGV to observe,
+both read from guarded_swarms_bringup/config/coastal_fleet.yaml, the file the
+scenario starts them from: the UGV and the first N_UAVS UAVs, an environment
+variable (2 by default). For each UAV, T7 takes its system ID (PX4 instance
++ 1), the topic of its local position and its spawn pose, which converts that
+position to world ENU. Run the chain with the N_UAVS of the scenario.
+
 Prereq: the sensing layer must be producing /obs_tokens (the coastal world, the
 intruder and sensing.launch.py already running).
 
@@ -89,6 +98,9 @@ Authorise:
 """
 
 import os
+
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -123,6 +135,12 @@ DEFAULT_MISSION_TTL_S = "10.0"
 # shares sync_threshold_s with T5 and T6.
 T3_WINDOW_ENV = os.environ.get("T3_WINDOW_S", "").strip()
 T3_WINDOW_S = float(T3_WINDOW_ENV) if T3_WINDOW_ENV else None
+
+# The fleet of T7 (see the module docstring). N_UAVS is read from the
+# environment, as RF_LABEL is.
+FLEET_FILE = os.path.join(get_package_share_directory("guarded_swarms_bringup"),
+                          "config", "coastal_fleet.yaml")
+DEFAULT_N_UAVS = 2
 
 
 def interp(name, source, label):
@@ -164,7 +182,31 @@ def join(name, label_a, label_b, emit_label, emit_ttl=None, sync_s=None):
     )
 
 
+def dispatch_fleet():
+    """The fleet parameters of T7: the first N_UAVS UAVs and the UGV."""
+    with open(FLEET_FILE) as f:
+        fleet = yaml.safe_load(f)
+    uavs = fleet["uavs"]
+    count = os.environ.get("N_UAVS", "").strip() or str(DEFAULT_N_UAVS)
+    if not count.isdigit() or not 2 <= int(count) <= len(uavs):
+        raise RuntimeError(f"N_UAVS must be a whole number from 2 to "
+                           f"{len(uavs)}, not '{count}'")
+    uavs = uavs[:int(count)]
+
+    def pose_topic(instance):
+        ns = "" if instance == 0 else f"/px4_{instance}"
+        return f"{ns}/fmu/out/vehicle_local_position_v1"
+
+    return {
+        "uav_systems": [u["instance"] + 1 for u in uavs],
+        "uav_pose_topics": [pose_topic(u["instance"]) for u in uavs],
+        "uav_spawns": [float(v) for u in uavs for v in (u["x"], u["y"], 0.0)],
+        "ugv_system": fleet["ugv"]["instance"] + 1,
+    }
+
+
 def generate_launch_description():
+    fleet = dispatch_fleet()
     sync_arg = DeclareLaunchArgument(
         "sync_threshold_s", default_value=DEFAULT_SYNC_THRESHOLD_S,
         description="Fusion-window half-width `ths` shared by T3, T5 and T6 "
@@ -196,6 +238,10 @@ def generate_launch_description():
         LogInfo(msg="T3 window: " + (
             "sync_threshold_s, shared with T5 and T6" if T3_WINDOW_S is None
             else "{:g} s, from T3_WINDOW_S".format(T3_WINDOW_S))),
+        LogInfo(msg="T7 fleet: {} UAVs (sys {}), UGV sys {}".format(
+            len(fleet["uav_systems"]),
+            ", ".join(str(s) for s in fleet["uav_systems"]),
+            fleet["ugv_system"])),
         LogInfo(msg="============================================================"),
 
         # First-level interpretations (T1, T2, T4)
@@ -227,6 +273,6 @@ def generate_launch_description():
         Node(
             package=PKG, executable="dispatch_transition_node",
             name="t7_dispatch", output="screen", emulate_tty=True,
-            parameters=[{"use_sim_time": True}],
+            parameters=[{**fleet, "use_sim_time": True}],
         ),
     ])

@@ -1,0 +1,39 @@
+# ==============================================================================
+# coastal_fleet.yaml - the vehicles of the coastal scenario.
+#
+# One entry per vehicle: its PX4 instance, its spawn pose in Gazebo ENU and,
+# for a UAV, its hover altitude. A run flies the UGV and the first N_UAVS UAVs
+# of the list (2 by default). Three files read it:
+#   - scripts/sim/coastal_up.sh, which starts PX4 for each vehicle;
+#   - coastal_pipeline.launch.py, which brings up the nodes of each vehicle;
+#   - tbcspn.launch.py, which gives the UAVs to the dispatch transition (T7).
+#
+# PX4 derives the rest from the instance i: MAV_SYS_ID i + 1, the namespace
+# px4_<i> of its topics (the root for instance 0), UDP port 8888 + i for its
+# uXRCE-DDS agent, and the Gazebo model <model>_<i>. The UGV is instance 2,
+# started third as in 'make demo-coastal'; the UAVs past the first two follow.
+#
+# The UAVs stand on the launch pads along y = -24, 24 m apart, each at least
+# 10 m from any building or obstacle of the world. Neighbouring UAVs hover at
+# different altitudes, 12 and 20 m, so their patrol volumes do not overlap;
+# both stay below the 34 m town skyline, so the proximity veto stays
+# meaningful for them.
+#
+# 'make demo-coastal' starts the UGV and the first two UAVs with the poses of
+# make/vars.mk: keep those in sync with this file.
+# ==============================================================================
+
+ugv:
+  instance: 2
+  x: -60.0
+  y: -14.0
+
+uavs:
+  - { instance: 0, x: -24.0, y: -24.0, hover_m: 12.0 }
+  - { instance: 1, x: 24.0, y: -24.0, hover_m: 20.0 }
+  - { instance: 3, x: 48.0, y: -24.0, hover_m: 12.0 }
+  - { instance: 4, x: 72.0, y: -24.0, hover_m: 20.0 }
+  - { instance: 5, x: 96.0, y: -24.0, hover_m: 12.0 }
+  - { instance: 6, x: 120.0, y: -24.0, hover_m: 20.0 }
+  - { instance: 7, x: 144.0, y: -24.0, hover_m: 12.0 }
+  - { instance: 8, x: 168.0, y: -24.0, hover_m: 20.0 }

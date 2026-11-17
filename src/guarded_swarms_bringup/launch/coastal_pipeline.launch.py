@@ -18,12 +18,19 @@ limitations under the License.
 """
 @file coastal_pipeline.launch.py
 
-Guarded Swarms - Coastal Surveillance Pipeline (2 UAV + 1 UGV).
+Guarded Swarms - Coastal Surveillance Pipeline (N UAV + 1 UGV).
 
 Implements the swarm composition of Borghoff, Bottoni and Pareschi (2026),
 IET Radar, Sonar and Navigation, Section 5.1: two UAV platforms responsible
 for aerial interception and one UGV positioned near the shoreline for ground
 observation and target recovery.
+
+The fleet is described in config/coastal_fleet.yaml. A run flies its first
+N_UAVS UAVs, an environment variable: 2 by default, the composition above,
+and up to the number in the file for the scaling runs. The UAVs past the
+first two are interceptors only, with the same per-vehicle nodes: the sensing
+layer, and with it the EO camera carried by UAV 0, is the same for every
+fleet.
 
 Architecture mapping
 --------------------
@@ -47,6 +54,8 @@ per instance. Instance 0 lives at the root:
   instance 0  MAV_SYS_ID 1  /fmu/...        UAV 0, model x500_lidar_front_0
   instance 1  MAV_SYS_ID 2  /px4_1/fmu/...  UAV 1, model x500_lidar_front_1
   instance 2  MAV_SYS_ID 3  /px4_2/fmu/...  UGV,   model r1_rover_2
+  instance 3  MAV_SYS_ID 4  /px4_3/fmu/...  UAV 2, model x500_lidar_front_3
+  ...         and so on, one instance per UAV past the first two
 
 The system ID is not carried in the topic name: it travels inside
 VehicleCommand, so it must be set through the target_system parameter. A
@@ -57,8 +66,9 @@ Gazebo model names carry the instance suffix, so the lidar bridge topics do
 too. If the launch order in 'make demo-coastal' changes, the suffixes change
 with it. Verify with:  gz topic -l | grep -i lidar
 
-Prerequisite: Gazebo, three uXRCE-DDS agents and three PX4 instances already
-running. Use 'make demo-coastal'.
+Prerequisite: Gazebo, and one uXRCE-DDS agent and one PX4 instance per
+vehicle, already running. Use 'make demo-coastal' for the two UAVs, or
+scripts/sim/coastal_up.sh with the same N_UAVS.
 
 Monitor:
   ros2 topic echo /actuator_cmd_safe          UAV 0
@@ -69,6 +79,10 @@ Monitor:
 @author Luca D'Aurizio
 """
 
+import os
+
+import yaml
+from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
@@ -84,30 +98,16 @@ from launch_ros.parameter_descriptions import ParameterValue
 
 WORLD = "coastal"
 
-UAV0_MODEL = "x500_lidar_front_0"
-UAV1_MODEL = "x500_lidar_front_1"
-UGV_MODEL = "r1_rover_2"
+# Gazebo models, without the instance suffix.
+UAV_MODEL = "x500_lidar_front"
+UGV_MODEL = "r1_rover"
 
-UAV1_NAMESPACE = "px4_1"
-UGV_NAMESPACE = "px4_2"
-
-UAV0_SYSTEM_ID = 1
-UAV1_SYSTEM_ID = 2
-UGV_SYSTEM_ID = 3
-
-# The two interceptors are stacked vertically so their patrol volumes do not
-# overlap. Both stay below the 34 m town skyline, so the proximity veto stays
-# meaningful for them as well.
-UAV0_HOVER_M = 12.0
-UAV1_HOVER_M = 20.0
-
-# UAV spawn poses in world ENU (Gazebo), for the worker's ENU->NED conversion
-# of a task target. Must match the spawn poses in make/px4.mk.
-UAV0_SPAWN = (-24.0, -24.0)
-UAV1_SPAWN = (24.0, -24.0)
-
-# UGV spawn pose in world ENU (Gazebo), for the worker's ENU->NED conversion.
-UGV_SPAWN = (-60.0, -14.0)
+# The fleet: PX4 instance, spawn pose (world ENU, Gazebo) and, for a UAV, hover
+# altitude of every vehicle. The spawn pose is for the workers' ENU->NED
+# conversion of a task target. A run flies the UGV and the first N_UAVS UAVs.
+FLEET_FILE = os.path.join(get_package_share_directory("guarded_swarms_bringup"),
+                          "config", "coastal_fleet.yaml")
+DEFAULT_N_UAVS = 2
 
 # Interception altitude held by a UAV once it has a task, so it closes on the
 # target's horizontal position without descending onto it.
@@ -151,6 +151,9 @@ PROPOSED_SETPOINT_TOPIC = "trajectory_setpoint_proposed"
 #   UAV1 ( 24, -24) -> building_0_4 (22 x 18 x 34 m): wall at 39.6 m
 UAV0_FAULT_TARGET = (17.88, -47.34)
 UAV1_FAULT_TARGET = (-22.53, -47.07)
+# By UAV, in fleet order. The other UAVs have no faulty flight, whatever
+# uav_fault says: scripts/sim/coastal_up.sh runs the faults with two UAVs.
+FAULT_TARGETS = [UAV0_FAULT_TARGET, UAV1_FAULT_TARGET]
 # Altitude of the faulty flight, 6 m below the lower roof (18 m), so the
 # forward lidar hits the wall even with the UAV pitched.
 UAV_FAULT_ALTITUDE_M = 12.0
@@ -168,12 +171,42 @@ def lidar_topic(model_name):
             "/link/lidar_sensor_link/sensor/lidar/scan")
 
 
+def read_fleet():
+    """The UGV and the first N_UAVS UAVs of FLEET_FILE.
+
+    N_UAVS is read from the environment, as tbcspn.launch.py reads RF_LABEL:
+    it sets how many nodes this file brings up, so it is needed as a value
+    when the launch description is built.
+    """
+    with open(FLEET_FILE) as f:
+        fleet = yaml.safe_load(f)
+    uavs = fleet["uavs"]
+    count = os.environ.get("N_UAVS", "").strip() or str(DEFAULT_N_UAVS)
+    if not count.isdigit() or not 2 <= int(count) <= len(uavs):
+        raise RuntimeError(f"N_UAVS must be a whole number from 2 to "
+                           f"{len(uavs)}, not '{count}'")
+    return fleet["ugv"], uavs[:int(count)]
+
+
+def namespace_of(instance):
+    """The namespace PX4 gives the topics of an instance: None for 0, the root."""
+    return None if instance == 0 else f"px4_{instance}"
+
+
+def describe(name, instance, role):
+    """One line of the launch banner."""
+    topics = "/fmu/..." if instance == 0 else f"/px4_{instance}/fmu/..."
+    return f"{name}: instance {instance}, sys {instance + 1}, {topics}, {role}"
+
+
 def vehicle_stack(namespace, model_name, system_id, is_ground,
                   hover_altitude=None, waypoints=None, spawn=None,
                   fault_target=None):
     """Build the per-vehicle node set.
 
     namespace of None means the root namespace, used by PX4 instance 0.
+    fault_target of None means a UAV with no faulty flight, whatever the
+    uav_fault launch argument says.
     """
     ns = {} if namespace is None else {"namespace": namespace}
     scan = lidar_topic(model_name)
@@ -252,10 +285,11 @@ def vehicle_stack(namespace, model_name, system_id, is_ground,
                 "spawn_x": spawn[0],
                 "spawn_y": spawn[1],
                 "setpoint_topic": PROPOSED_SETPOINT_TOPIC,
-                "fault": ParameterValue(LaunchConfiguration("uav_fault"),
-                                        value_type=str),
-                "fault_target_x": fault_target[0],
-                "fault_target_y": fault_target[1],
+                "fault": (ParameterValue(LaunchConfiguration("uav_fault"),
+                                         value_type=str)
+                          if fault_target is not None else "none"),
+                "fault_target_x": (fault_target or spawn)[0],
+                "fault_target_y": (fault_target or spawn)[1],
                 "fault_altitude": UAV_FAULT_ALTITUDE_M,
                 "use_sim_time": True,
             }],
@@ -285,15 +319,26 @@ def generate_launch_description():
     # Per-vehicle stacks
     # =========================================================================
 
-    uav0 = vehicle_stack(None, UAV0_MODEL, UAV0_SYSTEM_ID,
-                         is_ground=False, hover_altitude=UAV0_HOVER_M,
-                         spawn=UAV0_SPAWN, fault_target=UAV0_FAULT_TARGET)
-    uav1 = vehicle_stack(UAV1_NAMESPACE, UAV1_MODEL, UAV1_SYSTEM_ID,
-                         is_ground=False, hover_altitude=UAV1_HOVER_M,
-                         spawn=UAV1_SPAWN, fault_target=UAV1_FAULT_TARGET)
-    ugv = vehicle_stack(UGV_NAMESPACE, UGV_MODEL, UGV_SYSTEM_ID,
-                        is_ground=True, waypoints=UGV_WAYPOINTS,
-                        spawn=UGV_SPAWN)
+    ugv, uavs = read_fleet()
+
+    uav_nodes = []
+    banner = []
+    for k, uav in enumerate(uavs):
+        i = uav["instance"]
+        hover = float(uav["hover_m"])
+        uav_nodes += vehicle_stack(
+            namespace_of(i), f"{UAV_MODEL}_{i}", i + 1,
+            is_ground=False, hover_altitude=hover,
+            spawn=(float(uav["x"]), float(uav["y"])),
+            fault_target=FAULT_TARGETS[k] if k < len(FAULT_TARGETS) else None)
+        banner.append(describe(f"UAV {k}", i, f"hover {hover:g} m"))
+
+    i = ugv["instance"]
+    ugv_nodes = vehicle_stack(
+        namespace_of(i), f"{UGV_MODEL}_{i}", i + 1,
+        is_ground=True, waypoints=UGV_WAYPOINTS,
+        spawn=(float(ugv["x"]), float(ugv["y"])))
+    banner.append(describe("UGV", i, "shore patrol"))
 
     # =========================================================================
     # Launch Description
@@ -309,12 +354,12 @@ def generate_launch_description():
             description="Fault mode of the UAV workers, for fault-injection "
                         "runs"),
         LogInfo(msg="============================================================"),
-        LogInfo(msg="Guarded Swarms - Coastal Pipeline (2 UAV + 1 UGV)"),
+        LogInfo(msg=f"Guarded Swarms - Coastal Pipeline ({len(uavs)} UAV + "
+                    "1 UGV)"),
         LogInfo(msg="============================================================"),
-        LogInfo(msg="Prereq: make demo-coastal (Gazebo, 3 DDS agents, 3 PX4)"),
-        LogInfo(msg="UAV 0: instance 0, sys 1, /fmu/...,       hover 12 m"),
-        LogInfo(msg="UAV 1: instance 1, sys 2, /px4_1/fmu/..., hover 20 m"),
-        LogInfo(msg="UGV:   instance 2, sys 3, /px4_2/fmu/..., shore patrol"),
+        LogInfo(msg=f"Prereq: Gazebo, {len(uavs) + 1} DDS agents, "
+                    f"{len(uavs) + 1} PX4 (make demo-coastal or coastal_up.sh)"),
+        *[LogInfo(msg=line) for line in banner],
         LogInfo(msg="Coordination is shared; each vehicle vetoes on its own"),
         LogInfo(msg=["UAV veto by: ", LaunchConfiguration("veto_by"),
                      "; UAV fault: ", LaunchConfiguration("uav_fault")]),
@@ -339,7 +384,6 @@ def generate_launch_description():
             parameters=[{"use_sim_time": True}],
             emulate_tty=True,
         ),
-        *uav0,
-        *uav1,
-        *ugv,
+        *uav_nodes,
+        *ugv_nodes,
     ])

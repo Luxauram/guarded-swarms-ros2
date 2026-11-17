@@ -24,9 +24,10 @@
 # scripts/experiments/run_campaign.sh:
 #
 #   1. Gazebo with the coastal world, with its window or headless
-#   2. three uXRCE-DDS agents, one UDP port per PX4 instance
-#   3. PX4 instances 0 (UAV0), 1 (UAV1) and 2 (UGV), each configured by
-#      scripts/sim/px4_configure.sh as in the demo
+#   2. one uXRCE-DDS agent per PX4 instance, each on its own UDP port
+#   3. PX4 instances 0 (UAV0), 1 (UAV1) and 2 (UGV), then one more for each
+#      UAV past the first two, each configured by scripts/sim/px4_configure.sh
+#      as in the demo
 #   4. the ROS 2 side of the scenario (coastal_pipeline.launch.py)
 #
 # Unlike the demo it opens no terminals. Every component is detached from this
@@ -35,20 +36,31 @@
 # without its interactive shell, which would otherwise wait on a terminal and
 # stall the lockstep simulation.
 #
-# The scenario is ready when /clock is published, both UAVs hover at their
-# patrol altitude, the three PX4 instances are armed and not in failsafe (as
-# scripts/world/check_coastal.sh checks them), and the three vehicles publish a
+# The scenario is ready when /clock is published, every UAV hovers at its
+# patrol altitude, every PX4 instance is armed and not in failsafe (as
+# scripts/world/check_coastal.sh checks them), and every vehicle publishes a
 # proximity reading: without it there is no lidar, and the Safety Boards would
 # veto every command.
 #
 # Usage:
 #   ./scripts/sim/coastal_up.sh              # Gazebo with its window
 #   HEADLESS=1 ./scripts/sim/coastal_up.sh   # Gazebo without its window
+#   N_UAVS=8 READY_TIMEOUT_S=600 ./scripts/sim/coastal_up.sh   # eight UAVs
 #
 # VETO_BY and UAV_FAULT set the launch arguments veto_by (worker | gate) and
 # uav_fault (none | obstacle) of coastal_pipeline.launch.py, for the
 # fault-injection runs. By default they are those of 'make demo-coastal'
-# (worker, none).
+# (worker, none). The faults are those of the first two UAVs, so UAV_FAULT
+# needs N_UAVS=2.
+#
+# N_UAVS is the number of UAVs: 2 by default, as in 'make demo-coastal', up to
+# the number in src/guarded_swarms_bringup/config/coastal_fleet.yaml, which
+# gives the PX4 instance, spawn pose and hover altitude of every vehicle.
+# coastal_pipeline.launch.py reads N_UAVS and the same file, and so does
+# tbcspn.launch.py for the dispatch transition: run the chain with the same
+# N_UAVS. With more UAVs the simulation runs slower than real time and the
+# vehicles take longer to be ready, so READY_TIMEOUT_S, in real seconds, must
+# grow with them.
 #
 # Exit codes: 0 ready; 1 a scenario is already running, a component did not
 # start, or the scenario was not ready within READY_TIMEOUT_S; 130 stopped
@@ -64,29 +76,28 @@ HEADLESS="${HEADLESS:-0}"
 SIM_LOG_DIR="${SIM_LOG_DIR:-/tmp/gs_sim}"
 VETO_BY="${VETO_BY:-worker}"
 UAV_FAULT="${UAV_FAULT:-none}"
+# Exported, because coastal_pipeline.launch.py reads it from the environment.
+export N_UAVS="${N_UAVS:-2}"
 PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
 PX4_BUILD="$PX4_DIR/build/px4_sitl_default"
 
-# Scenario, as in make/vars.mk: world, spawn poses (Gazebo ENU) and airframes.
+# Scenario, as in make/vars.mk: world and airframes. The vehicles (PX4
+# instance, spawn pose in Gazebo ENU, hover altitude of a UAV) come from the
+# fleet file, the installed copy that coastal_pipeline.launch.py reads too.
 WORLD=coastal
-UAV0_POSE="-24,-24,0"
-UAV1_POSE="24,-24,0"
-UGV_POSE="-60,-14,0"
 UAV_AIRFRAME=4017                # gz_x500_lidar_front
 UGV_AIRFRAME=4009                # gz_r1_rover
 GZ_RESOURCE_PATH="$REPO_ROOT/src/guarded_swarms_gz/models:$REPO_ROOT/src/guarded_swarms_gz/worlds"
+FLEET_FILE="$(ros2 pkg prefix guarded_swarms_bringup 2>/dev/null)/share/guarded_swarms_bringup/config/coastal_fleet.yaml"
 
-# Hover altitudes of coastal_pipeline.launch.py (UAV0_HOVER_M, UAV1_HOVER_M).
-# A UAV within HOVER_TOL_M of its altitude counts as hovering.
-UAV0_HOVER_M=12.0
-UAV1_HOVER_M=20.0
+# A UAV within HOVER_TOL_M of its hover altitude counts as hovering.
 HOVER_TOL_M=1.0
 
 # Waits. The fixed ones are those of demo-coastal.
 GZ_BOOT_TIMEOUT_S="${GZ_BOOT_TIMEOUT_S:-60}"  # s for the world to publish stats
 AGENT_SETTLE_S="${AGENT_SETTLE_S:-3}"         # s after starting the DDS agents
 UAV_BOOT_WAIT_S="${UAV_BOOT_WAIT_S:-15}"      # s for PX4 instance 0 to boot
-NEXT_BOOT_WAIT_S="${NEXT_BOOT_WAIT_S:-12}"    # s for instances 1 and 2
+NEXT_BOOT_WAIT_S="${NEXT_BOOT_WAIT_S:-12}"    # s for each later instance
 READY_TIMEOUT_S="${READY_TIMEOUT_S:-120}"     # s for the vehicles to be ready
 READY_POLL_S="${READY_POLL_S:-5}"             # s between two readiness checks
 ECHO_TIMEOUT_S=5                              # s for a single ros2 topic echo
@@ -116,6 +127,18 @@ scenario_processes() {
   { pgrep -ax px4; pgrep -ax MicroXRCEAgent
     pgrep -af -- "gz sim|gz_sim_serv|ros2 launch guarded_swarms_bringup coastal_pipeline\.launch"
   } 2>/dev/null | grep -v '<defunct>'
+}
+
+# True once the world publishes its statistics, that is once Gazebo is up.
+# 'gz topic -i' lists the publishers of the topic without subscribing to it.
+# 'gz topic -e' would subscribe, and while the server is still starting it can
+# crash with a segmentation fault.
+world_up() {
+  timeout 5 gz topic -i -t "/world/$WORLD/stats" 2>/dev/null | awk '
+    /^Publishers/ { pub = 1; next }
+    /^Subscribers/ { pub = 0 }
+    pub && /WorldStatistics/ { found = 1 }
+    END { exit !found }'
 }
 
 # Ground-truth z of a Gazebo model, or empty if not found.
@@ -165,6 +188,30 @@ configure_px4() {
     || fail "px4_configure.sh $1 $2 (see px4_configure.log)"
 }
 
+# The number of UAVs in the fleet file.
+fleet_size() {
+  python3 -c 'import sys, yaml; print(len(yaml.safe_load(open(sys.argv[1]))["uavs"]))' \
+    "$FLEET_FILE" 2>/dev/null
+}
+
+# The vehicles of the run: the UGV and the first N_UAVS UAVs of the fleet file,
+# one line each, "instance kind x y hover_m" (hover_m 0 for the UGV), in
+# instance order, the order in which they start.
+read_fleet() {
+  python3 - "$FLEET_FILE" "$N_UAVS" <<'EOF'
+import sys
+import yaml
+
+with open(sys.argv[1]) as f:
+    fleet = yaml.safe_load(f)
+vehicles = [dict(fleet["ugv"], kind="ugv", hover_m=0)]
+vehicles += [dict(u, kind="uav") for u in fleet["uavs"][: int(sys.argv[2])]]
+for v in sorted(vehicles, key=lambda v: v["instance"]):
+    print(v["instance"], v["kind"], f"{v['x']:g}", f"{v['y']:g}",
+          f"{v['hover_m']:g}")
+EOF
+}
+
 # --- checks --------------------------------------------------------------------
 [ -x "$PX4_BUILD/bin/px4" ] || fail "PX4 not built: $PX4_BUILD/bin/px4 is missing"
 case "$VETO_BY" in
@@ -175,6 +222,14 @@ case "$UAV_FAULT" in
   none|obstacle) ;;
   *) fail "UAV_FAULT must be 'none' or 'obstacle', not '$UAV_FAULT'" ;;
 esac
+[ -f "$FLEET_FILE" ] || fail "fleet file not found: $FLEET_FILE (built and sourced?)"
+max_uavs=$(fleet_size)
+[[ "$N_UAVS" =~ ^[0-9]+$ ]] && [ "$N_UAVS" -ge 2 ] && [ "$N_UAVS" -le "${max_uavs:-0}" ] \
+  || fail "N_UAVS must be a whole number from 2 to ${max_uavs:-?}, not '$N_UAVS'"
+[ "$UAV_FAULT" = none ] || [ "$N_UAVS" -eq 2 ] \
+  || fail "UAV_FAULT=$UAV_FAULT needs N_UAVS=2: the faults are those of the first two UAVs"
+mapfile -t VEHICLES < <(read_fleet)
+[ "${#VEHICLES[@]}" -eq $((N_UAVS + 1)) ] || fail "cannot read the fleet from $FLEET_FILE"
 running=$(scenario_processes)
 if [ -n "$running" ]; then
   log "a scenario is already running:"
@@ -187,7 +242,10 @@ rm -rf "$SIM_LOG_DIR"
 mkdir -p "$SIM_LOG_DIR"
 # A fresh start for every instance, as in demo-coastal: no stale parameters.
 bash scripts/sim/gz_kill.sh > "$SIM_LOG_DIR/gz_kill.log" 2>&1
-rm -rf "$PX4_BUILD/rootfs/1" "$PX4_BUILD/rootfs/2"
+for vehicle in "${VEHICLES[@]}"; do
+  read -r instance _ <<< "$vehicle"
+  [ "$instance" -eq 0 ] || rm -rf "$PX4_BUILD/rootfs/$instance"
+done
 
 START=$SECONDS
 
@@ -202,34 +260,44 @@ else
     > "$SIM_LOG_DIR/gazebo.log" 2>&1 < /dev/null
 fi
 deadline=$((SECONDS + GZ_BOOT_TIMEOUT_S))
-until timeout 2 gz topic -e -t "/world/$WORLD/stats" -n 1 >/dev/null 2>&1; do
+until world_up; do
   [ "$SECONDS" -lt "$deadline" ] || fail "Gazebo did not start within ${GZ_BOOT_TIMEOUT_S}s"
   sleep 1
 done
 
 # --- 2. DDS agents ---------------------------------------------------------------
-log "[2/4] uXRCE-DDS agents on UDP 8888, 8889, 8890"
-for port in 8888 8889 8890; do
+# One agent per instance, on the port px4_configure.sh gives it: 8888 + instance.
+ports=()
+for vehicle in "${VEHICLES[@]}"; do
+  read -r instance _ <<< "$vehicle"
+  ports+=($((8888 + instance)))
+done
+printf -v list '%s, ' "${ports[@]}"
+log "[2/4] uXRCE-DDS agents on UDP ${list%, }"
+for port in "${ports[@]}"; do
   setsid -f MicroXRCEAgent udp4 -p "$port" \
     > "$SIM_LOG_DIR/dds_agent_$port.log" 2>&1 < /dev/null
 done
 sleep "$AGENT_SETTLE_S"
 
 # --- 3. PX4 ----------------------------------------------------------------------
-log "[3/4] PX4: UAV0 (instance 0), UAV1 (instance 1), UGV (instance 2)"
-start_px4 0 "$UAV_AIRFRAME" gz_x500_lidar_front "$UAV0_POSE"
-sleep "$UAV_BOOT_WAIT_S"
-configure_px4 0 uav
-start_px4 1 "$UAV_AIRFRAME" gz_x500_lidar_front "$UAV1_POSE"
-sleep "$NEXT_BOOT_WAIT_S"
-configure_px4 1 uav
-start_px4 2 "$UGV_AIRFRAME" gz_r1_rover "$UGV_POSE"
-sleep "$NEXT_BOOT_WAIT_S"
-configure_px4 2 ugv
+log "[3/4] PX4: $N_UAVS UAVs and the UGV (instance 2), instances 0 to $N_UAVS"
+wait_s="$UAV_BOOT_WAIT_S"
+for vehicle in "${VEHICLES[@]}"; do
+  read -r instance kind x y _ <<< "$vehicle"
+  if [ "$kind" = ugv ]; then
+    start_px4 "$instance" "$UGV_AIRFRAME" gz_r1_rover "$x,$y,0"
+  else
+    start_px4 "$instance" "$UAV_AIRFRAME" gz_x500_lidar_front "$x,$y,0"
+  fi
+  sleep "$wait_s"
+  configure_px4 "$instance" "$kind"
+  wait_s="$NEXT_BOOT_WAIT_S"
+done
 
 # --- 4. ROS 2 side ---------------------------------------------------------------
 log "[4/4] ROS 2 side of the scenario (coastal_pipeline.launch.py," \
-    "veto_by=$VETO_BY, uav_fault=$UAV_FAULT)"
+    "N_UAVS=$N_UAVS, veto_by=$VETO_BY, uav_fault=$UAV_FAULT)"
 # A fresh ROS 2 daemon, as in demo-coastal: no stale entries in the graph.
 ros2 daemon stop > /dev/null 2>&1
 ros2 daemon start > /dev/null 2>&1
@@ -243,12 +311,15 @@ deadline=$((SECONDS + READY_TIMEOUT_S))
 while :; do
   missing=()
   publishing /clock || missing+=("/clock")
-  hovering x500_lidar_front_0 "$UAV0_HOVER_M" || missing+=("UAV0 hover")
-  hovering x500_lidar_front_1 "$UAV1_HOVER_M" || missing+=("UAV1 hover")
-  for instance in 0 1 2; do
+  for vehicle in "${VEHICLES[@]}"; do
+    read -r instance kind _ _ hover <<< "$vehicle"
+    ns=""
+    [ "$instance" -eq 0 ] || ns="/px4_$instance"
+    if [ "$kind" = uav ]; then
+      hovering "x500_lidar_front_$instance" "$hover" \
+        || missing+=("x500_lidar_front_$instance hover")
+    fi
     armed "$instance" || missing+=("PX4 $instance armed")
-  done
-  for ns in "" /px4_1 /px4_2; do
     publishing "$ns/drone/proximity" || missing+=("$ns/drone/proximity")
   done
   if [ "${#missing[@]}" -eq 0 ]; then

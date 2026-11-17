@@ -100,7 +100,7 @@ directly.
 for each UAV, in the namespace of the UAV and on simulated time, and sets the
 `setpoint_topic` parameter of the UAV workers to `trajectory_setpoint_proposed`
 (`PROPOSED_SETPOINT_TOPIC`). The launch argument `veto_by` sets `veto_by` for
-both gates: `worker` by default, and `scripts/sim/coastal_up.sh` takes it from
+every gate: `worker` by default, and `scripts/sim/coastal_up.sh` takes it from
 `VETO_BY`. The rover has no gate.
 
 To check the wiring with the scenario up (the first UAV has the root
@@ -140,8 +140,11 @@ warning with the fault target.
 ### In the coastal scenario
 
 The launch argument `uav_fault` of `coastal_pipeline.launch.py` sets `fault`
-for both UAV workers, so the fault acts on the UAV that receives the task:
-`none` by default, and `scripts/sim/coastal_up.sh` takes it from `UAV_FAULT`.
+for the workers of UAV0 and UAV1, so the fault acts on the one that receives
+the task: `none` by default, and `scripts/sim/coastal_up.sh` takes it from
+`UAV_FAULT`, with two UAVs only. In a larger fleet (`N_UAVS`, see
+[Campaigns](../experiments/campaigns.md#the-fleet)) the other UAVs have no
+fault target, and their workers run with `fault` set to `none`.
 Each fault target is the centre of a building, at 12 m, 6 m below the lower
 roof:
 

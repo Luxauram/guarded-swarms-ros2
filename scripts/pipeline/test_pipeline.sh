@@ -105,10 +105,36 @@ if [ -n "$T3_WINDOW_S" ] && ! [[ "$T3_WINDOW_S" =~ ^[0-9]+([.][0-9]+)?$ ]]; then
   exit 2
 fi
 
+# The number of UAVs of the scenario, as given to scripts/sim/coastal_up.sh
+# (2 by default, as in 'make demo-coastal'). Exported, because tbcspn.launch.py
+# reads it from the environment: T7 dispatches to the first N_UAVS UAVs of the
+# fleet.
+export N_UAVS="${N_UAVS:-2}"
+if ! [[ "$N_UAVS" =~ ^[0-9]+$ ]]; then
+  echo "[test] N_UAVS must be a whole number, got '$N_UAVS'."
+  exit 2
+fi
+
+# The waits of a run are in simulated time: with more vehicles the simulation
+# runs slower than real time, and a wait on the real clock would then cover
+# less of the run. scripts/pipeline/sim_sleep.py waits on /clock. A clock that
+# does not advance for SIM_STALL_S real seconds ends the run, whose data cannot
+# be used (exit 3).
+SIM_STALL_S=30
+sim_wait() {
+  python3 scripts/pipeline/sim_sleep.py "$1" --stall "$SIM_STALL_S"
+  case $? in
+    0) ;;
+    130) exit 130 ;;
+    *) echo "[test] GUARD: the simulated time stopped during a wait of ${1}s; the run cannot be used (exit 3)."
+       exit 3 ;;
+  esac
+}
+
 # yes | no. no = do not wait for a ConfirmedThreat (it must NOT come, as in the
 # C3 conflict run); instead let the pipeline run for OBSERVE_S and just record.
 EXPECT_THREAT="${EXPECT_THREAT:-yes}"
-OBSERVE_S="${OBSERVE_S:-90}"
+OBSERVE_S="${OBSERVE_S:-90}"   # simulated seconds
 
 # The scripted supervisor's decision: authorise | deny | none. deny reproduces
 # the "authorisation withheld" counterfactual (Sec 5.3): the threat forms but no
@@ -128,7 +154,7 @@ MANUAL_AUTH="${MANUAL_AUTH:-0}"
 # coverage).
 THREAT_TIMEOUT="${THREAT_TIMEOUT:-60}"
 
-# Seconds to let the vehicles react after an automatic authorisation.
+# Simulated seconds to let the vehicles react after an automatic authorisation.
 REACT_S="${REACT_S:-10}"
 
 # none | obstacle. obstacle places one mission directly on the dispatch topic
@@ -161,6 +187,13 @@ PIDS=()
 # Before anything is started, so a refused run leaves nothing behind.
 guard_scenario_running || exit 2
 guard_no_leftovers || exit 2
+# One PX4 instance per UAV and one for the UGV: otherwise T7 would dispatch to
+# a fleet that is not the one flying.
+px4_running=$(pgrep -cx px4)
+if [ "$px4_running" -ne $((N_UAVS + 1)) ]; then
+  echo "[test] the scenario runs ${px4_running} PX4 instances; N_UAVS=${N_UAVS} needs $((N_UAVS + 1))."
+  exit 2
+fi
 
 # Tear down everything this script started, and only that: the scenario's own
 # nodes (vehicle workers, safety boards, bridges) belong to demo-coastal and
@@ -202,10 +235,10 @@ ros2 launch guarded_swarms_sensing sensing.launch.py \
   >/tmp/gs_sensing.log 2>&1 &
 PIDS+=($!)
 
-echo "[test] launching TB-CSPN layer (T1-T7)${T3_WINDOW_S:+, T3 window ${T3_WINDOW_S} s}..."
-# RF_LABEL and T3_WINDOW_S are exported above; tbcspn.launch.py reads them from
-# the environment (a launch-argument substitution inside a parameter dict did
-# not resolve).
+echo "[test] launching TB-CSPN layer (T1-T7), ${N_UAVS} UAVs${T3_WINDOW_S:+, T3 window ${T3_WINDOW_S} s}..."
+# RF_LABEL, T3_WINDOW_S and N_UAVS are exported above; tbcspn.launch.py reads
+# them from the environment (a launch-argument substitution inside a parameter
+# dict did not resolve).
 ros2 launch guarded_swarms_tbcspn tbcspn.launch.py \
   >/tmp/gs_tbcspn.log 2>&1 &
 PIDS+=($!)
@@ -267,8 +300,8 @@ before_ugv=$(pose r1_rover_2)
 # counterfactual check on the bag then confirms the forbidden token is absent.
 if [[ "$EXPECT_THREAT" == "no" ]]; then
   echo "[test] counterfactual run: NOT expecting a ConfirmedThreat."
-  echo "[test] letting the pipeline run for ${OBSERVE_S}s..."
-  sleep "${OBSERVE_S}"
+  echo "[test] letting the pipeline run for ${OBSERVE_S}s of simulated time..."
+  sim_wait "${OBSERVE_S}"
   # The ground truth must still arrive: an observation that the simulated time
   # stopped reaching is not a result.
   guard_ground_truth_flowing || exit 3
@@ -368,8 +401,8 @@ else
       exit 3
     fi
   fi
-  echo "[test] letting the vehicles react (${AUTH_DELAY_S}s + ${REACT_S}s)..."
-  sleep "$(LC_ALL=C awk -v a="${AUTH_DELAY_S}" -v b="${REACT_S}" 'BEGIN { print a + b }')"
+  echo "[test] letting the vehicles react (${AUTH_DELAY_S}s + ${REACT_S}s of simulated time)..."
+  sim_wait "$(LC_ALL=C awk -v a="${AUTH_DELAY_S}" -v b="${REACT_S}" 'BEGIN { print a + b }')"
 fi
 
 # The simulated time must have reached the run through the decision and the

@@ -27,7 +27,8 @@
 # same initial state: the vehicles at their spawn points, the EO camera
 # (carried by UAV0) at its post, the rover at the start of its patrol. The
 # variables of the configuration reach both the scenario and the run:
-# coastal_up.sh reads VETO_BY and UAV_FAULT, record_run.sh the others.
+# coastal_up.sh reads VETO_BY, UAV_FAULT, N_UAVS and READY_TIMEOUT_S,
+# record_run.sh the others and N_UAVS too.
 #
 # Runs alternate between the configurations (run 1 of each, then run 2 of
 # each, ...), so that a campaign stopped halfway is balanced, and anything that
@@ -105,10 +106,10 @@ COASTAL_DOWN="${COASTAL_DOWN:-./scripts/sim/coastal_down.sh}"
 RECORD_RUN="${RECORD_RUN:-./scripts/record/record_run.sh}"
 
 # The variables a configuration may set, which are the scenario variables of
-# test_pipeline.sh and the two of coastal_up.sh (VETO_BY, UAV_FAULT), each
-# with the values it accepts (a regular expression). A wrong value stops the
-# campaign before the first run, instead of producing runs of a scenario
-# nobody asked for.
+# test_pipeline.sh and those of coastal_up.sh (VETO_BY, UAV_FAULT, N_UAVS,
+# READY_TIMEOUT_S), each with the values it accepts (a regular expression). A
+# wrong value stops the campaign before the first run, instead of producing
+# runs of a scenario nobody asked for.
 NUMBER='[0-9]+([.][0-9]+)?'
 BOOLEAN='true|false'
 declare -A KNOBS=(
@@ -123,6 +124,7 @@ declare -A KNOBS=(
   [THREAT_TIMEOUT]="$NUMBER"     [REACT_S]="$NUMBER"
   [T3_WINDOW_S]="$NUMBER"
   [VETO_BY]='worker|gate'        [UAV_FAULT]='none|obstacle'
+  [N_UAVS]='[2-8]'               [READY_TIMEOUT_S]="$NUMBER"
   [FORGE_MISSION]='none|obstacle'
   [FORGE_OBS]='none|ghost'
 )
@@ -324,7 +326,8 @@ attempt_run() {
 
   log "$conf, run $run/$RUNS, seed $seed, attempt $attempt: starting the scenario..."
   # The variables of the configuration reach both steps: coastal_up.sh reads
-  # VETO_BY and UAV_FAULT, record_run.sh the others.
+  # VETO_BY, UAV_FAULT, N_UAVS and READY_TIMEOUT_S, record_run.sh the others
+  # and N_UAVS too.
   read -ra tokens <<< "${CONF_VARS[$conf]}"
   env "${tokens[@]}" "$COASTAL_UP" > "$folder/logs/coastal_up.log" 2>&1 9>&-
   rc=$?

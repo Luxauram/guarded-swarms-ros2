@@ -247,7 +247,8 @@ Safety board mock scenarios: NOMINAL (pass), PROXIMITY 0.8 m (veto), ATTITUDE
 
 - Environment, PX4 pin, native Ubuntu 22.04 stack
 - Digital coordination layer + analogue safety layer, decoupled
-- Coastal scenario: 2 UAV + 1 UGV, one command (`make demo-coastal`)
+- Coastal scenario: 2 UAV + 1 UGV, one command (`make demo-coastal`); up to
+  8 UAVs with `scripts/sim/coastal_up.sh` (`N_UAVS`)
 - Scripted replayable intruder (radio-silence counterfactual)
 - Token types (multi-target) and the four consultant sensing agents
 - TB-CSPN detection chain T1–T5, verified in flight
