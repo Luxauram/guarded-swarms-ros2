@@ -48,6 +48,14 @@ mission when the two are valid at the same time. The threat window of a run
 is made of the spans in which a ConfirmedThreat was valid, and tells whether
 the authorisation, while valid, met one.
 
+The EO evidence of the threat is measured in the runs in which UAV0, which
+carries the EO camera, stays at its post (no UAV task, or the first one to
+another UAV), so that the camera sees the whole pass of the target: the EO
+pass, from the first EO confirmation (ConfirmedAerialObject) to the last; the
+last ConfirmedThreat after the last EO confirmation, and the age of the EO
+confirmation that T5 fused into it; the CandidateTargets per second during
+the EO pass.
+
 Usage:
     source /opt/ros/humble/setup.bash && source install/setup.bash
     python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign> \\
@@ -80,6 +88,8 @@ INTRUDER_SPEED_MPS = 6.0    # commanded intruder speed
 SPEED_TOLERANCE_MPS = 0.1   # allowed gap from it, in simulated time
 LOW_RTF = 0.9               # a lower real-time factor is noted
 Z95 = 1.959963984540054     # two-sided 95% normal quantile
+EO_CARRIER = 1              # system id of UAV0, which carries the EO camera
+UGV_SYSTEM = 3              # system id of the UGV
 
 # The line T3 logs at start-up with its synchronisation window (one decimal),
 # in the log of the coordination layer that the campaign keeps with the bag.
@@ -214,6 +224,14 @@ class RunResult:
     threat_spans: int = 0
     auth_meets_threat: Optional[bool] = None
     t3_window: Optional[float] = None    # as T3 logged it, s
+    # The EO evidence of the threat: whether UAV0 stayed at its post; the EO
+    # pass; the last ConfirmedThreat after the last EO confirmation, and the
+    # age of the EO confirmation in it; CandidateTargets per s in the pass.
+    eo_at_post: Optional[bool] = None
+    eo_pass: Optional[float] = None
+    eo_tail: Optional[float] = None
+    eo_age: Optional[float] = None
+    candidates_per_s: Optional[float] = None
 
 
 def split(text: str) -> List[str]:
@@ -346,6 +364,29 @@ def analyze_run(a: Attempt, commit: str,
             ta, ttl = auths[0]
             res.auth_meets_threat = any(s <= ta + ttl and ta <= e
                                         for s, e in spans)
+
+    # --- the EO evidence of the threat ------------------------------------------
+    # T5 fuses a CandidateTarget with an EO confirmation into a
+    # ConfirmedThreat, whose origin ends with the id of that EO confirmation.
+    uav_task = next((m.assigned_system for _, m in data.get("task")
+                     if m.assigned_system != UGV_SYSTEM), None)
+    res.eo_at_post = uav_task != EO_CARRIER
+    interp = data.get("interp")
+    stamp = {m.id: stamp_s(m.t) for _, m in interp}
+    eo = sorted(stamp_s(m.t) for _, m in interp
+                if m.label == "ConfirmedAerialObject")
+    last = max(((stamp_s(m.t), m) for _, m in interp
+                if m.label == "ConfirmedThreat"),
+               key=lambda p: p[0], default=None)
+    if len(eo) >= 2 and eo[-1] > eo[0] and last is not None:
+        t_last, threat = last
+        res.eo_pass = eo[-1] - eo[0]
+        res.eo_tail = t_last - eo[-1]
+        if threat.origin and threat.origin[-1] in stamp:
+            res.eo_age = t_last - stamp[threat.origin[-1]]
+        res.candidates_per_s = sum(
+            1 for _, m in interp if m.label == "CandidateTarget"
+            and eo[0] <= stamp_s(m.t) <= eo[-1]) / res.eo_pass
 
     # --- the window of T3 --------------------------------------------------------
     res.t3_window = t3_window_of(
@@ -549,6 +590,34 @@ def report(name: str, envs: Dict[str, Dict[str, str]],
                      "ConfirmedThreat → authorisation",
                      "Authorisation meets a valid threat", "Mission"], rows)
 
+    out.append("## EO evidence of the threat")
+    out.append("")
+    out.append("Runs with a ConfirmedThreat in which UAV0, which carries the "
+               "EO camera, stays at its post (no UAV task, or the first one "
+               "to another UAV). T5 fuses a CandidateTarget with an EO "
+               "confirmation into a ConfirmedThreat. EO pass: from the first "
+               "EO confirmation to the last. Last threat after the last EO: "
+               "from the last EO confirmation to the last ConfirmedThreat. "
+               "EO age: the stamp of the last ConfirmedThreat minus that of "
+               "the EO confirmation fused into it. CandidateTargets per s: "
+               "during the EO pass (mean ± sample sd).")
+    out.append("")
+    rows = []
+    for c in order:
+        held = [x for x in results[c] if x.clean and x.eo_at_post
+                and x.eo_pass is not None]
+        if not held:
+            continue
+        rows.append([c, str(len(held))] + [time_cell(
+            [getattr(x, k) for x in held]) for k in (
+                "eo_pass", "threat_confirmed_for", "eo_tail", "eo_age",
+                "candidates_per_s")])
+    out += md_table(["Configuration", "Runs", "EO pass (s)",
+                     "Threat confirmed for (s)",
+                     "Last threat after the last EO (s)",
+                     "EO age in the last threat (s)",
+                     "CandidateTargets per s"], rows)
+
     out.append("## Detection by modality")
     out.append("")
     out.append("Runs in which the modality observed the target, and its "
@@ -639,7 +708,8 @@ def write_csvs(out_dir: str, order: List[str],
                     "threat_to_decision", "decision_to_mission",
                     "mission_to_task", "threat_confirmed_for",
                     "threat_valid_for", "threat_spans", "auth_meets_threat",
-                    "t3_window"] + audit_fields)
+                    "t3_window", "eo_at_post", "eo_pass", "eo_tail", "eo_age",
+                    "candidates_per_s"] + audit_fields)
         for c in order:
             for x in results[c]:
                 a = x.attempt
@@ -649,7 +719,9 @@ def write_csvs(out_dir: str, order: List[str],
                        num(x.threat_to_decision), num(x.decision_to_mission),
                        num(x.mission_to_task), num(x.threat_confirmed_for),
                        num(x.threat_valid_for), x.threat_spans,
-                       num(x.auth_meets_threat), num(x.t3_window)]
+                       num(x.auth_meets_threat), num(x.t3_window),
+                       num(x.eo_at_post), num(x.eo_pass), num(x.eo_tail),
+                       num(x.eo_age), num(x.candidates_per_s)]
                 row += [num(getattr(x.audit, n)) if x.audit else ""
                         for n in audit_fields]
                 w.writerow(row)

@@ -22,10 +22,15 @@ the speeds of the vehicles of any recording (see
 seen from above, and the verdicts of the Safety Board over time (see
 [Figures](#figures)).
 
+`scripts/metrics/make_results.sh` runs the analysis scripts on the recordings of
+the experiments and rebuilds every table and figure in `results/` (see
+[Every result at once](#every-result-at-once)).
+
 ## Quick start
 
 ```bash
 source /opt/ros/humble/setup.bash && source install/setup.bash
+./scripts/metrics/make_results.sh
 python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_faults.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_scaling.py bags/campaigns/<campaign>
@@ -33,6 +38,39 @@ python3 scripts/metrics/audit_recordings.py bags/<run>... --csv results/audit_re
 python3 scripts/metrics/peak_speed.py bags/<run>...
 python3 scripts/metrics/plot_figures.py --nominal <bag> --fault <bag> --gate <bag>
 ```
+
+## Every result at once
+
+`scripts/metrics/make_results.sh` runs the analysis scripts on the recordings of
+the experiments and writes every table and figure to `results/`, one step per
+output:
+
+| Step         | Script                | Recordings                                                                             | Output                                         |
+| ------------ | --------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------- |
+| `full`       | `analyze_campaign.py` | Campaigns `full` and `full-repeat`                                                     | `results/full/`                                |
+| `faults`     | `analyze_faults.py`   | Campaign `faults`                                                                      | `results/faults/`                              |
+| `forge`      | `analyze_faults.py`   | Campaign `forge`                                                                       | `results/forge/`                               |
+| `forge-obs`  | `analyze_campaign.py` | Campaign `forge-obs`                                                                   | `results/forge-obs/`                           |
+| `clock`      | `analyze_clock.py`    | [Clock-denial](clock.md) bench `clock`                                                 | `results/clock-bench/clock/`                   |
+| `auth-delay` | `analyze_campaign.py` | Campaign `auth-delay`                                                                  | `results/auth-delay/`                          |
+| `t3-window`  | `analyze_campaign.py` | Campaign `t3-window`                                                                   | `results/t3-window/`                           |
+| `scaling`    | `analyze_campaign.py` | Campaign `scaling`                                                                     | `results/scaling/`                             |
+| `fleet`      | `analyze_scaling.py`  | Campaign `scaling`                                                                     | `results/scaling/`                             |
+| `figures`    | `plot_figures.py`     | Run 1 of `nominal` in `auth-delay`, and of `fault-worker` and `fault-gate` in `faults` | `results/figures/`                             |
+| `audit`      | `audit_recordings.py` | The recordings made before the campaigns                                               | `results/audit_recordings.csv` and `_veto.csv` |
+
+The campaigns are read from `bags/campaigns/` and the bench from
+`bags/clock-bench/`; `BAGS_DIR` and `RESULTS_DIR` set other folders. The audit
+reads the bag folders of `bags/` named `<group>-YYYYMMDD-HHMMSS`, for the groups
+listed in `AUDITED` in the script. A step whose recordings are missing is
+skipped, and the steps skipped or failed are named at the end. What each script
+prints, the tables included, goes to `results/logs/<step>.log`.
+
+| Exit code | Meaning                                          |
+| --------- | ------------------------------------------------ |
+| 0         | Every step done                                  |
+| 1         | A step skipped or failed                         |
+| 2         | Cannot start: ROS not sourced, or no bags folder |
 
 ## Campaign tables
 
@@ -69,14 +107,15 @@ python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign> bags/campa
 
 ### Tables
 
-| Table                 | Content                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Outcomes              | Per configuration, the rate of its expected outcome and of CandidateTarget, EO confirmation, ConfirmedThreat and mission |
-| Times                 | First observation → CandidateTarget → ConfirmedThreat → supervisor decision → mission → first task, mean ± sample sd     |
-| Authorisation         | Runs with a supervisor decision, missions after an authorise decision, and the times of the decision path                |
-| Threat window         | Runs with an authorise decision: how long the threat was confirmed and valid, and whether the authorisation met it       |
-| Detection by modality | Runs in which each modality observed the target, and its first observation after the first observation of any modality   |
-| Runs                  | Valid, clean and left-out runs, real-time factor, intruder speed in simulated time, window of T3                         |
+| Table                     | Content                                                                                                                                                             |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Outcomes                  | Per configuration, the rate of its expected outcome and of CandidateTarget, EO confirmation, ConfirmedThreat and mission                                            |
+| Times                     | First observation → CandidateTarget → ConfirmedThreat → supervisor decision → mission → first task, mean ± sample sd                                                |
+| Authorisation             | Runs with a supervisor decision, missions after an authorise decision, and the times of the decision path                                                           |
+| Threat window             | Runs with an authorise decision: how long the threat was confirmed and valid, and whether the authorisation met it                                                  |
+| EO evidence of the threat | Runs with a ConfirmedThreat in which UAV0, which carries the EO camera, stays at its post: the EO pass, and how old the EO evidence of the last ConfirmedThreat was |
+| Detection by modality     | Runs in which each modality observed the target, and its first observation after the first observation of any modality                                              |
+| Runs                      | Valid, clean and left-out runs, real-time factor, intruder speed in simulated time, window of T3                                                                    |
 
 The lists that follow name the runs left out, the runs repeated, the runs
 without a valid attempt, and the notes on single runs.
@@ -120,6 +159,27 @@ ConfirmedThreats of a run into spans, and gives:
 
 The last column applies the rule of T6 to the recording, so it agrees with
 the mission column; a run where the two disagree is one to inspect.
+
+### EO evidence of the threat
+
+T5 fuses a CandidateTarget with an EO confirmation (`ConfirmedAerialObject`)
+into a ConfirmedThreat, and the origin of the ConfirmedThreat ends with the id
+of that EO confirmation. The table takes the runs with a ConfirmedThreat in
+which UAV0, which carries the EO camera, stays at its post (no UAV task, or the
+first one to another UAV), so that the camera sees the whole pass of the target:
+
+| Column                        | Content                                                                               |
+| ----------------------------- | ------------------------------------------------------------------------------------- |
+| EO pass                       | From the first EO confirmation to the last                                            |
+| Threat confirmed for          | From the first ConfirmedThreat to the last                                            |
+| Last threat after the last EO | From the last EO confirmation to the last ConfirmedThreat                             |
+| EO age in the last threat     | The stamp of the last ConfirmedThreat minus that of the EO confirmation fused into it |
+| CandidateTargets per s        | The CandidateTargets stamped during the EO pass, per second                           |
+
+T5 fuses an EO confirmation as long as it is within its window of a
+CandidateTarget, and the ConfirmedThreat is valid for its TTL from its own
+stamp. A last ConfirmedThreat well after the last EO confirmation therefore
+rests on EO evidence of that age, while it is valid as a new one.
 
 ## Clean runs
 

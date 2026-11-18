@@ -18,6 +18,16 @@ reproducible release.
   left to the worker and applied by the safety gate: the distance of the UAV
   and of the setpoints at PX4 to the wall, the lidar range and the intervals of
   veto. Documented in `docs/experiments/analysis.md`.
+- `scripts/metrics/make_results.sh`: runs the analysis scripts on the recordings
+  of the experiments and rebuilds every table and figure in `results/`, one step
+  per output. A step whose recordings are missing is skipped and named.
+  Documented in `docs/experiments/analysis.md`.
+- An EO-evidence table in `scripts/metrics/analyze_campaign.py`: for the runs
+  with a ConfirmedThreat in which UAV0, which carries the EO camera, stays at
+  its post, the EO pass, the last ConfirmedThreat after the last EO
+  confirmation, the age of the EO confirmation fused into it, and the
+  CandidateTargets per second during the pass. `runs.csv` has the five values of
+  each run. Documented in `docs/experiments/analysis.md`.
 
 ## [0.4.0] - 2026-11-18
 
