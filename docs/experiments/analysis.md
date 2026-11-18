@@ -14,6 +14,10 @@ They build on `scripts/metrics/audit_timing.py`, which reads the bags, maps
 receive times to simulated time through the recorded `/clock`, and computes
 the statistics.
 
+`scripts/metrics/peak_speed.py` is a diagnostic, outside the tables: it prints
+the speeds of the vehicles of any recording (see
+[Vehicle speeds](#vehicle-speeds)).
+
 ## Quick start
 
 ```bash
@@ -22,6 +26,7 @@ python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_faults.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_scaling.py bags/campaigns/<campaign>
 python3 scripts/metrics/audit_recordings.py bags/<run>... --csv results/audit_recordings.csv
+python3 scripts/metrics/peak_speed.py bags/<run>...
 ```
 
 ## Campaign tables
@@ -289,3 +294,24 @@ while the board is already unsafe has no reaction time.
 
 `--csv FILE` writes one line per pipeline run to `FILE`, and one line per
 Safety Board run next to it, with a `_veto` suffix.
+
+## Vehicle speeds
+
+`peak_speed.py` takes any bags, in a campaign or not, and gives the speeds of
+every vehicle whose local position is recorded. It is a quick check of the
+flight of a run, for example after a change to the workers or to PX4; the
+tables do not use it.
+
+| Figure             | Definition                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------ |
+| Outbound           | Highest horizontal speed while the vehicle moves away from its spawn point, and its time   |
+| Inbound            | Highest horizontal speed while the vehicle comes back toward its spawn point, and its time |
+| First vehicle task | The vehicle and the time of the first message on `/vehicle_tasks`                          |
+
+The spawn point is the origin of the local position of PX4. Within 1 m of it
+(`MIN_RADIUS_M`) the direction of the motion is noise, so those samples count
+in neither direction. The speeds come from the velocity in the local position
+of PX4, which is in simulated time. The times are in simulated time from the
+start of the recording: the receive times mapped onto the recorded `/clock`. A
+bag without `/clock` gives the receive times instead, on the real clock, and
+says so.

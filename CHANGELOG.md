@@ -61,6 +61,10 @@ reproducible release.
   the interceptor, and the vehicles whose Safety Board never reported safe.
   The topics published on the real clock are also counted at real-time rates.
   Documented in `docs/experiments/analysis.md`.
+- `scripts/metrics/peak_speed.py`: the peak horizontal speed of every vehicle
+  of one or more recordings, away from its spawn point and back toward it,
+  with the time of each in simulated time, and the first vehicle task.
+  Documented in `docs/experiments/analysis.md`.
 
 ### Changed
 
