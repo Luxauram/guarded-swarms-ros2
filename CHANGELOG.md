@@ -9,6 +9,8 @@ reproducible release.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-18
+
 ### Added
 
 - `T3_WINDOW_S` in `scripts/pipeline/test_pipeline.sh` and
