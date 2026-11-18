@@ -1,12 +1,13 @@
 # Analysis
 
-Three scripts turn recorded runs into checked figures. They read the bags,
+Four scripts turn recorded runs into checked figures. They read the bags,
 change none of them, and start no ROS node.
 
 | File                                  | Role                                                                                                                                                                    |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `scripts/metrics/analyze_campaign.py` | The tables of a [campaign](campaigns.md), from its manifest and bags, with the clean-run checks on every run                                                            |
 | `scripts/metrics/analyze_faults.py`   | The tables of the [obstacle-injection](#obstacle-injection) configurations of a campaign (faulty UAV worker, forged mission), on the same runs as `analyze_campaign.py` |
+| `scripts/metrics/analyze_scaling.py`  | The tables of the [fleet-size](#fleet-size) configurations of a campaign (2 to 8 UAVs), on the same runs as `analyze_campaign.py`                                       |
 | `scripts/metrics/audit_recordings.py` | Checks that recorded runs are clean, and recomputes their time figures on both time axes                                                                                |
 
 They build on `scripts/metrics/audit_timing.py`, which reads the bags, maps
@@ -19,6 +20,7 @@ the statistics.
 source /opt/ros/humble/setup.bash && source install/setup.bash
 python3 scripts/metrics/analyze_campaign.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_faults.py bags/campaigns/<campaign>
+python3 scripts/metrics/analyze_scaling.py bags/campaigns/<campaign>
 python3 scripts/metrics/audit_recordings.py bags/<run>... --csv results/audit_recordings.csv
 ```
 
@@ -198,6 +200,65 @@ the recorded `/clock`, because the lidar range and the safety status carry no
 usable stamp. The resolution is that of the recording. The spawn points and
 the fault buildings are constants of the script, as in
 `coastal_pipeline.launch.py` and `coastal.sdf`.
+
+## Fleet size
+
+`analyze_scaling.py` analyses the runs of the whole chain with `N_UAVS` UAVs
+and the UGV (see [The fleet](campaigns.md#the-fleet)), to measure what a larger
+fleet costs the chain and the simulation. It reads one campaign folder and
+analyses the configurations that set `N_UAVS` in `configurations.conf`
+(`uav-2`, `uav-4`, `uav-6`, `uav-8`). Each run uses the first valid attempt
+whose recording is [clean](#clean-runs) and in which T7 logged at start-up a
+fleet of `N_UAVS` UAVs, in `logs/gs_tbcspn.log`. A run without such an attempt
+is left out and listed. It prints the tables and writes them to `--out`
+(default `results/<campaign>/`):
+
+| File          | Content                                   |
+| ------------- | ----------------------------------------- |
+| `scaling.md`  | The tables, as printed                    |
+| `scaling.csv` | One line per run, with every figure below |
+
+| Table                    | Content                                                                                                                                                          |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Overview                 | Per configuration: UAVs, clean runs, real-time factor, mission rate, first observation → first task in simulated and in real time, and the UAVs that intercepted |
+| Chain                    | First observation → CandidateTarget → ConfirmedThreat → supervisor decision → mission → first task, mean ± sample sd                                             |
+| Messages of a mission    | The messages from the first observation to the first task, by group, at real-time rates and as recorded, in total and per second of simulated time               |
+| Interceptor and vehicles | Task → interceptor moving, the peak speed of the interceptor, and the runs with a vehicle never safe                                                             |
+| Runs                     | One line per run                                                                                                                                                 |
+
+| Figure                            | Definition                                                                                                                                   |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| First obs → first task, real time | From the first observation to the first UAV task, on the recorder receive times: the time an operator waits                                  |
+| Real-time factor of the window    | Simulated time over real time, from the first observation to the first UAV task                                                              |
+| Chain messages                    | The tokens of the coordination layer: `/obs_tokens`, `/interp_tokens`, `/mission_tokens`, `/vehicle_tasks` and `/supervisor_auth`            |
+| T7 input messages                 | The local position of every UAV, which T7 reads to send the nearest                                                                          |
+| Safety layer messages             | `safety_status`, `actuator_cmd_safe` and `drone/proximity` of every vehicle, and the setpoints of every UAV before and after its safety gate |
+| Interceptor                       | The UAV of the first UAV task                                                                                                                |
+| Task → interceptor moving         | From the task to the first horizontal speed of the interceptor above 1 m/s (`MOVING_MPS`)                                                    |
+| Interceptor peak speed            | The highest horizontal speed of the interceptor after the task                                                                               |
+| Vehicle never safe                | A vehicle whose `safety_status` never reached 0.5 (`STATUS_SAFE`) in the recording: its Safety Board vetoed every command                    |
+
+The messages are those the recorder received from the first observation to
+the first UAV task. The position of the UGV, the intruder ground truth,
+`/clock` and the topics of PX4 that the recorder does not take are not
+counted.
+
+Most topics are published on simulated time, but the commands of the workers
+and the status of the Safety Board come from timers on the real clock
+(`create_wall_timer`), and the safety gate and the verdicts of the board
+follow them: `safety_status`, `actuator_cmd_safe`,
+`trajectory_setpoint_proposed` and `fmu/in/trajectory_setpoint` are sent at a
+fixed rate per real second. With the simulation slower than real time, they
+deliver more messages per second of simulated time than the system would send
+in real time. At real-time rates, each of these topics counts its recorded
+messages times the real-time factor of the window; the table "as recorded"
+gives the counts as they are.
+
+The times of the chain are in simulated time, from the token stamps, as in
+the [campaign tables](#campaign-tables). The speeds come from the velocity in
+the local position of PX4, which is in simulated time, and the time from the
+task to the interceptor moving is the receive time mapped onto the recorded
+`/clock`.
 
 ## Auditing recordings
 

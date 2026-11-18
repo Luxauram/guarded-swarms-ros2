@@ -52,6 +52,15 @@ reproducible release.
 - `scripts/pipeline/sim_sleep.py`: waits a number of seconds of simulated
   time on `/clock`, and gives up if the clock stops advancing. Documented in
   `docs/scripts/pipeline.md`.
+- `scripts/metrics/analyze_scaling.py`: the tables of the configurations that
+  set `N_UAVS`, on the runs that `analyze_campaign.py` uses, with one more
+  check: that T7 logged that fleet at start-up. For each fleet size it gives
+  the times of the chain, the time from the first observation to the first
+  task also in real time, the real-time factor, the messages of a mission (the
+  tokens of the chain, the UAV positions that T7 reads, and the safety layer),
+  the interceptor, and the vehicles whose Safety Board never reported safe.
+  The topics published on the real clock are also counted at real-time rates.
+  Documented in `docs/experiments/analysis.md`.
 
 ### Changed
 
