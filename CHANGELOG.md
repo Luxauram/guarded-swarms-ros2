@@ -9,6 +9,16 @@ reproducible release.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/metrics/plot_figures.py`: two figures from recorded runs, as PDF and
+  PNG. `trajectories` shows a nominal run and a run with a faulty UAV worker
+  from above, on the map of the coastal world read from `coastal.sdf`.
+  `verdicts` shows the Safety Board of the faulty UAV over time, with the veto
+  left to the worker and applied by the safety gate: the distance of the UAV
+  and of the setpoints at PX4 to the wall, the lidar range and the intervals of
+  veto. Documented in `docs/experiments/analysis.md`.
+
 ## [0.4.0] - 2026-11-18
 
 ### Added

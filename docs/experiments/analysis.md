@@ -18,6 +18,10 @@ the statistics.
 the speeds of the vehicles of any recording (see
 [Vehicle speeds](#vehicle-speeds)).
 
+`scripts/metrics/plot_figures.py` draws two figures from chosen runs: the runs
+seen from above, and the verdicts of the Safety Board over time (see
+[Figures](#figures)).
+
 ## Quick start
 
 ```bash
@@ -27,6 +31,7 @@ python3 scripts/metrics/analyze_faults.py bags/campaigns/<campaign>
 python3 scripts/metrics/analyze_scaling.py bags/campaigns/<campaign>
 python3 scripts/metrics/audit_recordings.py bags/<run>... --csv results/audit_recordings.csv
 python3 scripts/metrics/peak_speed.py bags/<run>...
+python3 scripts/metrics/plot_figures.py --nominal <bag> --fault <bag> --gate <bag>
 ```
 
 ## Campaign tables
@@ -315,3 +320,39 @@ of PX4, which is in simulated time. The times are in simulated time from the
 start of the recording: the receive times mapped onto the recorded `/clock`. A
 bag without `/clock` gives the receive times instead, on the real clock, and
 says so.
+
+## Figures
+
+`plot_figures.py` draws two figures from three runs, given by their bags. It
+writes each figure to `--out` (default `results/figures/`) as PDF, with the
+fonts embedded, and as PNG:
+
+```bash
+python3 scripts/metrics/plot_figures.py \
+  --nominal bags/campaigns/auth-delay/nominal/run-01-seed1000/bag \
+  --fault bags/campaigns/faults/fault-worker/run-01-seed1000/bag \
+  --gate bags/campaigns/faults/fault-gate/run-01-seed1000/bag
+```
+
+A figure is drawn when its runs are given: `trajectories` needs `--nominal` and
+`--fault`, `verdicts` needs `--fault` and `--gate`. The runs should come from
+campaigns recorded with the same version of the code.
+
+| Figure         | Panels                                                                                           | Content                                                                                                                                                                                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `trajectories` | A nominal run (`--nominal`) and a run with a faulty UAV worker (`--fault`)                       | The coastal world from above, with the sea, the solids of `coastal.sdf` and the acoustic buoys; the intruder ground truth, and where the intruder was at the first UAV task; the track of every vehicle, with the UAV of the first UAV task highlighted. In the faulty run, the building of the faulty worker and the impact |
+| `verdicts`     | The faulty worker with the veto left to it (`--fault`) and applied by the safety gate (`--gate`) | From the first UAV task on: the distance of the UAV to the wall; the distance to the wall of each setpoint that reached PX4, negative inside the building; the lidar range the Safety Board reads, with its threshold of 10 m; the intervals in which the board reported unsafe. A panel ends at the impact                  |
+
+Positions are in the world frame: the local position of PX4 plus the spawn
+point of the vehicle in `coastal_fleet.yaml`. Times are in simulated time. The
+UAV of the task, its building, the distance to the wall and the impact are
+those of `analyze_faults.py` (see [Obstacle injection](#obstacle-injection)),
+so the figures agree with its tables: the lowest distance of the UAV to the
+wall is its "Closest to the wall". The lidar range is measured along the
+heading of the UAV, so it is larger when the UAV does not fly straight at the
+wall. The track of a UAV ends at its impact: the position PX4 estimates for a
+crashed vehicle is not its position.
+
+The figures need matplotlib. On Ubuntu 22.04 the `python3-matplotlib` package
+is built for NumPy 1.x, and does not load if a NumPy 2 installed with pip comes
+first on the Python path.
