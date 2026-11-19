@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from framework.base_test import BaseResilienceTest, TestSuite
 from framework.reporter import save_report
 from std_msgs.msg import Float32
-from sensor_msgs.msg import Range, BatteryState
+from sensor_msgs.msg import BatteryState, Imu, Range
 
 # Nominal (safe) sensor values.
 NOMINAL_PROXIMITY_M = 5.0
@@ -71,6 +71,7 @@ class SensorStalenessTest(BaseResilienceTest):
         """
         super().__init__("test_sensor_staleness", config_path)
         self.staleness_s = self.config["safety"]["staleness_timeout_s"]
+        self.imu_pub = self.create_publisher(Imu, self.topics["imu"], 10)
         self.proximity_pub = self.create_publisher(Range, self.topics["proximity"], 10)
         self.altitude_pub = self.create_publisher(Float32, self.topics["altitude"], 10)
         self.battery_pub = self.create_publisher(BatteryState, self.topics["battery"], 10)
@@ -81,10 +82,14 @@ class SensorStalenessTest(BaseResilienceTest):
     def _publish_safe_sensors(self):
         """Publish a coherent set of nominal (safe) sensor values.
 
-        Simulates a stable operating condition (no obstacle, nominal altitude,
-        sufficient battery, normal actuator command) used as the baseline for
-        validating safety-layer behaviour.
+        Simulates a stable operating condition (level attitude, no obstacle,
+        nominal altitude, sufficient battery, normal actuator command) used as
+        the baseline for validating safety-layer behaviour.
         """
+        imu = Imu()
+        imu.orientation.w = 1.0
+        self.imu_pub.publish(imu)
+
         prox = Range()
         prox.range = NOMINAL_PROXIMITY_M
         prox.min_range = 0.1
@@ -154,14 +159,14 @@ class SensorStalenessTest(BaseResilienceTest):
 
         # Phase 2: Stop publishing -> expect UNSAFE after the staleness window.
         self.get_logger().info(
-            f"Phase 2: Stopping sensors, waiting {self.staleness_s + 1}s..."
+            f"Phase 2: Stopping sensors, waiting {self.staleness_s + 1.5}s..."
         )
         self.clear_captured(self.topics["safety_status"])
         self.clear_captured(self.topics["actuator_cmd_safe"])
+        self.sleep(self.staleness_s + 1.5)
         cmd = Float32()
         cmd.data = NOMINAL_CMD_RAW
         self.cmd_raw_pub.publish(cmd)
-        self.sleep(self.staleness_s + 1.5)
         result_unsafe = self.assert_message_received(
             topic=self.topics["safety_status"],
             timeout_s=3.0,

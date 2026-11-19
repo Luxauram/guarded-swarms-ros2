@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from framework.base_test import BaseResilienceTest, TestSuite
 from framework.reporter import save_report
 from std_msgs.msg import Float32
-from sensor_msgs.msg import Range, BatteryState
+from sensor_msgs.msg import BatteryState, Imu, Range
 
 # Nominal sensor values used to drive the board between violation phases.
 NOMINAL_PROXIMITY_M = 5.0
@@ -68,6 +68,7 @@ class SensorSpikeTest(BaseResilienceTest):
         """
         super().__init__("test_sensor_spike", config_path)
         self.min_proximity = self.config["safety"]["min_proximity_m"]
+        self.imu_pub = self.create_publisher(Imu, self.topics["imu"], 10)
         self.proximity_pub = self.create_publisher(Range, self.topics["proximity"], 10)
         self.altitude_pub = self.create_publisher(Float32, self.topics["altitude"], 10)
         self.battery_pub = self.create_publisher(BatteryState, self.topics["battery"], 10)
@@ -88,6 +89,10 @@ class SensorSpikeTest(BaseResilienceTest):
         @param altitude   Altitude reading in metres. Defaults to nominal.
         @param battery    Battery level in [0.0, 1.0]. Defaults to nominal.
         """
+        imu = Imu()
+        imu.orientation.w = 1.0
+        self.imu_pub.publish(imu)
+
         prox = Range()
         prox.range = proximity
         prox.min_range = 0.1

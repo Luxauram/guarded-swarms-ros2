@@ -53,6 +53,16 @@ reproducible release.
   targets. The suite keeps the two Safety Board tests, sensor staleness and
   sensor spike, on the mock pipeline: `make test-resilience-mock`.
 
+### Fixed
+
+- The Safety Board tests of the resilience suite publish the IMU as well. The
+  board vetoes while a sensor has never been received, so without it the board
+  stayed unsafe for the whole test: every check of a safe verdict failed, and
+  the checks of an unsafe verdict passed whatever the sensors said. The
+  staleness test also sends the command it expects to be vetoed after the
+  sensors have gone stale rather than before, and `mock.yaml` takes the
+  staleness timeout of the board, 2 s.
+
 ## [0.4.0] - 2026-11-18
 
 ### Added
