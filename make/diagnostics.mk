@@ -115,8 +115,8 @@ check-gpu:
 		echo "  [OK] NVIDIA GPU detected:"; \
 		nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader | sed 's/^/    /'; \
 		echo ""; \
-		echo "  To use GPU with Gazebo, launch with:"; \
-		echo "    __NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 make px4-gui-uav"; \
+		echo "  scripts/sim/gz_launch.sh selects it for Gazebo:"; \
+		echo "    make demo-coastal needs no extra variables."; \
 	else \
 		echo "  [NOT FOUND] No NVIDIA GPU detected."; \
 		echo "  Lidar sensors in Gazebo will not publish data."; \

@@ -60,6 +60,14 @@ reproducible release.
   `demo-px4-uav-urban`, `demo-px4-ugv-urban`, `demo-uav-urban-pipeline`,
   `demo-ugv-urban-pipeline`, `demo-record-uav` and `demo-record-ugv`. The
   coastal scenario is the only scenario of the repository.
+- The single-vehicle demos: the launch files `uav_pipeline.launch.py` and
+  `ugv_pipeline.launch.py`, the differential rover of `guarded_swarms_safety`
+  (`models/rover_differential_lidar` and its airframe in `px4_airframes`), and
+  the targets `px4-run-uav`, `px4-run-ugv`, `px4-gui-uav`, `px4-gui-ugv`,
+  `px4-config`, `px4-reset-params`, `demo-px4-uav`, `demo-px4-rover`,
+  `demo-px4-bridge`, `demo-px4-bridge-rover`, `demo-safety-board-uav` and
+  `demo-safety-board-rover`. Also `setup-worlds`, which only listed the
+  worlds.
 
 ### Fixed
 

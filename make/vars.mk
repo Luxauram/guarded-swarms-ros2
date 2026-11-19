@@ -42,10 +42,6 @@ TOOLS_LAUNCH_DIR := src/tools/launch
 TOOLS_VIZ_DIR    := src/tools/visualization
 RESILIENCE_DIR   := $(REPO_ROOT)/scripts/resilience
 
-# Guarded Swarms custom assets (not part of PX4 repo)
-GS_MODELS_DIR    := $(SRC_DIR)/guarded_swarms_gz/models
-GS_AIRFRAMES_DIR := $(SRC_DIR)/guarded_swarms_safety/px4_airframes
-
 # Guarded Swarms Gazebo worlds (guarded_swarms_gz package)
 GS_WORLDS_DIR    := $(SRC_DIR)/guarded_swarms_gz/worlds
 GS_GZ_MODELS_DIR := $(SRC_DIR)/guarded_swarms_gz/models

@@ -87,9 +87,9 @@ sleep 2
 echo "[veto] launching the safety board..."
 # The mock drives altitude=60 in its altitude scenario, which trips the default
 # 50 m cap, so the default tuning here exercises all five veto types. Override
-# with SAFETY_ARGS for rover tuning (altitude envelope opened, as in
-# demo-safety-board-rover), leaving proximity/attitude/battery as the ground
-# vetoes.
+# with SAFETY_ARGS for rover tuning (altitude envelope opened, as for the rover
+# in coastal_pipeline.launch.py), leaving proximity/attitude/battery as the
+# ground vetoes.
 ros2 run guarded_swarms_safety safety_board_node ${SAFETY_ARGS:-} \
   >/tmp/gs_veto_board.log 2>&1 &
 PIDS+=($!)

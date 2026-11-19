@@ -261,18 +261,18 @@ ok "ROS 2 workspace built."
 # ------------------------------------------------------------------------------
 # Step 7: Scenario assets and coastal world.
 #
-# Installs the rover airframe/model and world assets into the (pinned) PX4 tree,
-# then generates the coastal world. This is what makes a fresh clone demo-ready:
-# without it, `make demo-coastal` has no rover airframe and no coastal.sdf to
-# load.
+# Checks that the rover model carries its lidar (make setup-ugv) and
+# regenerates the coastal world from its generator (make gen-coastal). Nothing
+# is copied into the PX4 tree: Gazebo finds the models and worlds of the
+# repository through GZ_SIM_RESOURCE_PATH.
 # ------------------------------------------------------------------------------
 log "Step 7/${TOTAL_STEPS}: Installing scenario assets and generating the coastal world..."
 source "$REPO_DIR/install/setup.bash"
-if make -C "$REPO_DIR" setup-ugv setup-worlds gen-coastal; then
+if make -C "$REPO_DIR" setup-ugv gen-coastal; then
     ok "Scenario assets installed and coastal world generated."
 else
     warn "Asset setup did not complete cleanly. You can re-run it later with:"
-    warn "    make setup-ugv setup-worlds gen-coastal"
+    warn "    make setup-ugv gen-coastal"
     warn "This is non-fatal for the software-only demos, but demo-coastal needs it."
 fi
 cd "$REPO_DIR"

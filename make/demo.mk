@@ -19,9 +19,6 @@
 .PHONY: demo-coordinator demo-coordinator-batch demo-tkinter \
         demo-safety demo-safety-board demo-safety-sensors \
         demo-bridge demo-pipeline \
-        demo-px4-bridge demo-px4-bridge-rover \
-        demo-px4-uav demo-px4-rover \
-        demo-safety-board-uav demo-safety-board-rover \
         demo-record-mock \
         demo-replay demo-bag-info \
         test-resilience-mock
@@ -190,76 +187,6 @@ demo-pipeline:
 	@echo "  ros2 topic echo /actuator_cmd_raw      # 0.6 when token approved"
 	@echo "  ros2 topic echo /actuator_cmd_safe     # 0.6=cleared  0.0=vetoed"
 	@echo "  ros2 topic echo /safety_status         # 1.0=safe      0.0=unsafe"
-	@echo ""
-
-# ------------------------------------------------------------------------------
-# PX4 bridge (real Gazebo sensors)
-# ------------------------------------------------------------------------------
-demo-px4-bridge:
-	@bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
-		--ros-args -p lidar_topic:=/world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan"
- 
-demo-px4-bridge-rover:
-	@bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(CONTROL_PKG) px4_safety_bridge_node \
-		--ros-args \
-		-p lidar_topic:=/world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan"
- 
-demo-safety-board-uav:
-	@bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(SAFETY_PKG) safety_board_node \
-		--ros-args -p sensor_staleness_s:=5.0"
- 
-demo-safety-board-rover:
-	@bash -c "$(WORKSPACE_SOURCE) && \
-		ros2 run $(SAFETY_PKG) safety_board_node \
-		--ros-args \
-		-p min_altitude_m:=-1.0 \
-		-p max_altitude_m:=999.0 \
-		-p sensor_staleness_s:=5.0"
-
-# ------------------------------------------------------------------------------
-# Full UAV pipeline instructions
-# ------------------------------------------------------------------------------
-demo-px4-uav:
-	@echo "=========================================="
-	@echo "UAV Full Pipeline with PX4 Sensors"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites (start in order):"
-	@echo "  Terminal 1: make px4-run-uav"
-	@echo "              -> wait for pxh>, then run px4-config commands"
-	@echo "              -> commander takeoff"
-	@echo "  Terminal 2: make ros2-agent"
-	@echo "  Terminal 3: make ros2-node"
-	@echo "  Terminal 4: ros2 run ros_gz_bridge parameter_bridge \\"
-	@echo "                /world/default/model/x500_lidar_front_0/link/lidar_sensor_link/sensor/lidar/scan\\"
-	@echo "                @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
-	@echo "  Terminal 5: make demo-px4-bridge"
-	@echo "  Terminal 6: make demo-safety-board-uav"
-	@echo "  Terminal 7: make demo-bridge"
-	@echo "  Terminal 8: make demo-coordinator"
-	@echo ""
-
-# ------------------------------------------------------------------------------
-# Full UGV pipeline instructions
-# ------------------------------------------------------------------------------
-demo-px4-rover:
-	@echo "=========================================="
-	@echo "UGV Full Pipeline with PX4 Sensors"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites (start in order):"
-	@echo "  Terminal 1: make px4-run-ugv"
-	@echo "  Terminal 2: make ros2-agent"
-	@echo "  Terminal 3: ros2 run ros_gz_bridge parameter_bridge \\"
-	@echo "                /world/rover/model/rover_differential_lidar_0/link/lidar_sensor_link/sensor/lidar/scan\\"
-	@echo "                @sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"
-	@echo "  Terminal 4: make demo-px4-bridge-rover"
-	@echo "  Terminal 5: make demo-safety-board-rover"
-	@echo "  Terminal 6: make demo-bridge"
-	@echo "  Terminal 7: make demo-coordinator"
 	@echo ""
 
 # ------------------------------------------------------------------------------

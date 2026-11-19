@@ -22,10 +22,7 @@
 # GZ_SIM_RESOURCE_PATH is set at launch time to include our worlds + models.
 # ==============================================================================
 
-.PHONY: px4-run-uav px4-run-ugv \
-        px4-gui-uav px4-gui-ugv \
-        px4-kill px4-config px4-reset-params \
-        setup-ugv setup-worlds gazebo-test gazebo-worlds \
+.PHONY: px4-kill setup-ugv gazebo-test gazebo-worlds \
         gen-coastal check-coastal \
         demo-coastal demo-coordination
 
@@ -51,80 +48,12 @@ define CHECK_UGV
 endef
 
 # ------------------------------------------------------------------------------
-# Shared Gazebo kill block (used in all gui targets)
+# Shared Gazebo kill block (used by demo-coastal)
 # Kills all Gazebo Harmonic processes cleanly before launching a new world.
 # ------------------------------------------------------------------------------
 define GZ_KILL
 	@bash $(REPO_ROOT)/scripts/sim/gz_kill.sh
 endef
-
-# ------------------------------------------------------------------------------
-# UAV - x500 with frontal lidar (headless, default world)
-# ------------------------------------------------------------------------------
-px4-run-uav:
-	@echo "=========================================="
-	@echo "Launching PX4 SITL - UAV (headless)"
-	@echo "=========================================="
-	$(CHECK_PX4)
-	@pkill -9 -x px4 2>/dev/null || true
-	@sleep 1
-	@echo "Arming commands at pxh> prompt:"
-	@echo "  param set COM_ARM_WO_GPS 1 && param set SYS_HAS_MAG 0"
-	@echo "  param set COM_RC_IN_MODE 1 && param set NAV_RCL_ACT 0"
-	@echo "  param set NAV_DLL_ACT 0   && param set COM_RCL_EXCEPT 4"
-	@echo "  param save && commander takeoff"
-	@echo ""
-	@cd $(PX4_DIR) && HEADLESS=1 GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_x500_lidar_front
-
-# ------------------------------------------------------------------------------
-# UGV - differential rover with frontal lidar (headless, default rover world)
-# ------------------------------------------------------------------------------
-px4-run-ugv:
-	@echo "=========================================="
-	@echo "Launching PX4 SITL - UGV (headless)"
-	@echo "=========================================="
-	$(CHECK_PX4)
-	$(CHECK_UGV)
-	@pkill -9 -x px4 2>/dev/null || true
-	@sleep 1
-	@cd $(PX4_DIR) && HEADLESS=1 GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) make px4_sitl gz_r1_rover
-
-# ------------------------------------------------------------------------------
-# UAV with Gazebo GUI - default empty world
-# ------------------------------------------------------------------------------
-px4-gui-uav:
-	@echo "=========================================="
-	@echo "Launching PX4 SITL + Gazebo GUI - UAV"
-	@echo "=========================================="
-	$(CHECK_PX4)
-	$(GZ_KILL)
-	@echo "Starting Gazebo..."
-	@echo ""
-	@cd $(PX4_DIR) && \
-		__NV_PRIME_RENDER_OFFLOAD=1 \
-		__GLX_VENDOR_LIBRARY_NAME=nvidia \
-		MESA_GL_VERSION_OVERRIDE=4.5 \
-		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		make px4_sitl gz_x500_lidar_front
-
-# ------------------------------------------------------------------------------
-# UGV with Gazebo GUI - default rover world
-# ------------------------------------------------------------------------------
-px4-gui-ugv:
-	@echo "=========================================="
-	@echo "Launching PX4 SITL + Gazebo GUI - UGV"
-	@echo "=========================================="
-	$(CHECK_PX4)
-	$(CHECK_UGV)
-	$(GZ_KILL)
-	@echo "Starting Gazebo..."
-	@echo ""
-	@cd $(PX4_DIR) && \
-		__NV_PRIME_RENDER_OFFLOAD=1 \
-		__GLX_VENDOR_LIBRARY_NAME=nvidia \
-		MESA_GL_VERSION_OVERRIDE=4.5 \
-		GZ_SIM_RESOURCE_PATH=$(GZ_RESOURCE_PATH) \
-		make px4_sitl gz_r1_rover
 
 # ------------------------------------------------------------------------------
 # Coastal surveillance demo - 2 UAV + 1 UGV (IET paper 5.1)
@@ -236,20 +165,7 @@ check-coastal:
 	@bash $(REPO_ROOT)/scripts/world/check_coastal.sh
 
 # ------------------------------------------------------------------------------
-# Setup: report where the Guarded Swarms worlds are resolved from.
-#
-# Nothing is copied into PX4: worlds are found at run time via
-# GZ_SIM_RESOURCE_PATH (set in scripts/sim/gz_launch.sh). This target just lists
-# the available worlds. Kept for backwards compatibility with older docs.
-# ------------------------------------------------------------------------------
-setup-worlds:
-	@echo "setup-worlds is no longer needed: worlds are resolved from"
-	@echo "  $(GS_WORLDS_DIR)"
-	@echo "via GZ_SIM_RESOURCE_PATH in scripts/sim/gz_launch.sh."
-	@ls -1 $(GS_WORLDS_DIR)/*.sdf
-
-# ------------------------------------------------------------------------------
-# Setup: install Guarded Swarms rover assets into PX4 (run once)
+# Setup: check the Guarded Swarms rover model (r1_rover with lidar)
 # ------------------------------------------------------------------------------
 setup-ugv:
 	@echo "=========================================="
@@ -277,34 +193,6 @@ px4-kill:
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
 	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "All processes stopped."
-
-px4-config:
-	@echo "=========================================="
-	@echo "PX4 Offboard Config - copy at pxh> prompt"
-	@echo "=========================================="
-	@echo ""
-	@echo "param set COM_ARM_WO_GPS 1"
-	@echo "param set SYS_HAS_MAG 0"
-	@echo "param set COM_RC_IN_MODE 1"
-	@echo "param set NAV_RCL_ACT 0"
-	@echo "param set NAV_DLL_ACT 0"
-	@echo "param set COM_RCL_EXCEPT 4"
-	@echo "param save"
-	@echo ""
-
-px4-reset-params:
-	@echo "=========================================="
-	@echo "PX4 Reset to Defaults - copy at pxh> prompt"
-	@echo "=========================================="
-	@echo ""
-	@echo "param set COM_ARM_WO_GPS 0"
-	@echo "param set SYS_HAS_MAG 1"
-	@echo "param set COM_RC_IN_MODE 4"
-	@echo "param set NAV_RCL_ACT 2"
-	@echo "param set NAV_DLL_ACT 2"
-	@echo "param set COM_RCL_EXCEPT 0"
-	@echo "param save"
-	@echo ""
 
 gazebo-test:
 	@echo "Launching Gazebo standalone with empty world..."
