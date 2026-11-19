@@ -52,6 +52,14 @@ reproducible release.
   `test-resilience-ugv`, `test-resilience-swarm` and `test-resilience-all`
   targets. The suite keeps the two Safety Board tests, sensor staleness and
   sensor spike, on the mock pipeline: `make test-resilience-mock`.
+- The urban demos and the two-vehicle swarm demo: the worlds `urban_uav.sdf`
+  and `urban_ugv.sdf`, the launch files `uav_urban_pipeline.launch.py`,
+  `ugv_urban_pipeline.launch.py` and `swarm_pipeline.launch.py`, the helpers
+  `scripts/sim/launch_uav_swarm.sh` and `launch_ugv_swarm.sh`, and the targets
+  `px4-gui-uav-urban`, `px4-gui-ugv-urban`, `demo-swarm`,
+  `demo-px4-uav-urban`, `demo-px4-ugv-urban`, `demo-uav-urban-pipeline`,
+  `demo-ugv-urban-pipeline`, `demo-record-uav` and `demo-record-ugv`. The
+  coastal scenario is the only scenario of the repository.
 
 ### Fixed
 

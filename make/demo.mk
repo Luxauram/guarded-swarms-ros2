@@ -22,9 +22,7 @@
         demo-px4-bridge demo-px4-bridge-rover \
         demo-px4-uav demo-px4-rover \
         demo-safety-board-uav demo-safety-board-rover \
-        demo-px4-ugv-urban demo-px4-uav-urban \
-        demo-ugv-urban-pipeline demo-uav-urban-pipeline \
-        demo-record-uav demo-record-ugv demo-record-mock \
+        demo-record-mock \
         demo-replay demo-bag-info \
         test-resilience-mock
 
@@ -265,68 +263,8 @@ demo-px4-rover:
 	@echo ""
 
 # ------------------------------------------------------------------------------
-# UGV Urban pipeline - single command launch
-# ------------------------------------------------------------------------------
-demo-px4-ugv-urban:
-	@echo "=========================================="
-	@echo "UGV Urban Pipeline (R2) - Full Launch"
-	@echo "=========================================="
-	@echo ""
-	@echo "Opening support terminals..."
-	@xterm -title "PX4 UGV Urban" -geometry 120x30 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make px4-gui-ugv-urban; bash" &
-	@sleep 12
-	@xterm -title "micro-ROS Agent" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-agent; bash" &
-	@sleep 6
-	@echo "Launching ROS2 pipeline (this window)..."
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup ugv_urban_pipeline.launch.py"
-
-demo-ugv-urban-pipeline:
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup ugv_urban_pipeline.launch.py"
-
-# ------------------------------------------------------------------------------
-# UAV Urban pipeline - single command launch
-# ------------------------------------------------------------------------------
-demo-px4-uav-urban:
-	@echo "=========================================="
-	@echo "UAV Urban Pipeline (R1) - Full Launch"
-	@echo "=========================================="
-	@echo ""
-	@echo "Opening support terminals..."
-	@xterm -title "PX4 UAV Urban" -geometry 120x30 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make px4-gui-uav-urban; bash" &
-	@sleep 35
-	@xterm -title "micro-ROS Agent" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-agent; bash" &
-	@sleep 10
-	@xterm -title "Offboard Control" -geometry 120x15 -e bash -c "cd $(WORKSPACE_DIR) && source ~/.bashrc && make ros2-node; bash" &
-	@sleep 10
-	@echo "Launching ROS2 pipeline (this window)..."
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_urban_pipeline.launch.py"
-
-demo-uav-urban-pipeline:
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup uav_urban_pipeline.launch.py"
-
-# ------------------------------------------------------------------------------
 # ROS 2 bag recording
 # ------------------------------------------------------------------------------
-demo-record-uav:
-	@echo "=========================================="
-	@echo "Recording UAV Urban Demo (R1)"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites: make demo-px4-uav-urban already running."
-	@echo "Press Ctrl+C to stop recording."
-	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh uav"
- 
-demo-record-ugv:
-	@echo "=========================================="
-	@echo "Recording UGV Urban Demo (R2)"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites: make demo-px4-ugv-urban already running."
-	@echo "Press Ctrl+C to stop recording."
-	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh ugv"
- 
 demo-record-mock:
 	@echo "=========================================="
 	@echo "Recording Mock Pipeline Demo"
@@ -343,7 +281,7 @@ demo-replay:
 	@echo "=========================================="
 	@echo ""
 	@echo "Available bags:"
-	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found - run make demo-record-uav or demo-record-ugv first."
+	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found."
 	@echo ""
 	@read -p "Bag name to replay (from list above): " bag_name; \
 	bash -c "$(WORKSPACE_SOURCE) && ros2 bag play $(WORKSPACE_DIR)/bags/$$bag_name"
