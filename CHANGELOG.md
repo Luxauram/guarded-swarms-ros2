@@ -68,6 +68,9 @@ reproducible release.
   `demo-px4-bridge`, `demo-px4-bridge-rover`, `demo-safety-board-uav` and
   `demo-safety-board-rover`. Also `setup-worlds`, which only listed the
   worlds.
+- `offboard_control_node` and `rover_control_node` from
+  `guarded_swarms_control`: only the removed demos started them. In the coastal
+  scenario `uav_worker_node` and `ugv_worker_node` control the vehicles.
 
 ### Fixed
 

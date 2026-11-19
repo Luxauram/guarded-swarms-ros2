@@ -76,7 +76,6 @@ pkill -9 -f "dispatch_transition_node" 2>/dev/null || true
 pkill -9 -f "uav_worker_node" 2>/dev/null || true
 pkill -9 -f "ugv_worker_node" 2>/dev/null || true
 pkill -9 -f "px4_safety_gate_node" 2>/dev/null || true
-pkill -9 -f "rover_control_node" 2>/dev/null || true
 pkill -9 -f "intruder_node" 2>/dev/null || true
 
 # Gazebo <-> ROS 2 topic bridges.
@@ -87,7 +86,6 @@ pkill -9 -f "parameter_bridge" 2>/dev/null || true
 pkill -9 -f "coordinator_node" 2>/dev/null || true
 pkill -9 -f "agent_node" 2>/dev/null || true
 pkill -9 -f "command_bridge_node" 2>/dev/null || true
-pkill -9 -f "offboard_control" 2>/dev/null || true
 
 rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 echo "All processes terminated."

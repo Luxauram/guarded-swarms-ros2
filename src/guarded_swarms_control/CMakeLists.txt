@@ -18,24 +18,6 @@ find_package(nav_msgs REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
 
 # ============================================================================
-# Executable: offboard_control_node
-# ============================================================================
-add_executable(offboard_control_node
-  src/offboard_control_node.cpp
-)
-
-target_include_directories(offboard_control_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(offboard_control_node
-  rclcpp px4_msgs geometry_msgs
-)
-
-target_compile_features(offboard_control_node PUBLIC c_std_99 cxx_std_17)
-
-# ============================================================================
 # Executable: command_bridge_node
 # ============================================================================
 add_executable(command_bridge_node
@@ -72,21 +54,6 @@ ament_target_dependencies(px4_safety_bridge_node
 target_compile_features(px4_safety_bridge_node PUBLIC c_std_99 cxx_std_17)
 
 # ============================================================================
-# Executable: rover_control_node
-# ============================================================================
-add_executable(rover_control_node
-  src/rover_control_node.cpp
-)
-target_include_directories(rover_control_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-ament_target_dependencies(rover_control_node
-  rclcpp px4_msgs std_msgs
-)
-target_compile_features(rover_control_node PUBLIC c_std_99 cxx_std_17) 
-
-# ============================================================================
 # Executable: intruder_node
 #
 # Scenario machinery, not part of the swarm: it plays the hostile aerial
@@ -107,9 +74,8 @@ target_compile_features(intruder_node PUBLIC c_std_99 cxx_std_17)
 # ============================================================================
 # Executable: uav_worker_node
 #
-# The single controller of its UAV (T8): absorbs arm/offboard/hover and adds
-# task handling, so there is one command source per drone for the safety board
-# to gate.
+# The single controller of its UAV (T8): arm, offboard mode, hover and the
+# tasks, so there is one command source per drone for the safety board to gate.
 # ============================================================================
 add_executable(uav_worker_node src/uav_worker_node.cpp)
 target_include_directories(uav_worker_node PUBLIC
@@ -124,8 +90,8 @@ target_compile_features(uav_worker_node PUBLIC c_std_99 cxx_std_17)
 # ============================================================================
 # Executable: ugv_worker_node
 #
-# The single controller of the rover (T9): absorbs the patrol (veto included)
-# and adds task handling.
+# The single controller of the rover (T9): the patrol, veto included, and the
+# tasks.
 # ============================================================================
 add_executable(ugv_worker_node src/ugv_worker_node.cpp)
 target_include_directories(ugv_worker_node PUBLIC
@@ -157,10 +123,8 @@ target_compile_features(px4_safety_gate_node PUBLIC c_std_99 cxx_std_17)
 # Install
 # ============================================================================
 install(TARGETS
-  offboard_control_node
   command_bridge_node
   px4_safety_bridge_node
-  rover_control_node
   intruder_node
   uav_worker_node
   ugv_worker_node

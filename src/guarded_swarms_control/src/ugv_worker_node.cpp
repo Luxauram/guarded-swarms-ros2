@@ -24,13 +24,13 @@
  * pairs the aerial interception with a ground vehicle for "observation and
  * target recovery", and describes a UGV worker as generating "navigation or
  * observation commands". This node is the UGV counterpart of the UAV worker:
- * the single controller of the rover, absorbing the patrol behaviour and
- * adding task handling.
+ * the single controller of the rover, which runs the patrol and handles the
+ * tasks.
  *
  * BEHAVIOUR
  * =========
- *   - Default: patrol the shore road between its waypoints, exactly the
- *     previous rover_control_node behaviour, veto included.
+ *   - Default: patrol the shore road between its waypoints, stopping while the
+ *     Safety Board vetoes.
  *   - On a VehicleTask of kind ugv for this vehicle's system id: move to an
  *     OBSERVATION POINT and hold there, watching the target.
  *

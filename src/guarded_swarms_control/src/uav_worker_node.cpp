@@ -28,9 +28,9 @@
  *
  * WHY THE WORKER IS ALSO THE CONTROLLER
  * =====================================
- * This node is the single point of command for its UAV. It absorbs the offboard
- * control that a separate node used to do (arm, offboard mode, hover) and adds
- * task handling on top. Having one node command the vehicle avoids two
+ * This node is the single point of command for its UAV: it arms the vehicle,
+ * enters offboard mode and holds the hover, and handles the tasks on top.
+ * Having one node command the vehicle avoids two
  * publishers racing on the same TrajectorySetpoint, and gives the analogue veto
  * a single command source to gate. This matches the paper's separation: the
  * worker agent translates and commands, the executor platform (PX4) only
@@ -38,8 +38,7 @@
  *
  * BEHAVIOUR
  * =========
- *   - On startup: arm, enter offboard, hold hover at hover_altitude (exactly
- *     the previous offboard_control_node behaviour).
+ *   - On startup: arm, enter offboard, hold hover at hover_altitude.
  *   - On a VehicleTask of kind uav addressed to this vehicle's system id: fly
  *     to the target's horizontal position, holding an interception altitude of
  *     its own (intercept_altitude), so it does not descend onto the target.
@@ -200,7 +199,7 @@ class UavWorkerNode : public rclcpp::Node {
     // The analogue safety board publishes its verdict here, per vehicle
     // (relative topic, namespaced per UAV). This worker is the single command
     // source for its vehicle (see file header), so it is where the board's
-    // verdict is honoured -- exactly as rover_control_node does for the UGV.
+    // verdict is honoured -- exactly as ugv_worker_node does for the UGV.
     // A multirotor cannot be stopped by zeroing throttle (it would fall); the
     // aerial equivalent of the rover's zero-throttle stop is a position hold,
     // implemented in publish_setpoint() by holding the position the UAV has
@@ -270,7 +269,7 @@ class UavWorkerNode : public rclcpp::Node {
   static constexpr uint8_t COMPONENT_ID = 1;
   // Minimum time a veto is honoured once it fires, matching the rover. Without
   // it the UAV holds, the hazard leaves the board's window, the veto clears,
-  // the UAV moves back in, and it chatters. Same value as rover_control_node.
+  // the UAV moves back in, and it chatters. Same value as ugv_worker_node.
   static constexpr double VETO_MIN_HOLD_S = 2.0;
   // Below this actuator_cmd_safe value the board's verdict counts as a veto.
   static constexpr float VETO_CMD_THRESHOLD = 0.01f;
@@ -588,7 +587,7 @@ class UavWorkerNode : public rclcpp::Node {
   double mission_ttl_s_ = 0.0;
   rclcpp::Time last_target_update_;
   bool track_active_ = false;
-  // Analogue safety board veto (honoured as in rover_control_node).
+  // Analogue safety board veto (honoured as in ugv_worker_node).
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr veto_sub_;
   bool vetoed_ = false;
   rclcpp::Time last_veto_;
