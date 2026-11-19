@@ -62,6 +62,11 @@ reproducible release.
   staleness test also sends the command it expects to be vetoed after the
   sensors have gone stale rather than before, and `mock.yaml` takes the
   staleness timeout of the board, 2 s.
+- `make test-resilience-mock` stops the mock pipeline with SIGTERM, so that the
+  launch file stops the safety board as well, and matches the launch file only.
+  It used SIGKILL, which left the board running, with a pattern that also
+  matched the shell of the recipe: the target was killed, and ended with an
+  error even when every test passed.
 
 ## [0.4.0] - 2026-11-18
 

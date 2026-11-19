@@ -371,4 +371,4 @@ test-resilience-mock:
 	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh mock"
 	@echo ""
 	@echo "Stopping mock pipeline..."
-	@pkill -9 -f "mock_pipeline" 2>/dev/null || true
+	@pkill -TERM -f "[m]ock_pipeline.launch.py" 2>/dev/null || true
