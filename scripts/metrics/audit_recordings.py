@@ -39,8 +39,7 @@ Pipeline runs (bags with observation tokens, from record_run.sh)
   reported (intBk): their format depends on the transitions.
 
   Time figures, on both axes:
-    - sim: the token stamps (simulated time), as in metrics_chain.py and
-      audit_timing.py;
+    - sim: the token stamps (simulated time), as in audit_timing.py;
     - rx:  the recorder receive time (wall clock).
 
   Intruder speed: in simulated time (ground truth against /clock) and on the
@@ -111,7 +110,7 @@ SAFETY_TOPICS = {
     "altitude": "/drone/altitude",
 }
 
-# Safety Board defaults (safety_board_node.hpp), as in metrics_veto.py.
+# Safety Board defaults (safety_board_node.hpp).
 MIN_PROXIMITY_M = 1.5
 MAX_TILT_DEG = 30.0      # pitch and roll
 MIN_BATTERY_PCT = 15.0

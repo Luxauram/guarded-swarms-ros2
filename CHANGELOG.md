@@ -80,6 +80,19 @@ reproducible release.
   messages `Token`, `GeometryToken` and `AuthToken`, and the
   `demo-coordinator`, `demo-coordinator-batch` and `demo-tkinter` targets. The
   TB-CSPN chain of `guarded_swarms_tbcspn` takes its place.
+- The analysis scripts that `analyze_campaign.py`, `analyze_faults.py`,
+  `analyze_scaling.py` and `audit_recordings.py` replace: `metrics_chain.py`,
+  `metrics_counterfactual.py`, `metrics_detection.py`, `metrics_layer.py`,
+  `metrics_scalability.py`, `metrics_veto.py`, `aggregate_layer.py`,
+  `aggregate_metrics.py` and `thesis_receive_axis.py`.
+- The coordination-overhead bench (`scripts/bench/bench_coordination.sh` and
+  `scripts/pipeline/coord_mission_injector.py`), the attack-vector check
+  `scripts/pipeline/test_vector.sh`, the authorisation timing stub
+  `scripts/tools/time_auth_stub.sh`, and `scripts/record/record_demo.sh` with
+  the `demo-record-mock`, `demo-replay` and `demo-bag-info` targets.
+- `coordination.launch.py` and the `demo-coordination` target. The coordination
+  layer runs from `scripts/pipeline/test_pipeline.sh`,
+  `scripts/pipeline/demo_console.sh`, or its three launch files.
 
 ### Fixed
 

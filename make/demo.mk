@@ -17,8 +17,6 @@
 # ==============================================================================
 
 .PHONY: demo-safety demo-safety-board demo-safety-sensors \
-        demo-record-mock \
-        demo-replay demo-bag-info \
         test-resilience-mock
 
 # ------------------------------------------------------------------------------
@@ -51,37 +49,6 @@ demo-safety-board:
 demo-safety-sensors:
 	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) mock_sensor_publisher"
  
-# ------------------------------------------------------------------------------
-# ROS 2 bag recording
-# ------------------------------------------------------------------------------
-demo-record-mock:
-	@echo "=========================================="
-	@echo "Recording Mock Pipeline Demo"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites: mock pipeline already running."
-	@echo "Press Ctrl+C to stop recording."
-	@echo ""
-	@bash -c "$(WORKSPACE_DIR)/scripts/record/record_demo.sh mock"
- 
-demo-replay:
-	@echo "=========================================="
-	@echo "Replay a recorded bag"
-	@echo "=========================================="
-	@echo ""
-	@echo "Available bags:"
-	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found."
-	@echo ""
-	@read -p "Bag name to replay (from list above): " bag_name; \
-	bash -c "$(WORKSPACE_SOURCE) && ros2 bag play $(WORKSPACE_DIR)/bags/$$bag_name"
- 
-demo-bag-info:
-	@echo "Available bags:"
-	@ls -1 $(WORKSPACE_DIR)/bags/ 2>/dev/null || echo "  No bags found."
-	@echo ""
-	@read -p "Bag name to inspect: " bag_name; \
-	bash -c "$(WORKSPACE_SOURCE) && ros2 bag info $(WORKSPACE_DIR)/bags/$$bag_name"
-
 # ------------------------------------------------------------------------------
 # Resilience tests
 # ------------------------------------------------------------------------------

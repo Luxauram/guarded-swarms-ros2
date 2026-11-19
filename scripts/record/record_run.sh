@@ -21,8 +21,8 @@
 #
 # Records the full semantic chain (observations -> interpretations -> mission
 # -> tasks), the authorisation, the simulation clock, and the vehicle poses,
-# while a normal pipeline run executes. The resulting bag is what the metric
-# scripts (metrics_chain.py, ...) read.
+# while a normal pipeline run executes. The resulting bag is what the analysis
+# scripts of scripts/metrics read.
 #
 # This is deliberately SEPARATE from test_pipeline.sh: recording is its own
 # concern. It reuses that script to drive the run, so the launch logic lives
