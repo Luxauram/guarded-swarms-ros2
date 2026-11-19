@@ -81,10 +81,5 @@ pkill -9 -f "intruder_node" 2>/dev/null || true
 # Gazebo <-> ROS 2 topic bridges.
 pkill -9 -f "parameter_bridge" 2>/dev/null || true
 
-# Legacy nodes (superseded architecture; harmless once removed, the match
-# simply finds nothing). Remove these lines together with the legacy code.
-pkill -9 -f "coordinator_node" 2>/dev/null || true
-pkill -9 -f "agent_node" 2>/dev/null || true
-
 rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 echo "All processes terminated."

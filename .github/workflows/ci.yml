@@ -100,7 +100,6 @@ jobs:
           source install/setup.bash
           colcon build \
             --packages-select \
-              guarded_swarms_coordinator \
               guarded_swarms_safety \
               guarded_swarms_control \
               guarded_swarms_bringup \
@@ -148,7 +147,6 @@ jobs:
           source install/setup.bash
           colcon build \
             --packages-select \
-              guarded_swarms_coordinator \
               guarded_swarms_safety \
               guarded_swarms_control \
               guarded_swarms_bringup \

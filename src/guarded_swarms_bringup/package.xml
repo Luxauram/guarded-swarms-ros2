@@ -13,7 +13,6 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>guarded_swarms_coordinator</exec_depend>
   <exec_depend>guarded_swarms_safety</exec_depend>
   <exec_depend>guarded_swarms_control</exec_depend>
   <exec_depend>guarded_swarms_msgs</exec_depend>

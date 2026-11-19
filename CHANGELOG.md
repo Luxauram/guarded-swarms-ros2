@@ -75,6 +75,11 @@ reproducible release.
   and `demo-pipeline` targets: it turned the authorisations of the earlier
   coordinator (`AuthToken`) into actuator commands for the Safety Board. In the
   coastal scenario the workers propose the actuator commands.
+- The earlier coordinator: the `guarded_swarms_coordinator` package, the tools
+  in `src/tools` (its launch file, a Tkinter dashboard and their guides), the
+  messages `Token`, `GeometryToken` and `AuthToken`, and the
+  `demo-coordinator`, `demo-coordinator-batch` and `demo-tkinter` targets. The
+  TB-CSPN chain of `guarded_swarms_tbcspn` takes its place.
 
 ### Fixed
 

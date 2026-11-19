@@ -38,8 +38,6 @@ PX4_DIR          := $(HOME)/PX4-Autopilot
 # firmware version will silently break uXRCE-DDS topic bridging.
 PX4_COMMIT       := 091ac918b133d518da8b73e395243ea0e0d087b5
 PX4_BRANCH       := guarded-swarms-pin
-TOOLS_LAUNCH_DIR := src/tools/launch
-TOOLS_VIZ_DIR    := src/tools/visualization
 RESILIENCE_DIR   := $(REPO_ROOT)/scripts/resilience
 
 # Guarded Swarms Gazebo worlds (guarded_swarms_gz package)
@@ -62,7 +60,6 @@ GZ_BOOT_WAIT     := 8
 ROS2_SOURCE      := source /opt/ros/humble/setup.bash
 WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
 FULL_SOURCE      := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
-COORDINATOR_PKG  := guarded_swarms_coordinator
 SAFETY_PKG       := guarded_swarms_safety
 
 # ------------------------------------------------------------------------------
@@ -78,7 +75,6 @@ CLEANUP_TMP    := rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev
 # Build
 # ------------------------------------------------------------------------------
 COLCON_BUILD          := colcon build --symlink-install
-COLCON_BUILD_PKG      = colcon build --packages-select
 COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers console_direct+
 
 # ------------------------------------------------------------------------------
