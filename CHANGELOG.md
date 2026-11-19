@@ -38,6 +38,11 @@ reproducible release.
 
 - The README is a short overview of the project, with links to the
   documentation; the detail moved to `docs/`.
+- `scripts/metrics/audit_timing.py` names the constant-offset projection of the
+  authorisation after its method: the columns `t_auth_thesis` and
+  `confirmed_to_auth_thesis` of its CSV are now `t_auth_offset` and
+  `confirmed_to_auth_offset`, and its report calls section [A] the chain
+  latencies.
 
 ### Removed
 

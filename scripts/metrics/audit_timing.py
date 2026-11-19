@@ -25,17 +25,18 @@ second intruder process (an orphan left over from a previous run) was
 publishing on the same topic, so the sensors saw two targets. Such runs are
 listed but kept out of the clean summaries.
 
-[A] Table 6.1 recomputed from the token stamps, with the same definitions as
-    metrics_chain.py, over all complete runs and over clean complete runs.
+[A] Chain latencies from the token stamps, over all complete runs and over
+    clean complete runs.
 
 [B] Authorisation path. Every token carries a simulated-time stamp `t`, except
     the SupervisorAuth published by the test harness, whose stamp is left at
-    zero. metrics_chain.py placed the authorisation on the sim axis with a
-    CONSTANT offset (the median of t - receive time over all ObsTokens and
-    InterpTokens), which is biased: those tokens carry the observation
-    instant, not their publication instant, and a constant offset ignores the
-    drift of the real-time factor. Here every receive time is mapped to sim
-    time by interpolating the /clock messages recorded in the same bag.
+    zero. A CONSTANT offset (the median of t - receive time over all
+    ObsTokens and InterpTokens) would place it on the sim axis with a bias:
+    those tokens carry the observation instant, not their publication
+    instant, and a constant offset ignores the drift of the real-time factor.
+    The report shows that projection for comparison; everywhere else a receive
+    time is mapped to sim time by interpolating the /clock messages recorded
+    in the same bag.
 
     The harness publishes the authorisation from a short-lived command-line
     process. The recorder and T6 each receive it only once their own
@@ -293,7 +294,7 @@ class RunAudit:
     t_last_confirmed: Optional[float] = None
     n_confirmed: int = 0
     n_auth: int = 0
-    t_auth_thesis: Optional[float] = None    # constant-offset projection
+    t_auth_offset: Optional[float] = None    # constant-offset projection
     t_auth_clock: Optional[float] = None     # recorder reception, /clock
     t_auth_publish: Optional[float] = None   # earliest reception (estimate)
     auth_stamp_set: bool = False
@@ -302,14 +303,14 @@ class RunAudit:
     t_mission_rx: Optional[float] = None     # received by the recorder
     t_consumed_threat: Optional[float] = None
     t_first_task: Optional[float] = None
-    # --- [A] Table 6.1 ---
+    # --- [A] chain latencies ---
     end_to_end: Optional[float] = None
     obs_to_candidate: Optional[float] = None
     candidate_to_confirmed: Optional[float] = None
     confirmed_to_mission: Optional[float] = None
     mission_to_task: Optional[float] = None
     # --- [B] authorisation path ---
-    confirmed_to_auth_thesis: Optional[float] = None
+    confirmed_to_auth_offset: Optional[float] = None
     confirmed_to_auth_clock: Optional[float] = None
     confirmed_to_publish: Optional[float] = None
     publish_to_mission: Optional[float] = None
@@ -432,12 +433,12 @@ def audit(data: Dict[str, list], name: str) -> RunAudit:
     if auths:
         r_auth, m_auth = min(auths, key=lambda p: p[0])
         r.auth_stamp_set = stamp_s(m_auth.t) > 0.0
-        # Thesis method (metrics_chain.py): constant offset, the median of
+        # Constant-offset projection, for comparison: the median of
         # (t - recv) over ALL ObsTokens and InterpTokens of the bag.
         offsets = [stamp_s(m.t) - rv for rv, m in data["obs"] + data["interp"]
                    if stamp_s(m.t) > 0.0]
         if offsets:
-            r.t_auth_thesis = r_auth + statistics.median(offsets)
+            r.t_auth_offset = r_auth + statistics.median(offsets)
         if clk.ok():
             r.t_auth_clock = clk(r_auth)
             if not clk.inside(r_auth):
@@ -450,7 +451,7 @@ def audit(data: Dict[str, list], name: str) -> RunAudit:
     if received and (auths or mission):
         r.t_auth_publish = min(received)
 
-    # --- [A] Table 6.1 ----------------------------------------------------------
+    # --- [A] chain latencies ----------------------------------------------------
     r.end_to_end = diff(r.t_first_obs, r.t_first_mission)
     r.obs_to_candidate = diff(r.t_first_obs, r.t_first_candidate)
     r.candidate_to_confirmed = diff(r.t_first_candidate, r.t_first_confirmed)
@@ -458,7 +459,7 @@ def audit(data: Dict[str, list], name: str) -> RunAudit:
     r.mission_to_task = diff(r.t_first_mission, r.t_first_task)
 
     # --- [B] authorisation path -----------------------------------------------
-    r.confirmed_to_auth_thesis = diff(r.t_first_confirmed, r.t_auth_thesis)
+    r.confirmed_to_auth_offset = diff(r.t_first_confirmed, r.t_auth_offset)
     r.confirmed_to_auth_clock = diff(r.t_first_confirmed, r.t_auth_clock)
     r.confirmed_to_publish = diff(r.t_first_confirmed, r.t_auth_publish)
     r.publish_to_mission = diff(r.t_auth_publish, r.t_first_mission)
@@ -554,8 +555,8 @@ ROWS_A = [
     ("mission -> first task", "mission_to_task"),
 ]
 ROWS_B = [
-    ("first CT -> auth at recorder [thesis method]",
-     "confirmed_to_auth_thesis"),
+    ("first CT -> auth at recorder [constant offset]",
+     "confirmed_to_auth_offset"),
     ("first CT -> auth at recorder [/clock]", "confirmed_to_auth_clock"),
     ("first CT -> auth publication (estimate)", "confirmed_to_publish"),
     ("auth publication -> mission (T6 reception)", "publish_to_mission"),
@@ -593,7 +594,7 @@ def print_report(runs: List[RunAudit]) -> None:
     clean = [r for r in runs if r.clean]
     clean_complete = [r for r in complete if r.clean]
     print("=" * 104)
-    print("TIMING AUDIT v3 - nominal chain (sim time, seconds)")
+    print("TIMING AUDIT - nominal chain (sim time, seconds)")
     print("=" * 104)
     print(f"runs read: {len(runs)}   complete: {len(complete)}   "
           f"clean: {len(clean)}   clean and complete: {len(clean_complete)}")
@@ -602,7 +603,7 @@ def print_report(runs: List[RunAudit]) -> None:
           + (", ".join(stamped) if stamped else "none"))
     print()
 
-    print("[A] TABLE 6.1 RECOMPUTED (token stamps, metrics_chain definitions)")
+    print("[A] CHAIN LATENCIES (token stamps)")
     print(f"{'run':<17}{'clean':>6}{'compl':>6}{'e2e':>8}{'obs>cnd':>8}"
           f"{'cnd>CT':>8}{'CT>mis':>8}{'mis>tsk':>8}")
     for r in runs:
@@ -611,7 +612,7 @@ def print_report(runs: List[RunAudit]) -> None:
               f"{fmt(r.candidate_to_confirmed)}{fmt(r.confirmed_to_mission)}"
               f"{fmt(r.mission_to_task)}")
     print()
-    print_summary("[A] SUMMARY over all complete runs (as in the thesis)",
+    print_summary("[A] SUMMARY over all complete runs",
                   ROWS_A, complete)
     print_summary("[A] SUMMARY over clean complete runs", ROWS_A,
                   clean_complete)
@@ -628,8 +629,7 @@ def print_report(runs: List[RunAudit]) -> None:
               f"{fmt(r.consumed_threat_minus_publish)}"
               f"{fmt(r.gap_last_threat_before_publish)}"
               f"{fmt(r.threat_alive_at_publish, 6)}")
-    print("  nAuth    authorisation messages the recorder captured (the "
-          "harness publishes 10)")
+    print("  nAuth    authorisation messages the recorder captured")
     print("  CT>rec   first ConfirmedThreat -> auth received by the recorder")
     print("  CT>pub   first ConfirmedThreat -> auth publication (earliest "
           "reception)")
