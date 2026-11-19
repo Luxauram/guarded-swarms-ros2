@@ -18,7 +18,6 @@
 
 .PHONY: demo-coordinator demo-coordinator-batch demo-tkinter \
         demo-safety demo-safety-board demo-safety-sensors \
-        demo-bridge demo-pipeline \
         demo-record-mock \
         demo-replay demo-bag-info \
         test-resilience-mock
@@ -162,33 +161,6 @@ demo-safety-board:
 demo-safety-sensors:
 	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(SAFETY_PKG) mock_sensor_publisher"
  
-# ------------------------------------------------------------------------------
-# Command bridge
-# ------------------------------------------------------------------------------
-demo-bridge:
-	@bash -c "$(WORKSPACE_SOURCE) && ros2 run $(CONTROL_PKG) command_bridge_node"
- 
-# ------------------------------------------------------------------------------
-# Full pipeline (mock sensors, no PX4)
-# ------------------------------------------------------------------------------
-demo-pipeline:
-	@echo "=========================================="
-	@echo "Full Pipeline Demo"
-	@echo "=========================================="
-	@echo ""
-	@echo "Open 4 terminals in order:"
-	@echo ""
-	@echo "  Terminal 1: make demo-coordinator      # agent -> coordinator -> AuthToken"
-	@echo "  Terminal 2: make demo-bridge           # AuthToken -> /actuator_cmd_raw"
-	@echo "  Terminal 3: make demo-safety-board     # /actuator_cmd_raw -> /actuator_cmd_safe"
-	@echo "  Terminal 4: make demo-safety-sensors   # mock sensor scenarios"
-	@echo ""
-	@echo "Monitor:"
-	@echo "  ros2 topic echo /actuator_cmd_raw      # 0.6 when token approved"
-	@echo "  ros2 topic echo /actuator_cmd_safe     # 0.6=cleared  0.0=vetoed"
-	@echo "  ros2 topic echo /safety_status         # 1.0=safe      0.0=unsafe"
-	@echo ""
-
 # ------------------------------------------------------------------------------
 # ROS 2 bag recording
 # ------------------------------------------------------------------------------

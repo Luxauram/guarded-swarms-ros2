@@ -71,6 +71,10 @@ reproducible release.
 - `offboard_control_node` and `rover_control_node` from
   `guarded_swarms_control`: only the removed demos started them. In the coastal
   scenario `uav_worker_node` and `ugv_worker_node` control the vehicles.
+- `command_bridge_node` from `guarded_swarms_control`, with the `demo-bridge`
+  and `demo-pipeline` targets: it turned the authorisations of the earlier
+  coordinator (`AuthToken`) into actuator commands for the Safety Board. In the
+  coastal scenario the workers propose the actuator commands.
 
 ### Fixed
 

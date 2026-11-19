@@ -3,9 +3,8 @@
 `guarded_swarms_control` holds the vehicle-side nodes of the system and the
 intruder of the simulation. This page documents `px4_safety_gate_node` and
 the fault mode of `uav_worker_node`; the rest of `uav_worker_node` and the
-other nodes of the package (`ugv_worker_node`, `px4_safety_bridge_node`,
-`intruder_node`, `command_bridge_node`) are added as the documentation is
-completed.
+other nodes of the package (`ugv_worker_node`, `px4_safety_bridge_node` and
+`intruder_node`) are added as the documentation is completed.
 
 ## px4_safety_gate_node
 

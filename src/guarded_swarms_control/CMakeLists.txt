@@ -18,24 +18,6 @@ find_package(nav_msgs REQUIRED)
 find_package(guarded_swarms_msgs REQUIRED)
 
 # ============================================================================
-# Executable: command_bridge_node
-# ============================================================================
-add_executable(command_bridge_node
-  src/command_bridge_node.cpp
-)
-
-target_include_directories(command_bridge_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
-ament_target_dependencies(command_bridge_node
-  rclcpp std_msgs guarded_swarms_msgs
-)
-
-target_compile_features(command_bridge_node PUBLIC c_std_99 cxx_std_17)
-
-# ============================================================================
 # Executable: px4_safety_bridge_node
 # ============================================================================
 add_executable(px4_safety_bridge_node
@@ -123,17 +105,12 @@ target_compile_features(px4_safety_gate_node PUBLIC c_std_99 cxx_std_17)
 # Install
 # ============================================================================
 install(TARGETS
-  command_bridge_node
   px4_safety_bridge_node
   intruder_node
   uav_worker_node
   ugv_worker_node
   px4_safety_gate_node
 DESTINATION lib/${PROJECT_NAME}
-)
-
-install(DIRECTORY include/
-  DESTINATION include
 )
 
 # ============================================================================

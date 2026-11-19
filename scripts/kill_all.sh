@@ -85,7 +85,6 @@ pkill -9 -f "parameter_bridge" 2>/dev/null || true
 # simply finds nothing). Remove these lines together with the legacy code.
 pkill -9 -f "coordinator_node" 2>/dev/null || true
 pkill -9 -f "agent_node" 2>/dev/null || true
-pkill -9 -f "command_bridge_node" 2>/dev/null || true
 
 rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 echo "All processes terminated."

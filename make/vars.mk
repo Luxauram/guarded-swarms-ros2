@@ -63,7 +63,6 @@ ROS2_SOURCE      := source /opt/ros/humble/setup.bash
 WORKSPACE_SOURCE := source $(INSTALL_DIR)/setup.bash
 FULL_SOURCE      := $(ROS2_SOURCE) && $(WORKSPACE_SOURCE)
 COORDINATOR_PKG  := guarded_swarms_coordinator
-CONTROL_PKG      := guarded_swarms_control
 SAFETY_PKG       := guarded_swarms_safety
 
 # ------------------------------------------------------------------------------
