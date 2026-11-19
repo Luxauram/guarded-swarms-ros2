@@ -20,11 +20,12 @@
 #
 # Guarded Swarms - Resilience Test Runner
 #
-# Runs all resilience tests sequentially and generates a final report.
-# Requires the mock pipeline to be running before launching.
+# Runs the Safety Board resilience tests (sensor staleness and sensor spike)
+# sequentially and generates a final report. Requires the mock pipeline to be
+# running before launching.
 #
 # Usage:
-#   ./scripts/resilience/test_runner.sh [mock|uav_r1|ugv_r2]
+#   ./scripts/resilience/test_runner.sh [mock]
 #
 # Example:
 #   # Terminal 1: start the pipeline
@@ -59,7 +60,7 @@ warn() { echo -e "${YELLOW}[warn]${NC} $1"; }
 
 if [ ! -f "$CONFIG_FILE" ]; then
     echo "Error: config not found: $CONFIG_FILE"
-    echo "Available scenarios: mock, uav_r1, ugv_r2"
+    echo "Available scenarios: mock"
     exit 1
 fi
 
@@ -78,9 +79,7 @@ echo "  Config:   $CONFIG_FILE"
 echo "============================================================"
 echo ""
 warn "Prerequisites: pipeline already running for scenario '$SCENARIO'"
-warn "  mock:   ros2 launch guarded_swarms_bringup mock_pipeline.launch.py"
-warn "  uav_r1: make demo-px4-uav-urban (then make demo-uav-urban-pipeline)"
-warn "  ugv_r2: make demo-px4-ugv-urban (then make demo-ugv-urban-pipeline)"
+warn "  mock: ros2 launch guarded_swarms_bringup mock_pipeline.launch.py"
 echo ""
 
 PASSED=0
@@ -103,15 +102,8 @@ run_test() {
     echo ""
 }
 
-run_test "$TESTS_DIR/test_forged_tokens.py"
-run_test "$TESTS_DIR/test_dropped_tokens.py"
-
-# Sensor tests only in the mock scenario: with PX4 running, the real
-# mock_sensor_publisher is absent and these would have nothing to drive them.
-if [ "$SCENARIO" = "mock" ]; then
-    run_test "$TESTS_DIR/test_sensor_staleness.py"
-    run_test "$TESTS_DIR/test_sensor_spike.py"
-fi
+run_test "$TESTS_DIR/test_sensor_staleness.py"
+run_test "$TESTS_DIR/test_sensor_spike.py"
 
 echo ""
 echo "============================================================"

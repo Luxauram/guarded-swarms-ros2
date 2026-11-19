@@ -45,6 +45,13 @@ reproducible release.
   `demo-web` target: it showed the tokens of the earlier coordinator, which the
   TB-CSPN chain does not use. The supervisor console in `console/` takes its
   place.
+- From the resilience suite in `scripts/resilience`, the tests of the earlier
+  coordinator (`test_forged_tokens.py`, `test_dropped_tokens.py`) and the
+  configurations of the urban and four-agent scenarios (`uav_r1.yaml`,
+  `ugv_r2.yaml`, `swarm_4.yaml`), with the `test-resilience-uav`,
+  `test-resilience-ugv`, `test-resilience-swarm` and `test-resilience-all`
+  targets. The suite keeps the two Safety Board tests, sensor staleness and
+  sensor spike, on the mock pipeline: `make test-resilience-mock`.
 
 ## [0.4.0] - 2026-11-18
 

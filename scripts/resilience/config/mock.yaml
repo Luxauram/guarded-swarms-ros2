@@ -21,30 +21,7 @@
 # ==============================================================================
 
 scenario: mock
-description: "Mock pipeline - all 4 agents, no PX4 or Gazebo required"
-
-agents:
-  - id: test_agent_A
-    priority: 5
-    zone_center: [0.0, 0.0, 5.0]
-    zone_size: 10.0
-  - id: test_agent_B
-    priority: 5
-    zone_center: [15.0, 0.0, 5.0]
-    zone_size: 10.0
-  - id: test_agent_C
-    priority: 5
-    zone_center: [0.0, 15.0, 5.0]
-    zone_size: 10.0
-  - id: test_agent_D
-    priority: 5
-    zone_center: [15.0, 15.0, 5.0]
-    zone_size: 10.0
-
-coordinator:
-  id: coordinator_mock
-  arbitration_mode: priority
-  concurrency_window_ms: 300
+description: "Mock pipeline - Safety Board alone, no PX4 or Gazebo required"
 
 safety:
   staleness_timeout_s: 5.0
@@ -54,8 +31,6 @@ safety:
   min_battery_pct: 15.0
 
 topics:
-  geometry_tokens: /geometry_tokens
-  auth_tokens: /auth_tokens
   actuator_cmd_safe: /actuator_cmd_safe
   actuator_cmd_raw: /actuator_cmd_raw
   safety_status: /safety_status

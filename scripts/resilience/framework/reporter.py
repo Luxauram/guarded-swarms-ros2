@@ -36,7 +36,7 @@ def save_report(suite: TestSuite, output_dir: str = "results"):
     automatically.
 
     Example output filename:
-        results/resilience_forged_tokens_20260112_143210.json
+        results/resilience_sensor_spike_mock_20260112_143210.json
 
     @param suite       Completed TestSuite instance containing all results
                        collected during a resilience test scenario.

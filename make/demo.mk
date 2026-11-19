@@ -26,8 +26,7 @@
         demo-ugv-urban-pipeline demo-uav-urban-pipeline \
         demo-record-uav demo-record-ugv demo-record-mock \
         demo-replay demo-bag-info \
-				test-resilience-mock test-resilience-uav test-resilience-ugv \
-        test-resilience-swarm test-resilience-all
+        test-resilience-mock
 
 # ------------------------------------------------------------------------------
 # Token coordination
@@ -370,54 +369,6 @@ test-resilience-mock:
 	@echo "Running resilience tests..."
 	@echo ""
 	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh mock"
-	@echo ""
-	@echo "Stopping mock pipeline..."
-	@pkill -9 -f "mock_pipeline" 2>/dev/null || true
-
-test-resilience-uav:
-	@echo "=========================================="
-	@echo "Resilience Tests - UAV Urban (R1)"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites: make demo-px4-uav-urban already running."
-	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh uav_r1"
-
-test-resilience-ugv:
-	@echo "=========================================="
-	@echo "Resilience Tests - UGV Urban (R2)"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites: make demo-px4-ugv-urban already running."
-	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh ugv_r2"
-
-test-resilience-swarm:
-	@echo "=========================================="
-	@echo "Resilience Tests - 4-Agent Swarm"
-	@echo "=========================================="
-	@echo ""
-	@echo "Starting mock pipeline in background..."
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup mock_pipeline.launch.py > /tmp/mock_pipeline.log 2>&1 &"
-	@sleep 5
-	@echo "Running swarm stress tests..."
-	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh swarm_4"
-	@echo ""
-	@echo "Stopping mock pipeline..."
-	@pkill -9 -f "mock_pipeline" 2>/dev/null || true
-
-test-resilience-all:
-	@echo "=========================================="
-	@echo "Resilience Tests - Full Suite"
-	@echo "=========================================="
-	@echo ""
-	@echo "Starting mock pipeline in background..."
-	@bash -c "$(FULL_SOURCE) && ros2 launch guarded_swarms_bringup mock_pipeline.launch.py > /tmp/mock_pipeline.log 2>&1 &"
-	@sleep 5
-	@echo "Running all resilience tests..."
-	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh mock && $(RESILIENCE_DIR)/test_runner.sh swarm_4"
 	@echo ""
 	@echo "Stopping mock pipeline..."
 	@pkill -9 -f "mock_pipeline" 2>/dev/null || true

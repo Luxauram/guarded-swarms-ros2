@@ -134,13 +134,13 @@ class BaseResilienceTest(Node):
     """Base class for all Guarded Swarms resilience tests.
 
     Extends rclpy.Node to provide:
-    - YAML config loading (agents, topics, timeouts, safety thresholds)
+    - YAML config loading (topics, timeouts, safety thresholds)
     - Thread-safe message capture from any ROS 2 topic
     - Timeout-based message waiting with optional condition matching
     - High-level pass/fail assertion utilities
     - Safe node teardown compatible with rclpy Humble cleanup quirks
 
-    All concrete test classes (test_forged_tokens, test_dropped_tokens, etc.)
+    All concrete test classes (test_sensor_staleness, test_sensor_spike)
     inherit from this class.
     """
 
@@ -181,7 +181,7 @@ class BaseResilienceTest(Node):
         with get_captured() or consumed by wait_for_message().
 
         @param topic        ROS 2 topic name to subscribe to.
-        @param msg_type     ROS 2 message class (e.g. Float32, AuthToken).
+        @param msg_type     ROS 2 message class (e.g. Float32, Range).
         @param max_messages Maximum number of messages to buffer before
                             dropping older ones. Defaults to 1000.
         @param reliable     If True, use RELIABLE QoS; if False, use
