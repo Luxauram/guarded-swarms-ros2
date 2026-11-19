@@ -16,7 +16,7 @@
 # demo.mk - Demo and pipeline launch targets (native Ubuntu)
 # ==============================================================================
 
-.PHONY: demo-coordinator demo-coordinator-batch demo-tkinter demo-web \
+.PHONY: demo-coordinator demo-coordinator-batch demo-tkinter \
         demo-safety demo-safety-board demo-safety-sensors \
         demo-bridge demo-pipeline \
         demo-px4-bridge demo-px4-bridge-rover \
@@ -137,22 +137,6 @@ demo-tkinter:
 	@echo "Prerequisites: demo-coordinator running in Terminal 1"
 	@echo ""
 	@bash -c "$(WORKSPACE_SOURCE) && python3 $(WORKSPACE_DIR)/$(TOOLS_VIZ_DIR)/dashboard.py"
- 
-demo-web:
-	@echo "=========================================="
-	@echo "Launching Web Dashboard"
-	@echo "=========================================="
-	@echo ""
-	@echo "Prerequisites:"
-	@echo "  demo-coordinator running in Terminal 1"
-	@echo "  TypeScript compiled (run once): make web-ts-build"
-	@echo ""
-	@echo "Dashboard will be available at:"
-	@echo "  http://localhost:$(DASHBOARD_PORT)"
-	@echo ""
-	@echo "Press Ctrl+C to stop."
-	@echo ""
-	@bash -c "$(FULL_SOURCE) && cd $(WEB_BACKEND_DIR) && python3 -m uvicorn app:app --host 0.0.0.0 --port $(DASHBOARD_PORT)"
 
 # ------------------------------------------------------------------------------
 # Safety board (mock sensors)

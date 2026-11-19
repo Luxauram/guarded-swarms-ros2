@@ -38,8 +38,6 @@ PX4_DIR          := $(HOME)/PX4-Autopilot
 # firmware version will silently break uXRCE-DDS topic bridging.
 PX4_COMMIT       := 091ac918b133d518da8b73e395243ea0e0d087b5
 PX4_BRANCH       := guarded-swarms-pin
-WEB_BACKEND_DIR  := $(REPO_ROOT)/src/web_dashboard/backend
-WEB_FRONTEND_DIR := $(REPO_ROOT)/src/web_dashboard/frontend
 TOOLS_LAUNCH_DIR := src/tools/launch
 TOOLS_VIZ_DIR    := src/tools/visualization
 RESILIENCE_DIR   := $(REPO_ROOT)/scripts/resilience
@@ -83,7 +81,6 @@ KILL_PX4       := pkill -9 -x px4 2>/dev/null || true
 KILL_GAZEBO    := pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true; pkill -9 -f "gz_sim_server|gz-sim" 2>/dev/null || true
 KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
 KILL_ROS2      := pkill -9 -f 'ros2' 2>/dev/null || true; pkill -9 python3 2>/dev/null || true
-KILL_WEB       := pkill -9 -f 'uvicorn.*app:app' 2>/dev/null || true; pkill -9 -f 'python3.*uvicorn' 2>/dev/null || true; fuser -k $(DASHBOARD_PORT)/tcp 2>/dev/null || true
 CLEANUP_TMP    := rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
@@ -92,11 +89,6 @@ CLEANUP_TMP    := rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev
 COLCON_BUILD          := colcon build --symlink-install
 COLCON_BUILD_PKG      = colcon build --packages-select
 COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers console_direct+
-
-# ------------------------------------------------------------------------------
-# Web dashboard
-# ------------------------------------------------------------------------------
-DASHBOARD_PORT := 8765
 
 # ------------------------------------------------------------------------------
 # Swarm scenario

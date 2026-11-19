@@ -39,6 +39,13 @@ reproducible release.
 - The README is a short overview of the project, with links to the
   documentation; the detail moved to `docs/`.
 
+### Removed
+
+- The web dashboard (`src/web_dashboard`), with `make/web.mk` and the
+  `demo-web` target: it showed the tokens of the earlier coordinator, which the
+  TB-CSPN chain does not use. The supervisor console in `console/` takes its
+  place.
+
 ## [0.4.0] - 2026-11-18
 
 ### Added
