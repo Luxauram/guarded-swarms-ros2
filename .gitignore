@@ -28,32 +28,6 @@ CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake
 
-# JavaScript/TypeScript/Bun
-node_modules/
-*.js.map
-*.min.js
-*.d.ts.map
-dist/
-build/
-out/
-.next/
-.nuxt/
-.cache/
-.parcel-cache/
-.turbo/
-
-# Bun specific
-.bun/
-bun.lockb
-
-# TypeScript
-*.tsbuildinfo
-
-# Build outputs
-lib/
-dist/
-build/
-
 # IDE - VS Code
 .vscode/
 *.code-workspace

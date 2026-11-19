@@ -30,7 +30,6 @@ REPO_ROOT := $(shell pwd)
 WORKSPACE_DIR    := $(REPO_ROOT)
 SRC_DIR          := $(REPO_ROOT)/src
 INSTALL_DIR      := $(REPO_ROOT)/install
-BUILD_DIR        := $(REPO_ROOT)/build
 PX4_DIR          := $(HOME)/PX4-Autopilot
 
 # PX4 firmware pinned commit.
@@ -65,11 +64,7 @@ SAFETY_PKG       := guarded_swarms_safety
 # ------------------------------------------------------------------------------
 # Process management
 # ------------------------------------------------------------------------------
-KILL_PX4       := pkill -9 -x px4 2>/dev/null || true
-KILL_GAZEBO    := pkill -9 gzserver 2>/dev/null || true; pkill -9 gzclient 2>/dev/null || true; pkill -9 -f "gz_sim_server|gz-sim" 2>/dev/null || true
 KILL_MICRO_ROS := pkill -9 MicroXRCEAgent 2>/dev/null || true
-KILL_ROS2      := pkill -9 -f 'ros2' 2>/dev/null || true; pkill -9 python3 2>/dev/null || true
-CLEANUP_TMP    := rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 
 # ------------------------------------------------------------------------------
 # Build
@@ -89,12 +84,3 @@ UAV1_POSE        := 24,-24,0
 COASTAL_UGV_POSE := -60,-14,0
 # Seconds for a UAV instance to boot before its parameters are set.
 UAV_BOOT_WAIT    := 15
-
-# Rover patrol, NED relative to spawn, flattened as north,east,north,east...
-# NED East = Gazebo X, so varying the SECOND value drives along the shore.
-# From X = -60 eastward: the road barrier at X = -8 stops it via proximity veto.
-# Patrol turnaround sits short of the road barrier at Gazebo X = -8: the
-# patrol route is deliberately clear. The proximity veto is a safety net for
-# obstacles that appear unexpectedly, not a navigation mechanism — route
-# replanning belongs to the worker agents in the digital layer.
-COASTAL_UGV_WAYPOINTS := [0.0, 0.0, 0.0, 46.0]

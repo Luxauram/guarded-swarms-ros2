@@ -98,6 +98,9 @@ reproducible release.
 - `coordination.launch.py` and the `demo-coordination` target. The coordination
   layer runs from `scripts/pipeline/test_pipeline.sh`,
   `scripts/pipeline/demo_console.sh`, or its three launch files.
+- Unused make variables (`BUILD_DIR`, `KILL_PX4`, `KILL_GAZEBO`, `KILL_ROS2`,
+  `CLEANUP_TMP`, `COASTAL_UGV_WAYPOINTS`) and the JavaScript entries of
+  `.gitignore`.
 
 ### Fixed
 
@@ -113,6 +116,8 @@ reproducible release.
   It used SIGKILL, which left the board running, with a pattern that also
   matched the shell of the recipe: the target was killed, and ended with an
   error even when every test passed.
+- `scripts/kill_all.sh` also stops the scripted supervisor, the console bridge
+  and the mock sensor publisher.
 
 ## [0.4.0] - 2026-11-18
 

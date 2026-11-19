@@ -59,6 +59,7 @@ pkill -9 MicroXRCEAgent 2>/dev/null || true
 # Analog safety layer.
 pkill -9 -f "safety_board_node" 2>/dev/null || true
 pkill -9 -f "px4_safety_bridge_node" 2>/dev/null || true
+pkill -9 -f "mock_sensor_publisher" 2>/dev/null || true
 
 # Sensor consultant agents (upstream of T1).
 pkill -9 -f "radar_agent_node" 2>/dev/null || true
@@ -71,6 +72,10 @@ pkill -9 -f "interpretation_node" 2>/dev/null || true
 pkill -9 -f "candidate_transition_node" 2>/dev/null || true
 pkill -9 -f "mission_transition_node" 2>/dev/null || true
 pkill -9 -f "dispatch_transition_node" 2>/dev/null || true
+
+# Supervisor side of T6: the scripted supervisor and the console bridge.
+pkill -9 -f "scripted_supervisor_node" 2>/dev/null || true
+pkill -9 -f "console_bridge_node" 2>/dev/null || true
 
 # Worker agents and the intruder.
 pkill -9 -f "uav_worker_node" 2>/dev/null || true
