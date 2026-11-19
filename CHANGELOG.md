@@ -28,6 +28,16 @@ reproducible release.
   confirmation, the age of the EO confirmation fused into it, and the
   CandidateTargets per second during the pass. `runs.csv` has the five values of
   each run. Documented in `docs/experiments/analysis.md`.
+- `CITATION.cff`, so that GitHub offers the citation of the software, and two
+  pages of documentation: `docs/getting-started.md` (requirements, the pinned
+  PX4 version, installation, the coastal scenario, a run of the pipeline) and
+  `docs/architecture.md` (the layers, the tokens, the transitions, the
+  supervisor and the safety layer).
+
+### Changed
+
+- The README is a short overview of the project, with links to the
+  documentation; the detail moved to `docs/`.
 
 ## [0.4.0] - 2026-11-18
 

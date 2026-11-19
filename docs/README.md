@@ -3,6 +3,13 @@
 The repository README gives the overview of the project and the quick start.
 The pages in this folder document each part of the project in detail.
 
+## Overview
+
+| Page                                  | Description                                                                                        |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [Getting started](getting-started.md) | Requirements, the pinned PX4 version, installation, the coastal scenario and a run of the pipeline |
+| [Architecture](architecture.md)       | The layers, the tokens and the transitions, the supervisor, the Safety Board and the safety gate   |
+
 ## Packages
 
 | Package                                                              | Description                                                                                              |
@@ -18,11 +25,11 @@ The pages in this folder document each part of the project in detail.
 
 ## Experiments
 
-| Page                                  | Description                                                                             |
-| ------------------------------------- | --------------------------------------------------------------------------------------- |
-| [Campaigns](experiments/campaigns.md) | Unattended campaigns of recorded runs, and the scripts that start and stop the scenario |
-| [Analysis](experiments/analysis.md)   | Clean-run checks of recorded runs, and the tables of a campaign                         |
+| Page                                       | Description                                                                                           |
+| ------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| [Campaigns](experiments/campaigns.md)      | Unattended campaigns of recorded runs, and the scripts that start and stop the scenario               |
+| [Analysis](experiments/analysis.md)        | Clean-run checks, the tables of the campaigns, the figures, and the script that rebuilds every result |
+| [Clock-denial bench](experiments/clock.md) | The Safety Board in isolation under clock denial, and the tables of the bench                         |
 
-The remaining sections (getting started, architecture, the other packages,
-the other scripts, supervisor console, conventions) are added as the
-documentation is completed.
+The remaining sections (the other packages, the other scripts, the supervisor
+console, conventions) are added as the documentation is completed.

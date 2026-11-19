@@ -1,0 +1,83 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Guarded Swarms ROS 2"
+abstract: >-
+  A ROS 2 digital twin of the Guarded Swarms architecture for heterogeneous
+  UAV/UGV swarms: sensing agents, a TB-CSPN coordination chain that releases
+  missions only under a supervisor's authorisation, and a Safety Board on every
+  vehicle that can veto its commands. Every vehicle runs PX4 SITL in Gazebo
+  Harmonic.
+authors:
+  - family-names: "D'Aurizio"
+    given-names: "Luca"
+repository-code: "https://github.com/Luxauram/guarded-swarms-ros2"
+license: Apache-2.0
+keywords:
+  - ROS 2
+  - digital twin
+  - UAV
+  - UGV
+  - swarm robotics
+  - TB-CSPN
+  - PX4
+  - Gazebo
+  - human-in-the-loop
+  - safety
+references:
+  - type: article
+    authors:
+      - family-names: "Borghoff"
+        given-names: "Uwe M."
+      - family-names: "Bottoni"
+        given-names: "Paolo"
+      - family-names: "Pareschi"
+        given-names: "Remo"
+    title: "Beyond Prompt Chaining: The TB-CSPN Architecture for Agentic AI"
+    journal: "Future Internet"
+    volume: 17
+    issue: "8"
+    year: 2025
+    doi: "10.3390/fi17080363"
+  - type: conference-paper
+    authors:
+      - family-names: "Borghoff"
+        given-names: "Uwe M."
+      - family-names: "Bottoni"
+        given-names: "Paolo"
+      - family-names: "Pareschi"
+        given-names: "Remo"
+    title: "Guarded Swarms: Hybrid Digital–Analog Coordination for AI–Robot Systems"
+    collection-title: "IEEE International Workshop on Technologies for Defense and Security (TechDefense)"
+    conference:
+      name: "TechDefense 2025"
+      city: "Rome"
+      country: "IT"
+    year: 2025
+  - type: article
+    authors:
+      - family-names: "Borghoff"
+        given-names: "Uwe M."
+      - family-names: "Bottoni"
+        given-names: "Paolo"
+      - family-names: "Pareschi"
+        given-names: "Remo"
+    title: "Guarded Swarms: Building Trusted Autonomy Through Digital Intelligence and Physical Safeguards"
+    journal: "Future Internet"
+    volume: 18
+    issue: "1"
+    year: 2026
+    doi: "10.3390/fi18010064"
+  - type: article
+    authors:
+      - family-names: "Borghoff"
+        given-names: "Uwe M."
+      - family-names: "Bottoni"
+        given-names: "Paolo"
+      - family-names: "Pareschi"
+        given-names: "Remo"
+    title: "Sensor-Driven Mission Synthesis for UAV/UGV Swarms: A TB-CSPN Coordination Architecture with Hardware-Enforced Safety"
+    journal: "arXiv"
+    year: 2026
+    doi: "10.48550/arXiv.2608.14306"
+    url: "https://arxiv.org/abs/2608.14306"
