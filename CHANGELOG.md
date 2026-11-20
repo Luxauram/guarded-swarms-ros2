@@ -9,6 +9,8 @@ reproducible release.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-20
+
 ### Added
 
 - `scripts/metrics/plot_figures.py`: two figures from recorded runs, as PDF and
