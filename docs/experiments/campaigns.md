@@ -96,7 +96,7 @@ instead of 10. With the faulty worker, the flight reaches the building about
 10 s after the task, and the rest of the recording shows the impact or the
 hold; `nominal-gate` records as long, so that the three compare. The faulty
 worker and its targets are described in
-[`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode).
+[`guarded_swarms_control`](../packages/guarded_swarms_control.md#fault-mode).
 
 The `forge-worker` and `forge-gate` configurations run with the authorisation
 withheld (`DECISION=deny`), so no mission is released through the chain, and

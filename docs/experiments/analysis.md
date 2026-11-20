@@ -213,7 +213,7 @@ to check that the Safety Board keeps it clear:
 
 - with `UAV_FAULT=obstacle`, a faulty worker flies its UAV into its fault
   building and ignores the veto (see
-  [`guarded_swarms_control`](../packages/guarded_swarms_control.md#uav_worker_node-fault-mode));
+  [`guarded_swarms_control`](../packages/guarded_swarms_control.md#fault-mode));
 - with `FORGE_MISSION=obstacle`, an unauthorised `MissionToken` on
   `/mission_tokens` names a building as the target, and the honest worker flies
   there.
