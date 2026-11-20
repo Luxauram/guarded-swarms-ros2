@@ -19,7 +19,7 @@
  *
  * @brief Analog safety enforcement layer - class declaration.
  *
- * Implements the virtual safety board described in the Guarded Swarms paper.
+ * Implements the virtual Safety Board of the Guarded Swarms architecture.
  * Monitors real-time sensor data and enforces hard physical safety constraints
  * using OR-logic: any single violation vetoes the current actuator command.
  *

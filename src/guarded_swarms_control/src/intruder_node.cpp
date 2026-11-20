@@ -19,10 +19,9 @@
  *
  * @brief Scripted trajectory driver for the hostile aerial target.
  *
- * Drives the intruder model of the coastal surveillance scenario described in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Section 5: the swarm must detect, classify and intercept a potentially
- * hostile aerial target approaching through the maritime corridor.
+ * Drives the intruder model of the coastal surveillance scenario: the swarm
+ * must detect, classify and intercept a potentially hostile aerial target
+ * approaching through the maritime corridor.
  *
  * This node does NOT belong to the swarm. It is scenario machinery: it plays
  * the adversary so the sensing and coordination layers have something to react
@@ -105,8 +104,8 @@ class IntruderNode : public rclcpp::Node {
 
     speed_mps_ = this->declare_parameter<double>("speed_mps", 8.0);
     // Whether the target emits a detectable radio control link. A silent
-    // target is invisible to the RF modality, which is one of the
-    // counterfactual trajectories of the paper (Section 5.3).
+    // target is invisible to the RF modality: the radio-silence
+    // counterfactual.
     transmitting_ = this->declare_parameter<bool>("transmitting", true);
     start_delay_s_ = this->declare_parameter<double>("start_delay_s", 20.0);
     arrival_radius_m_ = this->declare_parameter<double>("arrival_radius_m", 3.0);

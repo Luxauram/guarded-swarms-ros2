@@ -17,13 +17,12 @@
 /**
  * @file ugv_worker_node.cpp
  *
- * @brief UGV worker agent (Figure 4, T9): task -> observation move.
+ * @brief UGV worker agent (T9): task -> observation move.
  *
- * The UGV worker agent of the coastal case study in Borghoff, Bottoni and
- * Pareschi (2026), IET Radar, Sonar and Navigation, Section 5.2. The paper
- * pairs the aerial interception with a ground vehicle for "observation and
- * target recovery", and describes a UGV worker as generating "navigation or
- * observation commands". This node is the UGV counterpart of the UAV worker:
+ * The UGV worker agent of the coastal scenario. The architecture pairs the
+ * aerial interception with a ground vehicle for observation and target
+ * recovery, and a UGV worker generates navigation or observation commands.
+ * This node is the UGV counterpart of the UAV worker:
  * the single controller of the rover, which runs the patrol and handles the
  * tasks.
  *

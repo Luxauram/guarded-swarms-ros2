@@ -17,14 +17,12 @@
 /**
  * @file uav_worker_node.cpp
  *
- * @brief UAV worker agent (Figure 4, T8): task -> interception trajectory.
+ * @brief UAV worker agent (T8): task -> interception trajectory.
  *
- * The UAV worker agent of the coastal case study in Borghoff, Bottoni and
- * Pareschi (2026), IET Radar, Sonar and Navigation, Section 5.2. It is the
- * translation bridge across the digital-physical boundary: it consumes a
- * VehicleTask and turns it into platform control, which the paper describes as
- * converting "the mission directive into trajectory waypoints or interception
- * manoeuvres".
+ * The UAV worker agent of the coastal scenario. It is the translation bridge
+ * across the digital-physical boundary: it consumes a VehicleTask and turns it
+ * into platform control, converting the mission directive into trajectory
+ * waypoints or interception manoeuvres.
  *
  * WHY THE WORKER IS ALSO THE CONTROLLER
  * =====================================
@@ -32,9 +30,9 @@
  * enters offboard mode and holds the hover, and handles the tasks on top.
  * Having one node command the vehicle avoids two
  * publishers racing on the same TrajectorySetpoint, and gives the analogue veto
- * a single command source to gate. This matches the paper's separation: the
- * worker agent translates and commands, the executor platform (PX4) only
- * executes deterministically.
+ * a single command source to gate. This keeps the separation of the
+ * architecture: the worker agent translates and commands, the executor
+ * platform (PX4) only executes deterministically.
  *
  * BEHAVIOUR
  * =========
@@ -42,7 +40,7 @@
  *   - On a VehicleTask of kind uav addressed to this vehicle's system id: fly
  *     to the target's horizontal position, holding an interception altitude of
  *     its own (intercept_altitude), so it does not descend onto the target.
- *     This is a stand-off interception trajectory in the sense of the paper.
+ *     This is a stand-off interception trajectory.
  *   - Every transit, to a task goal and back to the hover point, is flown at
  *     a bounded speed (APPROACH_SPEED_MPS, in simulated time), so the Safety
  *     Board's proximity veto can brake the UAV in time.
@@ -205,7 +203,7 @@ class UavWorkerNode : public rclcpp::Node {
     // implemented in publish_setpoint() by holding the position the UAV has
     // when the veto begins.
     // The board's independence is unchanged: it decides, the worker obeys. The
-    // physical PWM-level cut the paper describes lives inside PX4/hardware and
+    // physical PWM-level cut of the architecture lives inside PX4/hardware and
     // is not reachable from SITL -- the same limitation as the rover.
     veto_sub_ = this->create_subscription<std_msgs::msg::Float32>(
         "actuator_cmd_safe", QUEUE_SIZE,
