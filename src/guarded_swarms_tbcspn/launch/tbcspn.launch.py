@@ -42,11 +42,13 @@ than scattered across node defaults. They follow the paper's token model
 t0 + ttl, and two tokens fuse when abs((t0'+ttl') - (t0+ttl)) <= sync_threshold.
 
   SYNC_THRESHOLD_S   the paper's `ths`: the half-width of the fusion window
-                     shared by the joins (T3, T5) and the mission release (T6).
+                     shared by the joins T3 and T5. The mission release (T6)
+                     needs no window: it fires while the threat and the
+                     authorisation are both valid.
 
   T3_WINDOW_S        an environment variable: when set, the window of T3
                      alone, in seconds, so the CandidateTarget join can be
-                     varied while T5 and T6 keep SYNC_THRESHOLD_S. Unset by
+                     varied while T5 keeps SYNC_THRESHOLD_S. Unset by
                      default: T3 then shares SYNC_THRESHOLD_S.
 
   THREAT_TTL_S       how long a ConfirmedThreat stays valid once emitted. A
@@ -130,9 +132,9 @@ DEFAULT_MISSION_TTL_S = "10.0"
 
 # The window of T3 alone, in seconds. Read from the T3_WINDOW_S environment
 # variable, as RF_LABEL is, so a run can vary the CandidateTarget join without
-# touching T5 and T6. Passed to the node as a float, so a whole number such as
-# 4 reaches it as a double, the type it declares. Unset or empty: None, and T3
-# shares sync_threshold_s with T5 and T6.
+# touching T5. Passed to the node as a float, so a whole number such as 4
+# reaches it as a double, the type it declares. Unset or empty: None, and T3
+# shares sync_threshold_s with T5.
 T3_WINDOW_ENV = os.environ.get("T3_WINDOW_S", "").strip()
 T3_WINDOW_S = float(T3_WINDOW_ENV) if T3_WINDOW_ENV else None
 
@@ -209,7 +211,7 @@ def generate_launch_description():
     fleet = dispatch_fleet()
     sync_arg = DeclareLaunchArgument(
         "sync_threshold_s", default_value=DEFAULT_SYNC_THRESHOLD_S,
-        description="Fusion-window half-width `ths` shared by T3, T5 and T6 "
+        description="Fusion-window half-width `ths` shared by T3 and T5 "
                     "(T3 has its own when T3_WINDOW_S is set).")
     threat_ttl_arg = DeclareLaunchArgument(
         "threat_ttl_s", default_value=DEFAULT_THREAT_TTL_S,
@@ -236,7 +238,7 @@ def generate_launch_description():
         LogInfo(msg="  \"{target_id: 'intruder', authorised_by: 'sup', \\"),
         LogInfo(msg="    decision: 'authorise', ttl_s: 15.0}\""),
         LogInfo(msg="T3 window: " + (
-            "sync_threshold_s, shared with T5 and T6" if T3_WINDOW_S is None
+            "sync_threshold_s, shared with T5" if T3_WINDOW_S is None
             else "{:g} s, from T3_WINDOW_S".format(T3_WINDOW_S))),
         LogInfo(msg="T7 fleet: {} UAVs (sys {}), UGV sys {}".format(
             len(fleet["uav_systems"]),
@@ -263,7 +265,6 @@ def generate_launch_description():
             package=PKG, executable="mission_transition_node",
             name="t6_mission", output="screen", emulate_tty=True,
             parameters=[{
-                "sync_threshold_s": LaunchConfiguration("sync_threshold_s"),
                 "mission_ttl_s": LaunchConfiguration("mission_ttl_s"),
                 "use_sim_time": True,
             }],

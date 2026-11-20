@@ -103,6 +103,10 @@ reproducible release.
   `.gitignore`.
 - The `px4_ros_com` submodule: nothing in the repository uses it. The nodes
   need only `px4_msgs`.
+- The `sync_threshold_s` parameter of `mission_transition_node` (T6), which
+  the node declared but never read: T6 releases a mission while a
+  ConfirmedThreat and an authorisation for the same target are both valid.
+  `tbcspn.launch.py` no longer passes it to T6; T3 and T5 keep it.
 
 ### Fixed
 

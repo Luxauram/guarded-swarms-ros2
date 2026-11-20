@@ -97,7 +97,7 @@ export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 
 # The synchronisation window of T3 alone, in seconds. Empty: T3 shares
-# sync_threshold_s with T5 and T6 (3 s). Exported, because tbcspn.launch.py
+# sync_threshold_s with T5 (3 s). Exported, because tbcspn.launch.py
 # reads it from the environment, as it reads RF_LABEL.
 export T3_WINDOW_S="${T3_WINDOW_S:-}"
 if [ -n "$T3_WINDOW_S" ] && ! [[ "$T3_WINDOW_S" =~ ^[0-9]+([.][0-9]+)?$ ]]; then

@@ -79,7 +79,7 @@ configurations:
 | `auth-delay-5s`       | `AUTH_DELAY_S=5 REACT_S=20`                                                                                             | The supervisor decides 5 s after the first ConfirmedThreat           |
 | `auth-delay-10s`      | `AUTH_DELAY_S=10 REACT_S=20`                                                                                            | The supervisor decides 10 s after the first ConfirmedThreat          |
 | `auth-delay-20s`      | `AUTH_DELAY_S=20 REACT_S=20`                                                                                            | The supervisor decides 20 s after the first ConfirmedThreat          |
-| `t3-window-500ms`     | `T3_WINDOW_S=0.5`                                                                                                       | Window of T3 at 0.5 s; T5 and T6 keep 3 s                            |
+| `t3-window-500ms`     | `T3_WINDOW_S=0.5`                                                                                                       | Window of T3 at 0.5 s; T5 keeps 3 s                                  |
 | `t3-window-1s`        | `T3_WINDOW_S=1`                                                                                                         | Window of T3 at 1 s                                                  |
 | `t3-window-2s`        | `T3_WINDOW_S=2`                                                                                                         | Window of T3 at 2 s                                                  |
 | `t3-window-4s`        | `T3_WINDOW_S=4`                                                                                                         | Window of T3 at 4 s                                                  |
@@ -118,7 +118,7 @@ T6 releases the mission if a ConfirmedThreat is valid at some point in that
 time, so these configurations record 20 s after the decision (`REACT_S=20`).
 
 The `t3-window-*` configurations set the synchronisation window of T3 alone,
-through `T3_WINDOW_S`. T5 and T6 keep the shared window of 3 s, which is also
+through `T3_WINDOW_S`. T5 keeps the shared window of 3 s, which is also
 the window of T3 in `nominal`.
 
 The `uav-*` configurations run the whole chain with `N_UAVS` UAVs and the UGV

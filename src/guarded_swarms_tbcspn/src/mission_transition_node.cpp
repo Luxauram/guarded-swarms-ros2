@@ -35,10 +35,11 @@
  * that target. This is the architecture's governed action release: "no
  * consequential action proceeds without explicit governance" (Section 5.3).
  *
- * The mechanism is the same time-windowed join used by T3 and T5, so the
- * safety properties carry over: a stale authorisation cannot release a mission
- * against a threat whose track has expired, and a stale threat cannot be
- * released by a late authorisation.
+ * Unlike the joins of T3 and T5, the release does not compare the two tokens'
+ * instants: it fires while both a ConfirmedThreat and an authorisation for the
+ * same target are valid, each within its own ttl_s. A stale authorisation
+ * therefore cannot release a mission against a threat whose track has expired,
+ * and a stale threat cannot be released by a late authorisation.
  *
  * THE COUNTERFACTUAL COMES FREE
  * =============================
@@ -97,8 +98,6 @@ class MissionTransitionNode : public rclcpp::Node {
     mission_type_ = this->declare_parameter<std::string>(
         "mission_type", MissionToken::TYPE_INTERCEPT);
 
-    sync_threshold_s_ =
-        this->declare_parameter<double>("sync_threshold_s", 3.0);
     mission_ttl_s_ = this->declare_parameter<double>("mission_ttl_s", 10.0);
 
     threat_sub_ = this->create_subscription<InterpToken>(
@@ -307,7 +306,7 @@ class MissionTransitionNode : public rclcpp::Node {
   }
 
   std::string require_label_, mission_type_;
-  double sync_threshold_s_, mission_ttl_s_;
+  double mission_ttl_s_;
 
   std::deque<Held> threats_;
   std::deque<HeldAuth> auths_;
