@@ -9,6 +9,7 @@ The pages in this folder document each part of the project in detail.
 | ------------------------------------- | -------------------------------------------------------------------------------------------------- |
 | [Getting started](getting-started.md) | Requirements, the pinned PX4 version, installation, the coastal scenario and a run of the pipeline |
 | [Architecture](architecture.md)       | The layers, the tokens and the transitions, the supervisor, the Safety Board and the safety gate   |
+| [Interfaces](interfaces.md)           | Every topic of a run: its type, its publishers and subscribers, its namespace and its QoS          |
 
 ## Packages
 
