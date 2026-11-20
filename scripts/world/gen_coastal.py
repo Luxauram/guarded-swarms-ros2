@@ -24,8 +24,8 @@ handful of folders (terrain, town, harbour, sensing, flight_ops, obstacles)
 instead of a flat list of a hundred boxes. Vehicles spawned by PX4 at runtime
 always appear at world level and cannot be grouped.
 
-Usage:  python3 scripts/gen_coastal.py
-Output: src/guarded_swarms_gz/worlds/coastal.sdf
+Usage:  python3 scripts/world/gen_coastal.py, or make gen-coastal
+Output: src/guarded_swarms_gz/worlds/coastal.sdf, or the path in COASTAL_OUT
 """
 
 import os
@@ -320,8 +320,8 @@ W("""<!--
       Y = =200  . . . . . . . . . inland . . . . . . . . . . . . .
             X = =200                                        X = +200
   Vehicle spawn poses live in make/vars.mk, not here.
-  The intruder aerial target is NOT part of this world: it is spawned and
-  driven separately so its trajectory can be scripted and replayed identically.
+  The intruder stands at world level, at the default ingress point, and is
+  driven kinematically by intruder_node, which scripts its trajectory.
 -->""")
 W("""<sdf version="1.9">
   <world name="coastal">

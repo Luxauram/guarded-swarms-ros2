@@ -21,8 +21,12 @@
   link so the target holds altitude without any thrust model.
 
   Its size and radar cross-section are not modelled. What the sensors see is
-  synthesised by the consultant agents from this model's ground-truth
-  odometry, which is a stated limitation of the simulation.
+  synthesised by the consultant agents from the ground truth of intruder_node,
+  the trajectory it integrates from its commanded velocity, not from this
+  model: a stated limitation of the simulation. The world places the model at
+  the default ingress point, (0, 180, 15); with another ingress point the model
+  starts there all the same, and only the trajectory of intruder_node follows
+  the ingress.
 -->
 <sdf version="1.9">
   <model name="intruder">
@@ -128,9 +132,10 @@
             name="gz::sim::systems::VelocityControl">
     </plugin>
 
-    <!-- Ground truth for the consultant agents. They synthesise radar, RF,
-         acoustic and EO observations from this, each with its own range,
-         latency, noise and confidence model. -->
+    <!-- Odometry of the model, on /model/intruder/odometry, with its transform
+         on /model/intruder/pose. No node reads them: the consultant agents
+         synthesise their observations from the ground truth of
+         intruder_node. -->
     <plugin filename="gz-sim-odometry-publisher-system"
             name="gz::sim::systems::OdometryPublisher">
       <odom_frame>world</odom_frame>

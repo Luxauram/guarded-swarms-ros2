@@ -21,6 +21,7 @@ The pages in this folder document each part of the project in detail.
 | [`guarded_swarms_control`](packages/guarded_swarms_control.md)       | The workers of the vehicles, the sensor bridge, the safety gate of the UAVs, and the scripted intruder |
 | [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md) | Scripted supervisor that issues the authorisation decisions of T6 in automated runs                    |
 | [`guarded_swarms_bringup`](packages/guarded_swarms_bringup.md)       | The fleet of the coastal scenario, and the launch files of the vehicles and of the intruder            |
+| [`guarded_swarms_gz`](packages/guarded_swarms_gz.md)                 | The coastal world and how it is generated, the rover with its lidar, and the intruder model            |
 
 ## Scripts
 
