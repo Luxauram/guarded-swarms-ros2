@@ -403,6 +403,9 @@ campaigns recorded with the same version of the code.
 | `trajectories` | A nominal run (`--nominal`) and a run with a faulty UAV worker (`--fault`)                       | The coastal world from above, with the sea, the solids of `coastal.sdf` and the acoustic buoys; the intruder ground truth, and where the intruder was at the first UAV task; the track of every vehicle, with the UAV of the first UAV task highlighted. In the faulty run, the building of the faulty worker and the impact |
 | `verdicts`     | The faulty worker with the veto left to it (`--fault`) and applied by the safety gate (`--gate`) | From the first UAV task on: the distance of the UAV to the wall; the distance to the wall of each setpoint that reached PX4, negative inside the building; the lidar range the Safety Board reads, with its threshold of 10 m; the intervals in which the board reported unsafe. A panel ends at the impact                  |
 
+`verdicts` is also written in one column, as `verdicts-column`: 252 x 250 pt,
+with short legend labels on one row.
+
 Positions are in the world frame: the local position of PX4 plus the spawn
 point of the vehicle in `coastal_fleet.yaml`. Times are in simulated time. The
 UAV of the task, its building, the distance to the wall and the impact are

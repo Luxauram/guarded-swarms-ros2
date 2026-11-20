@@ -41,7 +41,9 @@ files.
                 building. The distance to the wall is the one of the tables
                 of analyze_faults.py; the lidar range is measured along the
                 heading of the UAV, so it is larger when the UAV does not fly
-                straight at the wall.
+                straight at the wall. It is also drawn in one column,
+                verdicts-column: 252 x 250 pt, with short legend labels on
+                one row.
 
 Positions are in the world frame (Gazebo ENU): the local position of PX4,
 north-east-down from the spawn point, plus the spawn point of the vehicle in
@@ -64,6 +66,7 @@ campaigns recorded with the same version of the code.
 Output, in --out (default results/figures):
     trajectories.pdf, trajectories.png
     verdicts.pdf, verdicts.png
+    verdicts-column.pdf, verdicts-column.png
 
 @author Luca D'Aurizio
 """
@@ -99,6 +102,7 @@ BEFORE_TASK_S = 2.0    # the verdicts start this long before the first task
 AFTER_TRIP_S = 8.0     # and end this long after the later lidar trip
 MAX_DISTANCE_M = 30.0  # the verdicts draw distances up to this
 GAP_S = 0.25           # lidar samples farther apart: no return in between
+COLUMN_IN = (252.0 / 72.0, 250.0 / 72.0)  # one-column verdicts: 252 x 250 pt
 
 # Three series, the reserved critical status for the veto and the impact,
 # and neutral inks for the context.
@@ -432,7 +436,9 @@ def with_gaps(points: List[Tuple[float, float]], gap: float
     return xs, ys
 
 
-def plot_verdicts(plt, fault: Verdicts, gate: Verdicts, out: str) -> None:
+def plot_verdicts(plt, fault: Verdicts, gate: Verdicts, out: str,
+                  column: bool = False) -> None:
+    """The verdicts figure; with column, its one-column version."""
     from matplotlib.lines import Line2D
     from matplotlib.patches import Patch
     trips = [v.trip for v in (fault, gate) if v.trip is not None]
@@ -441,8 +447,8 @@ def plot_verdicts(plt, fault: Verdicts, gate: Verdicts, out: str) -> None:
     low = min([0.0] + [d for v in (fault, gate)
                        for t, d in v.setpoint + v.distance
                        if -BEFORE_TASK_S <= t <= x1])
-    fig, axes = plt.subplots(2, 1, figsize=(3.5, 5.2), sharex=True,
-                             sharey=True)
+    size = COLUMN_IN if column else (3.5, 5.2)
+    fig, axes = plt.subplots(2, 1, figsize=size, sharex=True, sharey=True)
     for ax, v, title in (
             (axes[0], fault, "(a) Veto left to the faulty worker"),
             (axes[1], gate, "(b) Veto applied by the safety gate")):
@@ -479,14 +485,22 @@ def plot_verdicts(plt, fault: Verdicts, gate: Verdicts, out: str) -> None:
     axes[0].set_xlim(-BEFORE_TASK_S, x1)
     axes[0].set_ylim(low - 2.0, MAX_DISTANCE_M)
     axes[1].set_xlabel("simulated time from the first UAV task (s)")
-    fig.legend([Line2D([], [], color=BLUE, linewidth=1.6),
-                Line2D([], [], color=ORANGE, linewidth=1.2),
-                Line2D([], [], color=AQUA, linewidth=1.1),
-                Patch(facecolor=CRITICAL, alpha=0.14, linewidth=0)],
-               ["UAV, distance to the wall",
-                "setpoint at PX4, distance to the wall",
-                "lidar range, read by the Safety Board",
-                "Safety Board unsafe (veto)"],
+    handles = [Line2D([], [], color=BLUE, linewidth=1.6),
+               Line2D([], [], color=ORANGE, linewidth=1.2),
+               Line2D([], [], color=AQUA, linewidth=1.1),
+               Patch(facecolor=CRITICAL, alpha=0.14, linewidth=0)]
+    if column:
+        fig.legend(handles, ["UAV to wall", "setpoint to wall", "lidar range",
+                             "unsafe (veto)"],
+                   loc="lower center", ncol=4, frameon=False, fontsize=6.5,
+                   handlelength=1.4, handletextpad=0.4, columnspacing=0.9)
+        fig.tight_layout(rect=(0.0, 0.07, 1.0, 1.0), h_pad=0.6)
+        save(fig, out, "verdicts-column")
+        return
+    fig.legend(handles, ["UAV, distance to the wall",
+                         "setpoint at PX4, distance to the wall",
+                         "lidar range, read by the Safety Board",
+                         "Safety Board unsafe (veto)"],
                loc="lower center", ncol=1, frameon=False)
     fig.tight_layout(rect=(0.0, 0.17, 1.0, 1.0))
     save(fig, out, "verdicts")
@@ -574,6 +588,7 @@ def main() -> int:
                     else "{:.2f} s".format(v.impact)), file=sys.stderr)
                 pair.append(v)
             plot_verdicts(plt, pair[0], pair[1], args.out)
+            plot_verdicts(plt, pair[0], pair[1], args.out, column=True)
     except (OSError, ValueError, KeyError) as e:
         print("[figures] failed: {}".format(e), file=sys.stderr)
         return 1

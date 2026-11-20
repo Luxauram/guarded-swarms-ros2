@@ -17,7 +17,8 @@ reproducible release.
   `verdicts` shows the Safety Board of the faulty UAV over time, with the veto
   left to the worker and applied by the safety gate: the distance of the UAV
   and of the setpoints at PX4 to the wall, the lidar range and the intervals of
-  veto. Documented in `docs/experiments/analysis.md`.
+  veto. `verdicts` is also written in one column, as `verdicts-column`, with
+  the legend on one row. Documented in `docs/experiments/analysis.md`.
 - `scripts/metrics/make_results.sh`: runs the analysis scripts on the recordings
   of the experiments and rebuilds every table and figure in `results/`, one step
   per output. A step whose recordings are missing is skipped and named.
