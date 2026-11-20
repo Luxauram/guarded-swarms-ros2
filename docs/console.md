@@ -7,6 +7,10 @@ deny, on `/supervisor_auth`. No mission is released without an authorisation.
 In automated runs the scripted supervisor decides instead (see
 [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md)).
 
+> **Status.** The console is not used in the recorded runs, where the scripted
+> supervisor decides, and it does not always work reliably: treat it as a
+> demonstration.
+
 | Part                               | Purpose                                                                                              |
 | ---------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `console/decision_panel.html`      | The panel, a single page opened in a browser                                                         |
