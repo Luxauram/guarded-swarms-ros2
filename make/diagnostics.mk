@@ -52,11 +52,8 @@ setup-workspace:
 	@echo "Cleaning previous build artifacts..."
 	@rm -rf build/ install/ log/ 2>/dev/null || true
 	@echo ""
-	@echo "Building messages and px4_msgs first..."
-	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && colcon build --packages-select guarded_swarms_msgs px4_msgs --symlink-install --event-handlers console_direct+"
-	@echo ""
-	@echo "Building remaining packages..."
-	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL) --packages-select guarded_swarms_safety guarded_swarms_control guarded_swarms_sensing guarded_swarms_tbcspn guarded_swarms_supervisor guarded_swarms_bringup"
+	@echo "Building every package..."
+	@bash -c "$(ROS2_SOURCE) && cd $(WORKSPACE_DIR) && $(COLCON_BUILD_PARALLEL)"
 	@echo ""
 	@echo "Workspace built successfully."
 	@echo ""
@@ -97,10 +94,9 @@ setup-px4:
 		echo ""; \
 	fi
 	@echo "Building PX4 SITL (this will take some time)..."
-	@cd $(PX4_DIR) && HEADLESS=1 make px4_sitl gz_x500_lidar_front
+	@cd $(PX4_DIR) && make px4_sitl_default
 	@echo ""
 	@echo "PX4 setup complete."
-	@echo "Run 'make setup-ugv' to also enable UGV simulation."
 	@echo ""
 
 # ------------------------------------------------------------------------------
@@ -118,9 +114,10 @@ check-gpu:
 		echo "  scripts/sim/gz_launch.sh selects it for Gazebo:"; \
 		echo "    make demo-coastal needs no extra variables."; \
 	else \
-		echo "  [NOT FOUND] No NVIDIA GPU detected."; \
-		echo "  Lidar sensors in Gazebo will not publish data."; \
-		echo "  Use mock sensors instead: make demo-safety-sensors"; \
+		echo "  No NVIDIA GPU found, or nvidia-smi is not installed."; \
+		echo "  Gazebo renders the lidars with the OpenGL driver of the GPU below;"; \
+		echo "  if they publish nothing, the Safety Boards veto every command."; \
+		lspci 2>/dev/null | grep -i -E 'vga|3d|display' | sed 's/^/    /' || true; \
 	fi
 	@echo ""
 
@@ -149,6 +146,11 @@ diagnose:
 	@echo "[3] PX4-Autopilot:"
 	@if [ -d "$(PX4_DIR)" ]; then \
 		echo "  PX4 directory exists at $(PX4_DIR)"; \
+		if [ "$$(git -C $(PX4_DIR) rev-parse HEAD 2>/dev/null)" = "$(PX4_COMMIT)" ]; then \
+			echo "  At the pinned commit $(PX4_COMMIT)"; \
+		else \
+			echo "  NOT at the pinned commit $(PX4_COMMIT): see make setup-px4"; \
+		fi; \
 		if [ -f "$(PX4_DIR)/build/px4_sitl_default/bin/px4" ]; then \
 			echo "  PX4 built successfully"; \
 		else \
@@ -182,7 +184,7 @@ diagnose:
 	@echo "[8] Running Processes:"
 	@pgrep -a px4 2>/dev/null || echo "  No PX4 processes running"
 	@pgrep -a gz 2>/dev/null || echo "  No Gazebo processes running"
-	@pgrep -a MicroXRCE 2>/dev/null || echo "  No micro-ROS agent running"
+	@pgrep -a MicroXRCE 2>/dev/null || echo "  No uXRCE-DDS agent running"
 	@echo ""
 	@echo "=========================================="
 

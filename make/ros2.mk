@@ -16,8 +16,7 @@
 # ros2.mk - ROS 2 workspace management (native Ubuntu)
 # ==============================================================================
 
-.PHONY: ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-test-topics \
-        ros2-graph ros2-agent
+.PHONY: ros2-build-ws ros2-clean-ws ros2-rebuild-ws ros2-graph
 
 ros2-build-ws:
 	@echo "Rebuilding ROS 2 workspace..."
@@ -31,13 +30,6 @@ ros2-clean-ws:
 
 ros2-rebuild-ws: ros2-clean-ws ros2-build-ws
 
-ros2-test-topics:
-	@echo "Verifying ROS 2 topics from PX4..."
-	@echo ""
-	@echo "Prerequisites: ros2-agent and px4-run must be running."
-	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && ros2 topic list | grep fmu || echo 'No PX4 topics found. Ensure agent and SITL are running.'"
-
 ros2-graph:
 	@echo "=========================================="
 	@echo "ROS 2 Graph Visualization"
@@ -50,21 +42,3 @@ ros2-graph:
 	fi
 	@echo "Opening rqt_graph..."
 	@bash -c "$(WORKSPACE_SOURCE) && rqt_graph"
-
-ros2-agent:
-	@echo "=========================================="
-	@echo "Launching micro-ROS Agent"
-	@echo "=========================================="
-	@echo ""
-	@if ! which MicroXRCEAgent > /dev/null 2>&1; then \
-		echo "Error: MicroXRCEAgent not found."; \
-		echo "Run './install.sh' to install it."; \
-		exit 1; \
-	fi
-	@echo "Stopping any existing micro-ROS agent..."
-	@bash -c "$(KILL_MICRO_ROS)" 2>/dev/null || true
-	@sleep 1
-	@echo "Bridge listening on UDP port 8888."
-	@echo "Keep this terminal open. Press Ctrl+C to stop."
-	@echo ""
-	@MicroXRCEAgent udp4 -p 8888

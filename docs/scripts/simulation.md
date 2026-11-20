@@ -114,7 +114,7 @@ other than `uav` or `ugv`.
 Stops the simulation and clears what it leaves behind, for a clean start:
 
 ```bash
-./scripts/sim/gz_kill.sh   # or: make px4-kill
+./scripts/sim/gz_kill.sh
 ```
 
 1. It kills PX4, Gazebo and the Gazebo bridge of PX4, with SIGKILL.
@@ -124,8 +124,9 @@ Stops the simulation and clears what it leaves behind, for a clean start:
    every PX4 instance (`parameters*.bson` in `build/px4_sitl_default`).
 
 A Gazebo server left running, or the parameters of an earlier session, are a
-common cause of a simulation that starts but never arms. `coastal_up.sh` runs
-the script before it starts Gazebo.
+common cause of a simulation that starts but never arms. `coastal_up.sh` and
+`make demo-coastal` run the script before they start Gazebo, and
+`make px4-kill` runs it, then stops the uXRCE-DDS agents.
 
 It stops neither the uXRCE-DDS agents nor the ROS 2 nodes: `kill_all.sh` does.
 The shared memory it deletes is that of every Fast DDS process on the machine,

@@ -48,7 +48,7 @@ define CHECK_UGV
 endef
 
 # ------------------------------------------------------------------------------
-# Shared Gazebo kill block (used by demo-coastal)
+# Shared Gazebo kill block (used by demo-coastal and px4-kill)
 # Kills all Gazebo Harmonic processes cleanly before launching a new world.
 # ------------------------------------------------------------------------------
 define GZ_KILL
@@ -65,10 +65,11 @@ endef
 # the vehicle it spawns: follow mode disables orbit and pan, which with more
 # than one vehicle makes the view unusable.
 #
-# The rover needs no parameter tweaks: PX4 defaults are correct for it.
-# In particular do NOT set SYS_HAS_MAG 0 (that is a UAV-only workaround) —
-# without a magnetometer the rover EKF never converges, local_position stays
-# invalid, and the vehicle is disarmed by failsafe right after arming.
+# scripts/sim/px4_configure.sh sets the parameters of each instance; the rover
+# needs only its low-battery failsafe off. In particular do NOT set
+# SYS_HAS_MAG 0 on it: without a magnetometer the rover EKF never converges,
+# local_position stays invalid, and the vehicle is disarmed by failsafe right
+# after arming.
 # ------------------------------------------------------------------------------
 demo-coastal:
 	@echo "=========================================="
@@ -161,17 +162,10 @@ setup-ugv:
 # Misc
 # ------------------------------------------------------------------------------
 px4-kill:
-	@echo "Killing all PX4 and Gazebo processes..."
-	@pkill -9 -x px4 2>/dev/null || true
-	@pkill -9 -x gz 2>/dev/null || true
-	@pkill -9 -f "px4-gz_bridge" 2>/dev/null || true
-	@pkill -9 -f "gz_sim_server" 2>/dev/null || true
-	@pkill -9 gzserver 2>/dev/null || true
-	@pkill -9 gzclient 2>/dev/null || true
-	@pkill -9 MicroXRCEAgent 2>/dev/null || true
-	@find $(PX4_DIR)/build/px4_sitl_default -name 'parameters*.bson' -delete 2>/dev/null || true
+	@echo "Killing PX4, Gazebo and the uXRCE-DDS agents..."
+	$(GZ_KILL)
+	@$(KILL_MICRO_ROS)
 	@find $(PX4_DIR)/build/px4_sitl_default -name 'dataman' -delete 2>/dev/null || true
-	@rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 	@echo "All processes stopped."
 
 gazebo-test:
