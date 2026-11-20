@@ -11,6 +11,7 @@ The pages in this folder document each part of the project in detail.
 | [Architecture](architecture.md)       | The layers, the tokens and the transitions, the supervisor, the Safety Board and the safety gate   |
 | [Interfaces](interfaces.md)           | Every topic of a run: its type, its publishers and subscribers, its namespace and its QoS          |
 | [Supervisor console](console.md)      | The panel where the supervisor decides, the console bridge, rosbridge and the demo of the console  |
+| [Development](development.md)         | The layout, the conventions of the code, the style, the CI, and how a change becomes a release     |
 
 ## Packages
 
