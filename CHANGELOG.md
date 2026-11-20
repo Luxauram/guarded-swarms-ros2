@@ -47,6 +47,14 @@ reproducible release.
 - The supervisor console (`console/decision_panel.html`) signs its decisions
   as `console`, the identity recorded in the `authorised_by` field of the
   decision and of the mission it releases.
+- The CI (`.github/workflows/ci.yml`) builds every package of the workspace on
+  ROS 2 Humble, with the dependencies that `rosdep` installs from the package
+  manifests, and runs the Safety Board tests on the mock pipeline
+  (`make test-resilience-mock`) in place of the earlier smoke test. Its lint
+  fails on a finding: `clang-format` against `.clang-format` (the Google style),
+  `flake8` for errors in the Python code (`.flake8`) and `shellcheck` on the
+  shell scripts. The configurations moved from `.github/` to the root, where the
+  tools read them; `black` is no longer run.
 
 ### Removed
 

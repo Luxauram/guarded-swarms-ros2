@@ -1,212 +1,81 @@
-name: Guarded Swarms CI
+name: CI
 
 on:
   push:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
 
-# ==============================================================================
-# Platform: Ubuntu 22.04 native.
-# ROS 2 Humble is installed directly on the CI runner.
-# No GPU available in CI: lidar inactive, smoke test uses mock sensors only.
-# ==============================================================================
+permissions:
+  contents: read
+
+# A newer push to the same branch cancels the run still in progress.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
-  # ============================================================
-  # Job 1: Lint
-  # ============================================================
+  # The linters of Ubuntu 22.04, the versions a development machine has:
+  # clang-format 14, flake8 4 and shellcheck 0.8. Each check fails the job.
   lint:
-    name: Lint (C++ + Python)
-    runs-on: ubuntu-22.04
+    name: Lint
+    runs-on: ubuntu-latest
+    container: ubuntu:22.04
+    steps:
+      - name: Install the linters
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates git clang-format flake8 shellcheck
 
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Trust the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: C++ format (clang-format, .clang-format)
+        run: git ls-files -z '*.cpp' '*.hpp' | xargs -0r clang-format --dry-run --Werror
+
+      - name: Python errors (flake8, .flake8)
+        run: git ls-files -z '*.py' | xargs -0r flake8
+
+      - name: Shell scripts (shellcheck)
+        run: git ls-files -z '*.sh' | xargs -0r shellcheck -S warning
+
+  # Builds the workspace on ROS 2 Humble and runs the Safety Board tests on
+  # the mock pipeline. No simulation: PX4 and Gazebo are not installed, so
+  # rosdep skips the Gazebo bridge packages.
+  build-test:
+    name: Build and test (ROS 2 Humble)
+    runs-on: ubuntu-latest
+    container: ros:humble-ros-base-jammy
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install clang-format
-        run: sudo apt-get install -y clang-format
-
-      - name: C++ format check (clang-format)
-        continue-on-error: true
-        run: |
-          FILES=$(find src \( -name "*.cpp" -o -name "*.hpp" \) 2>/dev/null)
-          if [ -z "$FILES" ]; then
-            echo "No C++ files found - skipping."
-            exit 0
-          fi
-          echo "$FILES" | xargs clang-format --dry-run --Werror --style=file 2>&1 && \
-            echo "C++ format OK." || \
-            echo "C++ format issues found. Fix locally with: find src -name '*.cpp' -o -name '*.hpp' | xargs clang-format -i --style=file"
-
-      - name: Install Python linters
-        run: pip install black flake8
-
-      - name: Python format check (black)
-        continue-on-error: true
-        run: |
-          FILES=$(find src -name "*.py" 2>/dev/null)
-          if [ -z "$FILES" ]; then
-            echo "No Python files found - skipping."
-            exit 0
-          fi
-          echo "$FILES" | xargs black --check --line-length 100 2>&1 && \
-            echo "Python format OK." || \
-            echo "Black format issues found. Fix locally with: find src -name '*.py' | xargs black --line-length 100"
-
-      - name: Python lint (flake8)
-        continue-on-error: true
-        run: |
-          FILES=$(find src -name "*.py" 2>/dev/null)
-          if [ -z "$FILES" ]; then
-            echo "No Python files found - skipping."
-            exit 0
-          fi
-          echo "$FILES" | xargs flake8 --max-line-length=100 --extend-ignore=E501,W503,E203 2>&1 && \
-            echo "Flake8 OK." || \
-            echo "Flake8 issues found. See output above."
-
-  # ============================================================
-  # Job 2: Build ROS 2 packages
-  # ============================================================
-  build:
-    name: Build (ROS 2 Humble native)
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
-          submodules: recursive
+          submodules: true
 
-      - name: Install ROS 2 Humble
+      - name: Install the dependencies (rosdep)
         run: |
-          sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-            -o /usr/share/keyrings/ros-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-            http://packages.ros.org/ros2/ubuntu jammy main" \
-            | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y ros-humble-desktop python3-colcon-common-extensions
+          apt-get update
+          apt-get install -y --no-install-recommends procps
+          rosdep update --rosdistro humble
+          rosdep install --from-paths src --ignore-src -y --rosdistro humble \
+            --skip-keys "ros_gz_sim ros_gz_bridge"
 
-      - name: Build ROS 2 workspace
+      - name: Build
         run: |
-          set -e
           source /opt/ros/humble/setup.bash
-          colcon build \
-            --packages-select guarded_swarms_msgs px4_msgs \
-            --symlink-install \
-            --event-handlers console_direct+
-          source install/setup.bash
-          colcon build \
-            --packages-select \
-              guarded_swarms_safety \
-              guarded_swarms_control \
-              guarded_swarms_bringup \
-            --symlink-install \
-            --event-handlers console_direct+
+          colcon build --event-handlers console_cohesion+
 
-  # ============================================================
-  # Job 3: Smoke test (Safety pipeline - mock sensors, no PX4/Gazebo)
-  #
-  # Verifies:
-  #   - safety_board_node starts without crashing
-  #   - mock_sensor_publisher cycles through fault scenarios
-  #   - SAFE state observed (nominal scenario)
-  #   - UNSAFE state observed (sensor violation)
-  #   - VETO observed (OR-logic blocks actuator command)
-  # ============================================================
-  smoke-test:
-    name: Smoke Test (Safety Pipeline)
-    runs-on: ubuntu-22.04
-    needs: build
+      - name: Safety Board tests (mock pipeline)
+        run: make test-resilience-mock
 
-    steps:
-      - name: Checkout (with submodules)
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install ROS 2 Humble
-        run: |
-          sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-            -o /usr/share/keyrings/ros-archive-keyring.gpg
-          echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-            http://packages.ros.org/ros2/ubuntu jammy main" \
-            | sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
-          sudo apt-get update
-          sudo apt-get install -y ros-humble-desktop python3-colcon-common-extensions
-
-      - name: Build workspace
-        run: |
-          set -e
-          source /opt/ros/humble/setup.bash
-          colcon build \
-            --packages-select guarded_swarms_msgs px4_msgs \
-            --symlink-install
-          source install/setup.bash
-          colcon build \
-            --packages-select \
-              guarded_swarms_safety \
-              guarded_swarms_control \
-              guarded_swarms_bringup \
-            --symlink-install
-
-      - name: Run safety pipeline smoke test
-        run: |
-          set -e
-          source /opt/ros/humble/setup.bash
-          source install/setup.bash
-
-          ros2 run guarded_swarms_safety safety_board_node \
-            > /tmp/safety_board.log 2>&1 &
-          BOARD_PID=$!
-
-          sleep 4
-
-          ros2 run guarded_swarms_safety mock_sensor_publisher \
-            > /tmp/mock_sensors.log 2>&1 &
-          SENSORS_PID=$!
-
-          sleep 25
-
-          kill $BOARD_PID $SENSORS_PID 2>/dev/null || true
-          sleep 2
-
-          echo "=== Safety Board Output ==="
-          cat /tmp/safety_board.log
-          echo ""
-          echo "=== Mock Sensor Output ==="
-          cat /tmp/mock_sensors.log
-          echo ""
-
-          FAILED=0
-
-          if grep -q 'SAFE' /tmp/safety_board.log; then
-            echo "[OK]  SAFE state observed"
-          else
-            echo "[FAIL] No SAFE state observed"
-            FAILED=1
-          fi
-
-          if grep -q 'UNSAFE' /tmp/safety_board.log; then
-            echo "[OK]  UNSAFE state observed"
-          else
-            echo "[FAIL] No UNSAFE state observed"
-            FAILED=1
-          fi
-
-          if grep -q 'VETO' /tmp/safety_board.log; then
-            echo "[OK]  VETO observed"
-          else
-            echo "[FAIL] No VETO observed"
-            FAILED=1
-          fi
-
-          echo ""
-          if [ $FAILED -eq 0 ]; then
-            echo "All smoke tests passed."
-          else
-            echo "One or more smoke tests FAILED."
-            exit 1
-          fi
+      - name: Mock pipeline log
+        if: failure()
+        run: cat /tmp/mock_pipeline.log || true
