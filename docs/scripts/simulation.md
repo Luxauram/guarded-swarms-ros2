@@ -174,10 +174,13 @@ With SIGKILL, in this order:
 1. the builds and runs of PX4 started by make (`make` and `cmake` with
    `px4_sitl` on the command line), so they do not start the simulator again;
 2. PX4, Gazebo, the Gazebo bridge of PX4 and the uXRCE-DDS agents;
-3. every node of the packages, `mock_sensor_publisher` included, and the
-   console bridge, matched on the whole command line, since the names of the
-   executables are longer than the 15 characters `pkill` compares otherwise;
-4. every `parameter_bridge` of `ros_gz_bridge`.
+3. every node of the packages, `mock_sensor_publisher` included, matched on the
+   path of its executable, `install/<package>/lib/<package>/<node>`, and the
+   console bridge, matched on `python3` and the name of its script: a process
+   that only names a node, such as an editor open on its source file, is left
+   running;
+4. every `parameter_bridge` of `ros_gz_bridge`, matched on the path of its
+   executable.
 
 Then it deletes the temporary files of Gazebo and the shared memory, as
 `gz_kill.sh` does, but not the saved parameters of PX4. It leaves rosbridge

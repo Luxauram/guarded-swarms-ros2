@@ -30,8 +30,10 @@
 # process, which is normal here and must not abort the shutdown. For the same
 # reason this script does NOT use 'set -e'.
 #
-# Node names are matched with 'pkill -f' against the full command line, since
-# ROS 2 executable names exceed pkill's ~15-character process-name limit.
+# The nodes are matched with 'pkill -f' on the path of their executable, since
+# ROS 2 executable names exceed the 15 characters pkill compares otherwise. A
+# process that only names a node, such as an editor open on its source file,
+# does not match.
 #
 # Usage:
 #   ./scripts/kill_all.sh
@@ -56,35 +58,15 @@ pkill -9 gzserver 2>/dev/null || true
 pkill -9 gzclient 2>/dev/null || true
 pkill -9 MicroXRCEAgent 2>/dev/null || true
 
-# Analog safety layer.
-pkill -9 -f "safety_board_node" 2>/dev/null || true
-pkill -9 -f "px4_safety_bridge_node" 2>/dev/null || true
-pkill -9 -f "mock_sensor_publisher" 2>/dev/null || true
+# Every node of the packages, mock_sensor_publisher included, by the path of
+# its executable: install/<package>/lib/<package>/<node>.
+pkill -9 -f 'lib/guarded_swarms_[a-z0-9_]+/([a-z0-9_]+_node|mock_sensor_publisher)( |$)' 2>/dev/null || true
 
-# Sensor consultant agents (upstream of T1, T2 and T4).
-pkill -9 -f "radar_agent_node" 2>/dev/null || true
-pkill -9 -f "rf_agent_node" 2>/dev/null || true
-pkill -9 -f "acoustic_agent_node" 2>/dev/null || true
-pkill -9 -f "eo_agent_node" 2>/dev/null || true
-
-# TB-CSPN coordination transitions (T1-T7).
-pkill -9 -f "interpretation_node" 2>/dev/null || true
-pkill -9 -f "candidate_transition_node" 2>/dev/null || true
-pkill -9 -f "mission_transition_node" 2>/dev/null || true
-pkill -9 -f "dispatch_transition_node" 2>/dev/null || true
-
-# Supervisor side of T6: the scripted supervisor and the console bridge.
-pkill -9 -f "scripted_supervisor_node" 2>/dev/null || true
-pkill -9 -f "console_bridge_node" 2>/dev/null || true
-
-# Worker agents and the intruder.
-pkill -9 -f "uav_worker_node" 2>/dev/null || true
-pkill -9 -f "ugv_worker_node" 2>/dev/null || true
-pkill -9 -f "px4_safety_gate_node" 2>/dev/null || true
-pkill -9 -f "intruder_node" 2>/dev/null || true
+# The console bridge, which runs from the source tree with python3.
+pkill -9 -f 'python3 [^ ]*console_bridge_node\.py( |$)' 2>/dev/null || true
 
 # Gazebo <-> ROS 2 topic bridges.
-pkill -9 -f "parameter_bridge" 2>/dev/null || true
+pkill -9 -f 'lib/ros_gz_bridge/parameter_bridge( |$)' 2>/dev/null || true
 
 rm -rf /tmp/.gazebo* /dev/shm/sem.* /dev/shm/fastrtps_* 2>/dev/null || true
 echo "All processes terminated."
