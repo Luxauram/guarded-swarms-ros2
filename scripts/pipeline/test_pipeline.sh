@@ -267,7 +267,7 @@ if [ "$MANUAL_AUTH" = "1" ]; then
           echo "$(date +%H:%M:%S) $mid" >> /tmp/gs_missions.log
         done ) &
   MISSION_WATCH_PID=$!
-  PIDS+=($MISSION_WATCH_PID)
+  PIDS+=("$MISSION_WATCH_PID")
 fi
 
 # One intruder only: a second source of ground truth would mix two trajectories
@@ -341,7 +341,7 @@ timeout "${THREAT_TIMEOUT}" bash -c '
       | grep -q -m1 ConfirmedThreat
   ' &
 THREAT_WATCH_PID=$!
-PIDS+=($THREAT_WATCH_PID)
+PIDS+=("$THREAT_WATCH_PID")
 if wait "$THREAT_WATCH_PID"; then
   got_threat=1
 fi

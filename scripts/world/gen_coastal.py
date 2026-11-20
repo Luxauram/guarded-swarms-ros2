@@ -74,12 +74,12 @@ def _material(r, g, b, spec):
     @return      List of SDF lines describing the material, unindented.
     """
     return [
-        f"<material>",
+        "<material>",
         f"  <ambient>{r:.2f} {g:.2f} {b:.2f} 1</ambient>",
         f"  <diffuse>{min(r * 1.12, 1):.2f} {min(g * 1.12, 1):.2f} "
         f"{min(b * 1.12, 1):.2f} 1</diffuse>",
         f"  <specular>{spec}</specular>",
-        f"</material>",
+        "</material>",
     ]
 
 
@@ -119,26 +119,26 @@ def box_model(name, pose, size, colour, collision=True, shadows=True,
         SOLIDS.append((name, x, y, sx, sy))
     body = [
         f'<model name="{name}">',
-        f"  <static>true</static>",
+        "  <static>true</static>",
         f"  <pose>{x} {y} {z} 0 0 {yaw}</pose>",
-        f'  <link name="link">',
+        '  <link name="link">',
     ]
     if collision:
         body += [
-            f'    <collision name="collision">',
+            '    <collision name="collision">',
             f"      <geometry><box><size>{sx} {sy} {sz}</size></box></geometry>",
-            f"    </collision>",
+            "    </collision>",
         ]
     body += [
-        f'    <visual name="visual">',
+        '    <visual name="visual">',
         f'      <cast_shadows>{"true" if shadows else "false"}</cast_shadows>',
         f"      <geometry><box><size>{sx} {sy} {sz}</size></box></geometry>",
     ]
     body += ["      " + m for m in _material(r, g, b, "0.12 0.12 0.12 1")]
     body += [
-        f"    </visual>",
-        f"  </link>",
-        f"</model>",
+        "    </visual>",
+        "  </link>",
+        "</model>",
         "",
     ]
     _emit(body, indent)
@@ -167,27 +167,27 @@ def cyl_model(name, pose, radius, length, colour, collision=True, indent=IND):
         SOLIDS.append((name, x, y, radius * 2, radius * 2))
     body = [
         f'<model name="{name}">',
-        f"  <static>true</static>",
+        "  <static>true</static>",
         f"  <pose>{x} {y} {z} 0 0 {yaw}</pose>",
-        f'  <link name="link">',
+        '  <link name="link">',
     ]
     if collision:
         body += [
-            f'    <collision name="collision">',
+            '    <collision name="collision">',
             f"      <geometry><cylinder><radius>{radius}</radius>"
             f"<length>{length}</length></cylinder></geometry>",
-            f"    </collision>",
+            "    </collision>",
         ]
     body += [
-        f'    <visual name="visual">',
+        '    <visual name="visual">',
         f"      <geometry><cylinder><radius>{radius}</radius>"
         f"<length>{length}</length></cylinder></geometry>",
     ]
     body += ["      " + m for m in _material(r, g, b, "0.15 0.15 0.15 1")]
     body += [
-        f"    </visual>",
-        f"  </link>",
-        f"</model>",
+        "    </visual>",
+        "  </link>",
+        "</model>",
         "",
     ]
     _emit(body, indent)
@@ -547,6 +547,6 @@ with open(OUT_PATH, "w") as f:
     f.write(text)
 print(f"wrote  : {os.path.abspath(OUT_PATH)}")
 print(f"lines  : {text.count(chr(10))}")
-print(f"groups : 6")
+print("groups : 6")
 print(f"models : {text.count('<model name=')}")
 print(f"buildings: {n_buildings}")

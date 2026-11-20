@@ -42,7 +42,7 @@ import math
 import os
 import sys
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 SAFE_THRESHOLD = 0.5       # safety_status >= this is "safe"
 DENIED_EPS = 1e-6          # actuator_cmd_safe at/below this is a denied command

@@ -290,7 +290,7 @@ add_to_bashrc() {
 }
 add_to_bashrc "source /opt/ros/humble/setup.bash"
 add_to_bashrc "source $REPO_DIR/install/setup.bash"
-ok "~/.bashrc configured."
+ok "$BASHRC configured."
 
 # ------------------------------------------------------------------------------
 # Make the utility scripts executable.
