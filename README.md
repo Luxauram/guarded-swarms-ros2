@@ -6,6 +6,7 @@
 [![PX4](https://img.shields.io/badge/PX4-SITL%2C_pinned-green.svg)](docs/getting-started.md#the-px4-version)
 [![Platform](https://img.shields.io/badge/Platform-Ubuntu_22.04-E95420.svg)](https://ubuntu.com/)
 [![License](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
+[![Data](https://img.shields.io/badge/Data-10.5281%2Fzenodo.24402598-blue.svg)](https://doi.org/10.5281/zenodo.24402598)
 
 A ROS 2 digital twin of the Guarded Swarms architecture for heterogeneous
 UAV/UGV swarms. Four sensing agents turn a moving intruder into semantic tokens;
@@ -84,6 +85,13 @@ and figure in `results/` from the recordings. See
 [Campaigns](docs/experiments/campaigns.md),
 [Analysis](docs/experiments/analysis.md) and the
 [clock-denial bench](docs/experiments/clock.md).
+
+The recordings that `make_results.sh` reads, and the results it builds from
+them, are archived on Zenodo:
+[doi:10.5281/zenodo.24402598](https://doi.org/10.5281/zenodo.24402598).
+Extracted at the root of the repository, the archive fills `bags/` and
+`results/`, 3.4 GB in all, and `make_results.sh` rebuilds the results without
+recording anything.
 
 ## Documentation
 

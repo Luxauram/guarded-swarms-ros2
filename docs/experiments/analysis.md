@@ -26,6 +26,13 @@ seen from above, and the verdicts of the Safety Board over time (see
 the experiments and rebuilds every table and figure in `results/` (see
 [Every result at once](#every-result-at-once)).
 
+The recordings that `make_results.sh` reads, and the results it builds from
+them, are archived on Zenodo:
+[doi:10.5281/zenodo.24402598](https://doi.org/10.5281/zenodo.24402598).
+Extracted at the root of the repository, the archive fills `bags/` and
+`results/`, 3.4 GB in all, so that the analysis runs without recording
+anything.
+
 ## Quick start
 
 ```bash
