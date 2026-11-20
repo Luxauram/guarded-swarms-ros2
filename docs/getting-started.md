@@ -41,26 +41,31 @@ cd guarded-swarms-ros2
 ./install.sh
 ```
 
-The script takes 20 to 40 minutes and runs these steps:
+Run it as your user, not as root: it calls `sudo` where it needs to. It takes
+20 to 40 minutes, and runs these steps:
 
-1. ROS 2 Humble.
-2. Gazebo Harmonic.
-3. The Micro-XRCE-DDS agent, the transport between PX4 and ROS 2.
-4. The PX4 dependencies and SITL, at the pinned commit.
-5. rosbridge, the WebSocket bridge of the supervisor console.
-6. The ROS 2 workspace.
-7. A check of the rover model, and the coastal world regenerated from its
-   generator.
-8. The environment in `~/.bashrc`.
+1. ROS 2 Humble, with rosbridge, the WebSocket bridge of the supervisor
+   console, and the Python libraries of the scripts. On a system without
+   ROS 2 it first upgrades the installed packages, as the ROS 2 documentation
+   asks for a fresh Ubuntu 22.04.
+2. Gazebo Harmonic, and its ROS 2 bridge, `ros-humble-ros-gzharmonic`.
+3. Micro XRCE-DDS Agent, the transport between PX4 and ROS 2, at its release
+   v2.4.3.
+4. PX4 SITL, cloned into `~/PX4-Autopilot` at the pinned commit, with its
+   dependencies.
+5. The ROS 2 workspace: the submodules, the dependencies of the packages,
+   installed with rosdep, and the build of every package.
+6. The environment, in `~/.bashrc`.
 
-Each step can also be run on its own:
+Each step skips what is already in place, so the script can run again after a
+failure, or on a machine that already has part of the stack. It stops on a
+release other than Ubuntu 22.04, and on a PX4 tree at another commit, which it
+does not touch: it prints the commands that bring the tree to the pinned one.
 
-| Command                | Effect                                                                             |
-| ---------------------- | ---------------------------------------------------------------------------------- |
-| `make setup-workspace` | Build the ROS 2 packages                                                           |
-| `make setup-px4`       | Clone and build PX4                                                                |
-| `make setup-ugv`       | Check that the UGV model carries its lidar                                         |
-| `make gen-coastal`     | Generate the coastal world; with its fixed seed the file is identical at every run |
+On a machine that already has ROS 2, Gazebo and the agent, `make setup-px4` and
+`make setup-workspace` build PX4 and the workspace alone (see
+[Make targets](make.md#setup)). The coastal world is part of the repository:
+`make gen-coastal` regenerates it only after a change to its generator.
 
 ## The coastal scenario
 
@@ -71,11 +76,15 @@ make demo-coastal
 The scenario starts Gazebo with the coastal world, one PX4 instance and one
 uXRCE-DDS agent per vehicle, and the vehicle-side nodes: two UAVs that take off
 and hover over their launch pads, and a UGV that patrols the shore road. Leave
-it running in its own terminal.
+it running in its own terminal. Ctrl-C stops the nodes of the vehicles, and
+leaves Gazebo, the agents and PX4 running in their windows: `make kill-all`
+stops everything (see [Make targets](make.md#the-coastal-scenario)).
 
-The lidar sensors need GPU rendering. On a machine with both integrated and
-NVIDIA graphics, `scripts/sim/gz_launch.sh`, which starts Gazebo for the
-scenario, selects the NVIDIA GPU itself; `make check-gpu` checks the setup.
+Gazebo renders the lidar sensors on the GPU. On a machine with both integrated
+and NVIDIA graphics, `scripts/sim/gz_launch.sh`, which starts Gazebo for the
+scenario, selects the NVIDIA GPU when its driver is loaded; `make check-gpu`
+shows the GPU. Without the scans of the lidars the Safety Boards have no
+proximity reading, and veto every command.
 
 `make check-coastal` checks a running scenario: the real-time factor, the topics
 of each vehicle, that each vehicle is armed and airborne, the Safety Boards, and
@@ -102,14 +111,10 @@ intercept the intruder and the UGV moves to observe it.
 a run (decision and its delay, intruder path and speed, seed, recording) are in
 [Pipeline run scripts](scripts/pipeline.md).
 
-The supervisor console is the live demonstration of the decision. With the
-scenario, rosbridge
-(`ros2 launch rosbridge_server rosbridge_websocket_launch.xml`) and the console
-bridge (`python3 console/console_bridge_node.py`) running,
-`./scripts/pipeline/demo_console.sh` launches the intruder on a demonstration
-path, the sensing agents and the TB-CSPN transitions, and prints each mission as
-soon as it is released. The decision is taken by pressing Authorise in
-`console/decision_panel.html`, opened in a browser.
+The decision can also be taken in the supervisor console, a page opened in a
+browser, with `scripts/pipeline/demo_console.sh` in place of the test script.
+The console is a demonstration, not used in the recorded runs, and it does not
+always work reliably; it is described in [Supervisor console](console.md).
 
 ### Running the layers by hand
 
@@ -122,9 +127,9 @@ ros2 launch guarded_swarms_tbcspn tbcspn.launch.py
 DECISION=authorise ros2 launch guarded_swarms_supervisor supervisor.launch.py
 ```
 
-Instead of the scripted supervisor, the decision can be published by hand with
-the command given in `tbcspn.launch.py`. The supervisor and its decisions are
-described in
+Instead of the scripted supervisor, the decision can be published by hand (see
+[`guarded_swarms_tbcspn`](packages/guarded_swarms_tbcspn.md#mission_transition_node)).
+The supervisor and its decisions are described in
 [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md).
 
 ### Watching the chain
@@ -144,10 +149,17 @@ through six scenarios: nominal (pass), proximity 0.8 m (veto), attitude 45°
 (veto), battery 10% (veto), altitude 60 m (veto), and nominal again (pass).
 
 ```bash
-make demo-safety-board      # terminal 1
-make demo-safety-sensors    # terminal 2
-ros2 topic echo /actuator_cmd_safe    # 0.6 passed, 0.0 vetoed
+make demo-safety-board      # terminal 1: the board
+make demo-safety-sensors    # terminal 2: the scripted readings
+# terminal 3: a proposed command, ten times a second
+ros2 topic pub -r 10 /actuator_cmd_raw std_msgs/msg/Float32 "{data: 0.6}"
+# terminal 4: 0.6 while the board is safe, 0.0 while it vetoes
+ros2 topic echo /actuator_cmd_safe
 ```
+
+The mock publisher proposes no command, so the third terminal proposes one.
+`make test-resilience-mock` runs the tests of the board (see
+[Resilience tests](scripts/resilience.md)).
 
 ## Useful commands
 
@@ -159,3 +171,5 @@ ros2 topic echo /actuator_cmd_safe    # 0.6 passed, 0.0 vetoed
 | `make check-gpu`       | GPU support                       |
 | `make ros2-rebuild-ws` | Clean and rebuild the workspace   |
 | `make kill-all`        | Stop every process of the project |
+
+Every target is described in [Make targets](make.md).

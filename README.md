@@ -23,8 +23,8 @@ software-in-the-loop, in Gazebo Harmonic.
   time windows into a CandidateTarget and a ConfirmedThreat, and every token
   keeps the chain of tokens it was derived from.
 - **Human authorisation.** No mission is released without a supervisor's
-  decision, taken in the browser-based supervisor console, by hand, or by a
-  scripted supervisor in automated runs.
+  decision, taken by a scripted supervisor in automated runs, by hand, or in a
+  browser-based console.
 - **A Safety Board on every vehicle.** An OR-logic veto on proximity, attitude,
   battery, altitude and stale sensor data, independent of the coordination
   layer. On the UAVs a safety gate between the worker and PX4 can enforce it
@@ -51,9 +51,11 @@ cd guarded-swarms-ros2
 ./install.sh
 ```
 
-`install.sh` installs ROS 2, Gazebo, the uXRCE-DDS agent, PX4 at the pinned
-commit and rosbridge, builds the workspace and generates the coastal world, in
-20 to 40 minutes. See [Getting started](docs/getting-started.md#installation).
+`install.sh` installs ROS 2 with rosbridge, Gazebo Harmonic, the uXRCE-DDS
+agent and PX4 at the pinned commit, then the dependencies of the packages with
+rosdep, and builds the workspace, in 20 to 40 minutes. Run it as your user: it
+calls `sudo` where it needs to. See
+[Getting started](docs/getting-started.md#installation).
 
 ## Quick start
 
@@ -89,7 +91,7 @@ and figure in `results/` from the recordings. See
 | ------------------------------------------ | -------------------------------------------------------------------------------- |
 | [Getting started](docs/getting-started.md) | Requirements, installation, the coastal scenario, a run of the pipeline          |
 | [Architecture](docs/architecture.md)       | The layers, the tokens and the transitions, the Safety Board and the safety gate |
-| [Documentation index](docs/README.md)      | Every page: packages, scripts, experiments                                       |
+| [Documentation index](docs/README.md)      | Every page: interfaces, make, packages, scripts, experiments, development        |
 | [Changelog](CHANGELOG.md)                  | The changes of every version                                                     |
 
 ## Repository layout

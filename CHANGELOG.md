@@ -9,6 +9,18 @@ reproducible release.
 
 ## [Unreleased]
 
+### Added
+
+- The complete documentation, in `docs/`: a page for every package, with its
+  nodes, topics, parameters and launch files; the reference of every topic,
+  with its publishers, subscribers and QoS (`interfaces.md`); the make targets
+  (`make.md`); the simulation scripts, the resilience tests, the veto recording
+  and the scaling bench; the supervisor console (`console.md`); and the
+  conventions of the code, its style, the CI and the release process
+  (`development.md`).
+- `.editorconfig`, so that editors keep every file in UTF-8, with LF line
+  endings and a final newline.
+
 ### Changed
 
 - The supervisor console loads roslib 1.4.1, the version `roslib@1` resolves
