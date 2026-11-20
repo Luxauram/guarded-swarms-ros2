@@ -15,6 +15,7 @@ The pages in this folder document each part of the project in detail.
 | Package                                                              | Description                                                                                              |
 | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
 | [`guarded_swarms_msgs`](packages/guarded_swarms_msgs.md)             | Messages of the coordination layer, from the observations to the tasks of the vehicles, field by field   |
+| [`guarded_swarms_sensing`](packages/guarded_swarms_sensing.md)       | The four sensing agents, radar, RF, acoustic and EO, with their coverage, error and rate models          |
 | [`guarded_swarms_safety`](packages/guarded_swarms_safety.md)         | The Safety Board of each vehicle, its checks and limits, and a scripted sensor publisher for a demo      |
 | [`guarded_swarms_control`](packages/guarded_swarms_control.md)       | Vehicle-side nodes and the simulated intruder, including the safety gate between the UAV workers and PX4 |
 | [`guarded_swarms_supervisor`](packages/guarded_swarms_supervisor.md) | Scripted supervisor that issues the authorisation decisions of T6 in automated runs                      |

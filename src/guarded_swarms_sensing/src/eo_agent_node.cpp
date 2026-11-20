@@ -47,11 +47,10 @@
  * delivered, but too late to matter. The default is 0 (no delay), so normal
  * runs are unaffected.
  *
- * The camera is modelled as a cone: an axis direction (a fixed bearing and
- * pitch in the world frame for now) and a half-angle. When the worker agents
- * start slewing the UAVs, the coverage follows the platform automatically,
- * since it is derived from the live pose. Pointing the camera actively (a
- * gimbal that tracks a cued bearing) is a later refinement.
+ * The camera is modelled as a cone: an axis direction, a fixed bearing and
+ * pitch in the world frame, and a half-angle. The cone is placed at the live
+ * position of the UAV, so the coverage follows the UAV as its worker flies it;
+ * the axis does not turn with the heading of the UAV.
  *
  * The UAV position arrives in NED from PX4 (vehicle_local_position). It is
  * converted to the world ENU frame that the target ground truth uses. The
