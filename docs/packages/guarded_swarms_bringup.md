@@ -10,7 +10,7 @@ their packages.
 | ----------------------------------- | ------------------------------------------------------------------------ |
 | `config/coastal_fleet.yaml`         | The vehicles of the coastal scenario                                     |
 | `launch/coastal_pipeline.launch.py` | The nodes of every vehicle of the fleet, and the clock of the simulation |
-| `launch/intruder.launch.py`         | The intruder and its two Gazebo bridges                                  |
+| `launch/intruder.launch.py`         | The intruder and the bridge of its velocity command to Gazebo            |
 | `launch/mock_pipeline.launch.py`    | A Safety Board alone, without PX4 or Gazebo                              |
 
 ## coastal_fleet.yaml
@@ -126,8 +126,8 @@ ros2 topic echo /px4_2/drone/proximity      # distance read by the UGV's lidar
 
 ## intruder.launch.py
 
-Starts the intruder of `guarded_swarms_control` and the two bridges that move
-its model in Gazebo and read its pose back. It is documented with the node, in
+Starts the intruder of `guarded_swarms_control` and the bridge that carries its
+velocity command to Gazebo. It is documented with the node, in
 [`guarded_swarms_control`](guarded_swarms_control.md#intruderlaunchpy).
 
 ## mock_pipeline.launch.py

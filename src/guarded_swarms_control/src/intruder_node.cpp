@@ -39,10 +39,10 @@
  * loop entirely, and makes the trajectory repeatable: the same parameters
  * always produce the same path.
  *
- * The dead-reckoned position (integrated from the commanded velocity) decides
- * when the run is complete. The model's pose is subscribed only to publish an
- * accurate ground truth for the consultant agents; it never feeds back into
- * the motion command.
+ * The dead-reckoned position, integrated from the commanded velocity, is the
+ * ground truth published for the consultant agents, and decides when the run
+ * is complete. The model moves kinematically, without gravity, so it follows
+ * the same path; only a collision in Gazebo would make the two differ.
  *
  * SIMULATED TIME
  * ==============
@@ -66,8 +66,6 @@
  *     intruder/ground_truth     (geometry_msgs/PoseStamped)
  *     intruder/active           (std_msgs/Bool)
  *     intruder/transmitting     (std_msgs/Bool)
- *   Subscribed:
- *     /model/intruder/pose      (geometry_msgs/PoseStamped)  via ros_gz_bridge
  *
  * @author Luca D'Aurizio
  */
@@ -109,8 +107,6 @@ class IntruderNode : public rclcpp::Node {
 
     const auto cmd_topic = this->declare_parameter<std::string>(
         "cmd_vel_topic", "/model/intruder/cmd_vel");
-    const auto pose_topic = this->declare_parameter<std::string>(
-        "pose_topic", "/model/intruder/pose");
 
     // Unit ingress direction and total distance, computed once.
     const double dx = target_x_ - ingress_x_;
@@ -136,18 +132,6 @@ class IntruderNode : public rclcpp::Node {
                                                               QUEUE_SIZE);
     transmitting_pub_ = this->create_publisher<std_msgs::msg::Bool>(
         "intruder/transmitting", QUEUE_SIZE);
-
-    // Pose is used ONLY to refine the published ground truth. It never feeds
-    // back into the velocity command, so a gap in this feed cannot stall the
-    // trajectory.
-    pose_sub_ = this->create_subscription<geometry_msgs::msg::PoseStamped>(
-        pose_topic, QUEUE_SIZE,
-        [this](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
-          meas_x_ = m->pose.position.x;
-          meas_y_ = m->pose.position.y;
-          meas_z_ = m->pose.position.z;
-          pose_valid_ = true;
-        });
 
     // The timer runs on the node clock, which is simulated time: it ticks
     // PUBLISH_RATE_HZ times per simulated second, whatever the real-time
@@ -250,18 +234,14 @@ class IntruderNode : public rclcpp::Node {
     transmitting_pub_->publish(tx);
   }
 
-  /** @brief Publishes the target's ground-truth pose (measured, else
-   * dead-reckoned). */
+  /** @brief Publishes the dead-reckoned position as the ground truth. */
   void publish_ground_truth() {
     geometry_msgs::msg::PoseStamped truth;
     truth.header.stamp = this->now();
     truth.header.frame_id = "world";
-    // Prefer the measured pose when available; fall back to dead reckoning so
-    // ground truth is published from the very first tick, before any pose has
-    // arrived.
-    truth.pose.position.x = pose_valid_ ? meas_x_ : dr_x_;
-    truth.pose.position.y = pose_valid_ ? meas_y_ : dr_y_;
-    truth.pose.position.z = pose_valid_ ? meas_z_ : dr_z_;
+    truth.pose.position.x = dr_x_;
+    truth.pose.position.y = dr_y_;
+    truth.pose.position.z = dr_z_;
     truth.pose.orientation.w = 1.0;
     truth_pub_->publish(truth);
   }
@@ -270,7 +250,6 @@ class IntruderNode : public rclcpp::Node {
   rclcpp::Publisher<geometry_msgs::msg::PoseStamped>::SharedPtr truth_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr active_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr transmitting_pub_;
-  rclcpp::Subscription<geometry_msgs::msg::PoseStamped>::SharedPtr pose_sub_;
   rclcpp::TimerBase::SharedPtr timer_;
 
   rclcpp::Time start_time_, last_step_;
@@ -284,9 +263,6 @@ class IntruderNode : public rclcpp::Node {
 
   double ux_ = 0.0, uy_ = 0.0, uz_ = 0.0, total_dist_ = 0.0;
   double dr_x_ = 0.0, dr_y_ = 0.0, dr_z_ = 0.0, travelled_ = 0.0;
-
-  double meas_x_ = 0.0, meas_y_ = 0.0, meas_z_ = 0.0;
-  bool pose_valid_ = false;
 };
 
 int main(int argc, char* argv[]) {

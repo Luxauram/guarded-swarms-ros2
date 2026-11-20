@@ -159,8 +159,8 @@ FAULT_TARGETS = [UAV0_FAULT_TARGET, UAV1_FAULT_TARGET]
 UAV_FAULT_ALTITUDE_M = 12.0
 
 # Rover patrol, NED relative to spawn, flattened as north,east,north,east...
-# NED East = Gazebo X, so varying the second value drives along the shore.
-# From X = -60 eastward, the road barrier at X = -8 triggers the veto.
+# NED East = Gazebo X, so varying the second value drives along the shore:
+# from the spawn point at X = -60 to X = -14, and back.
 UGV_WAYPOINTS = [0.0, 0.0, 0.0, 46.0]
 
 LASERSCAN_BRIDGE = "@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan"

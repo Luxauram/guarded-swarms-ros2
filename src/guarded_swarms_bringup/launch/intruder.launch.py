@@ -25,17 +25,15 @@ the adversary can be started, stopped and re-parameterised independently of the
 swarm. The counterfactual runs are different invocations of this file, not
 different code.
 
-Two bridges are needed because the intruder is driven kinematically rather
-than by PX4:
+The intruder is driven kinematically rather than by PX4, so one bridge carries
+its commanded velocity to Gazebo:
 
   ROS -> GZ   /model/intruder/cmd_vel     commanded velocity
-  GZ  -> ROS  /model/intruder/pose        measured pose; when it arrives, the
-                                          node publishes it as ground truth in
-                                          place of its dead-reckoned position
 
-The intruder node runs on the simulation clock (use_sim_time), like the rest
-of the scenario: its start delay, its motion and its ground truth follow
-simulated time.
+The ground truth the node publishes is the position it integrates from that
+velocity. The intruder node runs on the simulation clock (use_sim_time), like
+the rest of the scenario: its start delay, its motion and its ground truth
+follow simulated time.
 
 Prereq: 'make demo-coastal' (or at least scripts/sim/gz_launch.sh coastal).
 
@@ -55,7 +53,6 @@ from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
 CMD_VEL_TOPIC = "/model/intruder/cmd_vel"
-POSE_TOPIC = "/model/intruder/pose"
 
 
 def generate_launch_description():
@@ -95,16 +92,6 @@ def generate_launch_description():
         emulate_tty=True,
     )
 
-    # GZ -> ROS, ground truth.
-    pose_bridge = Node(
-        package="ros_gz_bridge",
-        executable="parameter_bridge",
-        name="intruder_pose_bridge",
-        output="screen",
-        arguments=[POSE_TOPIC + "@geometry_msgs/msg/PoseStamped[gz.msgs.Pose"],
-        emulate_tty=True,
-    )
-
     intruder_node = Node(
         package="guarded_swarms_control",
         executable="intruder_node",
@@ -123,7 +110,6 @@ def generate_launch_description():
             "transmitting": ParameterValue(LaunchConfiguration("transmitting"),
                                            value_type=bool),
             "cmd_vel_topic": CMD_VEL_TOPIC,
-            "pose_topic": POSE_TOPIC,
             "use_sim_time": True,
         }],
         emulate_tty=True,
@@ -140,6 +126,5 @@ def generate_launch_description():
         LogInfo(msg="          ros2 topic echo /intruder/active"),
         LogInfo(msg="============================================================"),
         cmd_bridge,
-        pose_bridge,
         intruder_node,
     ])

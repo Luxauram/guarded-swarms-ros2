@@ -9,6 +9,14 @@ reproducible release.
 
 ## [Unreleased]
 
+### Removed
+
+- The pose bridge of `intruder.launch.py`, and the pose subscription of
+  `intruder_node` with its `pose_topic` parameter. Gazebo publishes
+  `/model/intruder/pose` as `gz.msgs.Pose_V`, the bridge read it as
+  `gz.msgs.Pose`, and no pose ever reached the node: the ground truth of the
+  intruder has always been its dead-reckoned position, which it remains.
+
 ### Fixed
 
 - `make demo-safety` shows how to see the veto. The mock sensor publisher

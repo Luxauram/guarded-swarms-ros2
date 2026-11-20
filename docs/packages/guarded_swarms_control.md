@@ -434,21 +434,21 @@ the first tick with a valid clock, and then goes through three phases:
 - **Open loop.** The velocity depends only on the time and the parameters, never
   on feedback from Gazebo. The distance travelled is integrated from the
   commanded velocity, starting at the ingress point, and decides the arrival.
-- **Ground truth.** At each tick the node publishes the position of the target:
-  the pose Gazebo reports for the model once it has arrived, the dead-reckoned
-  position before, in the world frame.
+- **Ground truth.** At each tick the node publishes the position of the target,
+  in the world frame: the dead-reckoned position. The model moves
+  kinematically, without gravity, so it follows the same path; only a collision
+  in Gazebo would make the two differ.
 - **Flags.** At each tick it also publishes whether the target is on its
   ingress, and whether it transmits, the `transmitting` parameter. A target that
   does not transmit is invisible to the RF agent (see
   [`guarded_swarms_sensing`](guarded_swarms_sensing.md#rf_agent_node)).
 
-| Topic                   | Type                            | Direction  | Content                                   |
-| ----------------------- | ------------------------------- | ---------- | ----------------------------------------- |
-| `cmd_vel_topic`         | `geometry_msgs/msg/Twist`       | Published  | Commanded linear velocity, world ENU, m/s |
-| `intruder/ground_truth` | `geometry_msgs/msg/PoseStamped` | Published  | Position of the target, world ENU         |
-| `intruder/active`       | `std_msgs/msg/Bool`             | Published  | True during the ingress                   |
-| `intruder/transmitting` | `std_msgs/msg/Bool`             | Published  | Whether the target transmits              |
-| `pose_topic`            | `geometry_msgs/msg/PoseStamped` | Subscribed | Pose of the model, from Gazebo            |
+| Topic                   | Type                            | Direction | Content                                   |
+| ----------------------- | ------------------------------- | --------- | ----------------------------------------- |
+| `cmd_vel_topic`         | `geometry_msgs/msg/Twist`       | Published | Commanded linear velocity, world ENU, m/s |
+| `intruder/ground_truth` | `geometry_msgs/msg/PoseStamped` | Published | Position of the target, world ENU         |
+| `intruder/active`       | `std_msgs/msg/Bool`             | Published | True during the ingress                   |
+| `intruder/transmitting` | `std_msgs/msg/Bool`             | Published | Whether the target transmits              |
 
 The node runs in the root namespace, so its topics are `/intruder/...`. All use
 the default QoS: reliable, volatile, depth 10.
@@ -462,17 +462,15 @@ the default QoS: reliable, volatile, depth 10.
 | `arrival_radius_m`                    | double | `3.0`                     | Distance from the target point that counts as arrived, m |
 | `transmitting`                        | bool   | `true`                    | Whether the target transmits a radio link                |
 | `cmd_vel_topic`                       | string | `/model/intruder/cmd_vel` | Topic of the velocity command                            |
-| `pose_topic`                          | string | `/model/intruder/pose`    | Topic of the pose of the model                           |
 
 ### intruder.launch.py
 
 `intruder.launch.py` (in `guarded_swarms_bringup`) starts the node with
-`use_sim_time`, and two bridges of `ros_gz_bridge`, since the intruder is moved
-by Gazebo rather than by PX4: `intruder_cmd_bridge` carries the velocity command
-from ROS 2 to Gazebo, and `intruder_pose_bridge` the pose of the model from
-Gazebo to ROS 2. Each parameter of the node above, except the two topics, is a
-launch argument with the same default. Started on its own, the intruder can be
-stopped and set up again without touching the swarm.
+`use_sim_time`, and `intruder_cmd_bridge`, a bridge of `ros_gz_bridge` that
+carries the velocity command from ROS 2 to Gazebo, since the intruder is moved
+by Gazebo rather than by PX4. Each parameter of the node above, except the
+topic, is a launch argument with the same default. Started on its own, the
+intruder can be stopped and set up again without touching the swarm.
 
 ```bash
 ros2 launch guarded_swarms_bringup intruder.launch.py
