@@ -18,8 +18,8 @@
 # ==============================================================================
 # demo_console.sh -- live end-to-end demonstration of the supervisor console.
 #
-# This is NOT the test harness (scripts/test_pipeline.sh). It is the clean demo
-# path: it launches the adversary, the sensing layer and the TB-CSPN
+# This is NOT the test harness (scripts/pipeline/test_pipeline.sh). It is the
+# clean demo path: it launches the adversary, the sensing layer and the TB-CSPN
 # coordination layer, then simply follows /mission_tokens and prints every
 # governed mission release the instant it happens. There are no phases, no
 # ConfirmedThreat wait, no decision timeout -- you open the console, and
@@ -27,9 +27,9 @@
 #
 # Prereqs (start these first, each in its own terminal):
 #   1. make demo-coastal                     # Gazebo + vehicles
-#   2. rosbridge (workspace sourced):
+#   2. rosbridge, from the root of the repository with the workspace sourced:
 #        source /opt/ros/humble/setup.bash
-#        source ~/guarded-swarms-ros2/install/setup.bash
+#        source install/setup.bash
 #        ros2 launch rosbridge_server rosbridge_websocket_launch.xml
 #   3. the console bridge:
 #        python3 console/console_bridge_node.py
@@ -55,7 +55,7 @@ cleanup() {
   for n in radar_agent_node rf_agent_node acoustic_agent_node eo_agent_node \
            interpretation_node candidate_transition_node \
            mission_transition_node dispatch_transition_node \
-           uav_worker_node ugv_worker_node intruder_node; do
+           intruder_node; do
     pkill -f "$n" 2>/dev/null
   done
   pkill -f "sensing.launch"  2>/dev/null

@@ -20,7 +20,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Guarded Swarms — Supervisor Decision Panel</title>
-    <script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/roslib@1.4.1/build/roslib.min.js"></script>
     <style>
       :root {
         --bg: #0d1117;
@@ -415,10 +415,9 @@
           connT.textContent = "connection error";
         });
 
-        // Subscribe to /console/threat, the QoS-clean topic published by
-        // console_bridge_node (ConfirmedThreat only). Subscribing to /interp_tokens
-        // directly does not work through rosbridge: it picks an incompatible QoS on
-        // that already-published topic and silently delivers nothing.
+        // Subscribe to /console/threat, where console_bridge_node republishes
+        // the ConfirmedThreat tokens alone, rather than to the whole stream of
+        // /interp_tokens.
         const interpSub = new ROSLIB.Topic({
           ros: ros,
           name: "/console/threat",
@@ -481,9 +480,7 @@
             cls +
             ')">\u2713 ' +
             verb +
-            " \u2014 mission " +
-            (decision === "authorise" ? "released" : "refused") +
-            " for " +
+            " \u2014 decision sent to T6 for " +
             target +
             "</span>";
           btnA.disabled = true;

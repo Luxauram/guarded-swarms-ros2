@@ -9,6 +9,11 @@ reproducible release.
 
 ## [Unreleased]
 
+### Changed
+
+- The supervisor console loads roslib 1.4.1, the version `roslib@1` resolves
+  to, instead of whichever 1.x release is the latest.
+
 ### Removed
 
 - The pose bridge of `intruder.launch.py`, and the pose subscription of
@@ -39,6 +44,11 @@ reproducible release.
   `__GLX_VENDOR_LIBRARY_NAME` only when the NVIDIA driver is loaded. The
   variables select the NVIDIA libraries, which a machine without the driver
   does not have, and the script set them on every machine.
+- The supervisor console reports a decision as sent to T6. It reported a
+  mission released or refused, which it cannot know: T6 releases a mission only
+  while it holds a valid `ConfirmedThreat` of the target.
+- `demo_console.sh` stops, on Ctrl-C, only the nodes it starts. It also killed
+  the workers of the vehicles, which it does not start.
 
 ## [0.5.0] - 2026-11-20
 
