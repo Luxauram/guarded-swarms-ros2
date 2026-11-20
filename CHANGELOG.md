@@ -9,6 +9,8 @@ reproducible release.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-20
+
 ### Added
 
 - The complete documentation, in `docs/`: a page for every package, with its
