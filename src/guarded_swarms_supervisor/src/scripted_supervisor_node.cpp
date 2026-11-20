@@ -45,17 +45,17 @@
  *
  * WHY A NODE AND NOT A COMMAND-LINE PUBLISHER
  * ===========================================
- * The thesis campaign authorised with `ros2 topic pub` from the test script,
- * after three `gz model` calls. That put 12-15 s of test-harness overhead
- * between the threat and the authorisation, and a publisher that lived only a
- * few seconds could miss T6 altogether. This node removes both problems:
+ * Authorising with `ros2 topic pub` from a test script, after three
+ * `gz model` calls, puts 12-15 s of test-harness overhead between the threat
+ * and the authorisation, and a publisher that lives only a few seconds can
+ * miss T6 altogether. This node removes both problems:
  *
  *   - the delay is a parameter, measured on the simulation clock, so it is the
  *     supervisor's decision time and nothing else;
  *   - the publisher lives for the whole run with RELIABLE + TRANSIENT_LOCAL
  *     QoS, the same as T6's subscription, so a decision cannot be lost;
  *   - the decision carries its simulated timestamp, so the instant of the
- *     authorisation is recorded in the bag (the command-line stub left it 0).
+ *     authorisation is recorded in the bag (`ros2 topic pub` leaves it 0).
  *
  * Topics:
  *   Subscribed:

@@ -4,10 +4,9 @@
   Copyright 2026 Luca D'Aurizio. Apache-2.0.
 
   A decision-support panel for the human supervisor of the coastal-surveillance
-  case study (Borghoff, Bottoni & Pareschi 2026, IET Radar Sonar & Navigation).
-  It is the human-in-the-loop of the TB-CSPN chain made operational: it shows
-  the live ConfirmedThreat and the origin chain that produced it, and it is
-  where the supervisor authorises or denies the interception.
+  scenario. It is the human-in-the-loop of the TB-CSPN chain made operational:
+  it shows the live ConfirmedThreat and the origin chain that produced it, and
+  it is where the supervisor authorises or denies the interception.
 
   Authorise / Deny publish a SupervisorAuth on /supervisor_auth, which the
   mission-release transition (T6) consumes. No authorisation, no mission.
@@ -371,7 +370,7 @@
         "use strict";
 
         const WS_URL = "ws://localhost:9090";
-        const SUPERVISOR = "supervisor_luca";
+        const SUPERVISOR = "console";
         const AUTH_TTL_S = 30.0;
         const THREAT_LABEL = "ConfirmedThreat";
         const DECISION_CONFIRM_MS = 6000; // show the confirmation this long

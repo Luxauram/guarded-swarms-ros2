@@ -43,6 +43,9 @@ reproducible release.
   `confirmed_to_auth_thesis` of its CSV are now `t_auth_offset` and
   `confirmed_to_auth_offset`, and its report calls section [A] the chain
   latencies.
+- The supervisor console (`console/decision_panel.html`) signs its decisions
+  as `console`, the identity recorded in the `authorised_by` field of the
+  decision and of the mission it releases.
 
 ### Removed
 
