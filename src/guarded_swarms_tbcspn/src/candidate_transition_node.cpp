@@ -16,7 +16,7 @@
 /**
  * @file candidate_transition_node.cpp
  *
- * @brief Time-windowed join transition (T3): CandidateTarget.
+ * @brief Time-windowed join transition (T3, and T5 with other labels).
  *
  * The first joining transition of the coastal scenario. Unlike the
  * first-level transitions, which map one observation to one interpretation,
@@ -111,7 +111,7 @@ class CandidateTransitionNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
     RCLCPP_INFO(this->get_logger(),
-                "CandidateTransitionNode (TB-CSPN T3, time-windowed join)");
+                "CandidateTransitionNode (TB-CSPN time-windowed join)");
     RCLCPP_INFO(this->get_logger(), "  %s + %s  ->  %s", label_a_.c_str(),
                 label_b_.c_str(), emit_label_.c_str());
     RCLCPP_INFO(this->get_logger(), "  sync threshold ths: %.1f s",

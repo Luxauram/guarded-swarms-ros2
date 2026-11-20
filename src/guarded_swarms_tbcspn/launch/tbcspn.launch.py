@@ -114,19 +114,16 @@ PKG = "guarded_swarms_tbcspn"
 # Exposed as launch arguments so a metric campaign can sweep them without a
 # rebuild, and so the experiment configuration is documented in one place.
 # -----------------------------------------------------------------------------
-# The label T2 emits for an RF detection. Normally LikelyDroneLink. Set to
-# LikelyCivilianTraffic to reproduce the "conflicting interpretation"
-# counterfactual: T3 needs PossibleUAV + LikelyDroneLink to form a
-# CandidateTarget, so a civilian label -- concordant with nothing -- blocks the
-# candidate, and no threat and no mission follow.
-# The RF interpretation label. Read from the RF_LABEL environment variable so a
-# counterfactual run (RF_LABEL=LikelyCivilianTraffic) can override it without a
-# launch-argument substitution, which does not reliably resolve when passed as
-# a value inside a node's parameter dict. Falls back to the concordant label.
+# The label T2 emits for an RF detection, from the RF_LABEL environment
+# variable: LikelyDroneLink by default. With LikelyCivilianTraffic, T3 has no
+# LikelyDroneLink to join with the PossibleUAV, so no CandidateTarget forms,
+# and no threat and no mission follow: the conflicting-interpretation case. An
+# environment variable rather than a launch argument, because a launch
+# argument does not reliably resolve as a value inside a node's parameters.
 DEFAULT_RF_INTERP_LABEL = os.environ.get("RF_LABEL", "LikelyDroneLink")
 DEFAULT_SYNC_THRESHOLD_S = "3.0"
-DEFAULT_THREAT_TTL_S = "10.0"    # was 4.0; raised so a confirmed threat waits
-                                 # long enough for the human authorisation
+# Long enough for a ConfirmedThreat to wait in T6 for the human authorisation.
+DEFAULT_THREAT_TTL_S = "10.0"
 DEFAULT_MISSION_TTL_S = "10.0"
 
 # The window of T3 alone, in seconds. Read from the T3_WINDOW_S environment
@@ -234,7 +231,7 @@ def generate_launch_description():
         LogInfo(msg="  ros2 topic pub --once --keep-alive 5 \\"),
         LogInfo(msg="  --qos-durability transient_local /supervisor_auth \\"),
         LogInfo(msg="  guarded_swarms_msgs/msg/SupervisorAuth \\"),
-        LogInfo(msg="  \"{target_id: 'intruder', authorised_by: 'sup', \\"),
+        LogInfo(msg="  \"{target_id: 'intruder', authorised_by: 'operator', \\"),
         LogInfo(msg="    decision: 'authorise', ttl_s: 15.0}\""),
         LogInfo(msg="T3 window: " + (
             "sync_threshold_s, shared with T5" if T3_WINDOW_S is None

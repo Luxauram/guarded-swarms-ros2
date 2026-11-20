@@ -31,15 +31,14 @@
  *   - the intercept task goes to the UAV nearest the target at dispatch time;
  *   - an observe task goes to the UGV, for shore-based support and recovery.
  *
- * With a single target this is trivial; the same structure extends to an
- * N-vehicles-to-M-targets assignment later. Nearest-UAV needs the UAVs' live
- * positions, which the node reads from their vehicle_local_position (NED->ENU
- * by each UAV's spawn offset, exactly as the EO agent does).
+ * Nearest-UAV needs the UAVs' live positions, which the node reads from their
+ * vehicle_local_position (NED->ENU by each UAV's spawn offset, exactly as the
+ * EO agent does).
  *
  * Each TARGET is dispatched once. The assigned UAV is remembered per target, so
- * the repeated MissionTokens the release transition emits while a threat
- * persists do not send a second UAV onto the same target: the first assigned
- * worker track-locks and follows it on its own (T8).
+ * a later mission for the same target, released by a further authorisation,
+ * does not send a second UAV onto it: the first assigned worker track-locks
+ * and follows it on its own (T8).
  *
  * Topics:
  *   Subscribed:
@@ -244,9 +243,8 @@ class DispatchTransitionNode : public rclcpp::Node {
   rclcpp::Publisher<VehicleTask>::SharedPtr task_pub_;
 
   // Targets already assigned to a UAV, and which UAV took each. A target is
-  // dispatched once: T6 re-emits a MissionToken for the same target several
-  // times while the threat persists, but the assigned worker then track-locks
-  // the target on its own (T8), so re-dispatching would only send a second UAV
+  // dispatched once: the assigned worker track-locks the target on its own
+  // (T8), so dispatching a later mission for it would only send a second UAV
   // onto the same point. Keyed by target_id, not mission_id.
   std::map<std::string, uint8_t> assigned_uav_;
 };

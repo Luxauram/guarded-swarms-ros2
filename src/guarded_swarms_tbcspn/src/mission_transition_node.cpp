@@ -43,9 +43,10 @@
  * =============================
  * "Authorisation withheld" needs no special code: if no
  * SupervisorAuth arrives, or a DENY arrives, no InterceptMission is produced.
- * The ConfirmedThreat persists in the coordination space, available for
- * inspection and possible later authorisation. A DENY is recorded (logged)
- * rather than being merely the silent absence of a token.
+ * The ConfirmedThreat stays buffered until it expires, so an authorisation
+ * that arrives within its validity still releases the mission. A DENY is
+ * recorded (logged) rather than being merely the silent absence of a token;
+ * it does not withdraw an authorisation already buffered for the target.
  *
  * PROVENANCE
  * ==========
@@ -88,9 +89,8 @@ constexpr int PRUNE_PERIOD_MS = 200;
 class MissionTransitionNode : public rclcpp::Node {
  public:
   MissionTransitionNode() : Node("mission_transition_node") {
-    // The interpretation label that authorises release, and the mission type
-    // produced. Parameters so the same node can serve other threat/mission
-    // pairings later.
+    // The interpretation label that calls for a release, and the type of the
+    // mission released.
     require_label_ = this->declare_parameter<std::string>(
         "require_label", InterpToken::LABEL_CONFIRMED_THREAT);
     mission_type_ = this->declare_parameter<std::string>(
