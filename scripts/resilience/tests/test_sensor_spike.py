@@ -58,10 +58,9 @@ class SensorSpikeTest(BaseResilienceTest):
     def __init__(self, config_path: str):
         """Initialise the sensor-spike test node.
 
-        Validates the safety layer response to sudden sensor anomalies across
-        proximity, altitude, battery and raw actuator command channels. The
-        node publishes simulated sensor data and monitors the safety outputs
-        to verify correct degradation and veto behaviour.
+        Validates the response of the safety layer to a transient proximity
+        violation. The node publishes simulated sensor data and monitors the
+        safety outputs to verify the veto and the recovery.
 
         @param config_path  Absolute path to the YAML configuration file
                             defining topics, thresholds, and test parameters.

@@ -182,12 +182,12 @@ class BaseResilienceTest(Node):
 
         @param topic        ROS 2 topic name to subscribe to.
         @param msg_type     ROS 2 message class (e.g. Float32, Range).
-        @param max_messages Maximum number of messages to buffer before
-                            dropping older ones. Defaults to 1000.
+        @param max_messages Maximum number of messages to buffer; later ones
+                            are dropped until the buffer is cleared.
+                            Defaults to 1000.
         @param reliable     If True, use RELIABLE QoS; if False, use
-                            BEST_EFFORT. Use False for sensor topics
-                            (safety_status, actuator_cmd_safe) which the
-                            safety board publishes as BEST_EFFORT.
+                            BEST_EFFORT, which also receives from RELIABLE
+                            publishers such as those of the Safety Board.
         """
         self._captured[topic] = []
         self._locks[topic] = threading.Lock()

@@ -14,9 +14,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # ==============================================================================
-"""Report generation for resilience test results.
+"""JSON reports of resilience test results.
 
-Supports terminal output and JSON export for archiving.
+The terminal report is printed by TestSuite.print_report, in base_test.py.
 """
 
 import json
@@ -30,8 +30,7 @@ def save_report(suite: TestSuite, output_dir: str = "results"):
     """Export a completed TestSuite to a timestamped JSON report file.
 
     The generated report contains scenario metadata, aggregate pass/fail
-    statistics, and the full list of recorded TestResult objects. Reports are
-    intended for archival, CI integration, regression tracking, and post-test
+    statistics, and the full list of recorded TestResult objects, for later
     analysis. If the output directory does not exist, it is created
     automatically.
 
