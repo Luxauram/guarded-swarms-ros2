@@ -146,7 +146,8 @@ Across languages:
   when, belongs in the CHANGELOG and in the git history.
 - Code, comments and documentation are in English.
 - Every text file ends with a newline; `.editorconfig` sets it, with the
-  character set and the line endings, for the editors that read it.
+  character set and the line endings, for the editors that read it, and the
+  CI checks it.
 
 ## CI
 
@@ -154,10 +155,10 @@ Across languages:
 `dev`, and by hand from the Actions tab. A newer push to a branch cancels the
 run still in progress on it. Two jobs:
 
-| Job            | Container                   | Steps                                                                              |
-| -------------- | --------------------------- | ---------------------------------------------------------------------------------- |
-| Lint           | `ubuntu:22.04`              | `clang-format`, `flake8` and `shellcheck` on every file git tracks, as above       |
-| Build and test | `ros:humble-ros-base-jammy` | `rosdep install`, `colcon build` of every package, and `make test-resilience-mock` |
+| Job            | Container                   | Steps                                                                                                                  |
+| -------------- | --------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Lint           | `ubuntu:22.04`              | `clang-format`, `flake8` and `shellcheck` on every file git tracks, as above, and the final newline of every text file |
+| Build and test | `ros:humble-ros-base-jammy` | `rosdep install`, `colcon build` of every package, and `make test-resilience-mock`                                     |
 
 The build job has no PX4 and no Gazebo, so it builds the packages and runs the
 [resilience tests](scripts/resilience.md), but no simulation. rosdep skips
