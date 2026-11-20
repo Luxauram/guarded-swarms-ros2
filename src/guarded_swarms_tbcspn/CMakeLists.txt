@@ -16,7 +16,7 @@ find_package(px4_msgs REQUIRED)
 # ============================================================================
 # TB-CSPN transitions
 #
-# The seven transitions of Figure 4, instantiated by parameters over four node
+# The seven transitions of the chain, instantiated by parameters over four node
 # types: interpretation (T1/T2/T4), candidate join (T3/T5), mission release
 # (T6), dispatch (T7). Only dispatch depends on px4_msgs: it reads the live UAV
 # positions to assign the nearest one.

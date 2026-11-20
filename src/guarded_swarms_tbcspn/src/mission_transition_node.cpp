@@ -17,12 +17,10 @@
 /**
  * @file mission_transition_node.cpp
  *
- * @brief Mission-release transition (Figure 4, T6): the human-in-the-loop.
+ * @brief Mission-release transition (T6): the human-in-the-loop.
  *
- * The governed-action-release transition of the coastal case study in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Figure 4 and Section 3.3. It is the point at which automated evidence
- * accumulation meets human authority:
+ * The governed-action-release transition of the coastal scenario. It is the
+ * point at which automated evidence accumulation meets human authority:
  *
  *   ConfirmedThreat (from T5)  +  SupervisorAuth (from a human supervisor)
  *       -> InterceptMission
@@ -32,8 +30,8 @@
  * Every transition before this one is automatic: sensors, interpretations,
  * joins. This one cannot fire on evidence alone. A ConfirmedThreat, however
  * strong, produces no mission until a supervisor issues an authorisation for
- * that target. This is the architecture's governed action release: "no
- * consequential action proceeds without explicit governance" (Section 5.3).
+ * that target. This is the architecture's governed action release: no
+ * consequential action proceeds without explicit governance.
  *
  * Unlike the joins of T3 and T5, the release does not compare the two tokens'
  * instants: it fires while both a ConfirmedThreat and an authorisation for the
@@ -43,10 +41,10 @@
  *
  * THE COUNTERFACTUAL COMES FREE
  * =============================
- * "Authorisation withheld" (Section 5.3) needs no special code: if no
+ * "Authorisation withheld" needs no special code: if no
  * SupervisorAuth arrives, or a DENY arrives, no InterceptMission is produced. The
  * ConfirmedThreat persists in the coordination space, available for inspection
- * and possible later authorisation, exactly as the paper describes. A DENY is
+ * and possible later authorisation. A DENY is
  * recorded (logged) rather than being merely the silent absence of a token.
  *
  * PROVENANCE

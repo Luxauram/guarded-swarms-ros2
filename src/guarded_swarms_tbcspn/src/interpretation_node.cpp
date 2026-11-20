@@ -16,35 +16,36 @@
 /**
  * @file interpretation_node.cpp
  *
- * @brief First-level TB-CSPN interpretation transition (Figure 4, T1 / T2).
+ * @brief First-level TB-CSPN interpretation transition (T1, T2, T4).
  *
- * The two first-level transitions of the coastal case study in Borghoff,
- * Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation, Figure 4, have
- * the same shape: a single ObsToken of one modality is read, a guard on its
- * confidence is applied, and if it passes an InterpToken carrying a semantic
- * label is produced.
- *   T1: a low-altitude radar track   -> PossibleUAV
+ * The first-level transitions of the coastal scenario have the same shape: a
+ * single ObsToken of one modality is read, a guard on its confidence is
+ * applied, and if it passes an InterpToken carrying a semantic label is
+ * produced.
+ *   T1: a low-altitude radar track    -> PossibleUAV
  *   T2: a drone-telemetry RF emission -> LikelyDroneLink
+ *   T4: an EO visual confirmation     -> ConfirmedAerialObject
  *
- * Because the two are structurally identical, this is one parametric node
- * instantiated twice, rather than two copies of the same logic. The source it
- * listens to, the label it emits, and the confidence guard are parameters.
+ * Because the three are structurally identical, this is one parametric node
+ * instantiated three times, rather than three copies of the same logic. The
+ * source it listens to, the label it emits, and the confidence guard are
+ * parameters.
  *
- * WHAT A TRANSITION DOES (from the paper)
- * =======================================
+ * WHAT A TRANSITION DOES
+ * ======================
  * A TB-CSPN transition performs validation AND interpretation together, and
- * may produce no output if its guard fails (Section 5, Figure 4 caption). Here
- * the validation is minimal: the observation must be of the expected source
- * and above a confidence floor. Later transitions (T3, T5) add the harder part
+ * may produce no output if its guard fails. Here the validation is minimal:
+ * the observation must be of the expected source and above a confidence
+ * floor. Later transitions (T3, T5) add the harder part
  * -- time-windowed joins across sources -- but the shape is the same: consume
  * tokens, check guards, maybe emit.
  *
  * TEMPORAL PROVENANCE OF THE INTERPRETATION
  * =========================================
- * The paper's tokens are "timestamped with the time t of their generation" and
- * carry a ttl, and the time-windowed joins fire only for tokens whose validity
- * intervals are close: abs((t0'+ttl') - (t0+ttl)) <= ths (Section 5). For that
- * rule to mean anything, the age of the underlying evidence must survive
+ * Tokens are timestamped with the time t of their generation and carry a ttl,
+ * and the time-windowed joins fire only for tokens whose validity intervals
+ * are close: abs((t0'+ttl') - (t0+ttl)) <= ths. For that rule to mean
+ * anything, the age of the underlying evidence must survive
  * interpretation: an interpretation of an OLD observation must itself be old.
  * We therefore inherit the observation's timestamp (obs->t) into the
  * InterpToken rather than stamping it with now(). Two consequences follow, both
@@ -53,13 +54,13 @@
  *     tenths of a second in the past), which does not change fusion.
  *   - A LATE observation (e.g. a delayed EO confirmation) produces an
  *     interpretation whose validity window is correspondingly in the past, so
- *     it can no longer fuse with a fresh CandidateTarget -- exactly the "stale
- *     EO confirmation" counterfactual of Section 5.3.
+ *     it can no longer fuse with a fresh CandidateTarget -- exactly the
+ *     stale-EO counterfactual.
  *
  * PROVENANCE
  * ==========
  * The emitted InterpToken records the id of the ObsToken it came from in its
- * origin field. This is the first link of the audit chain the paper requires:
+ * origin field. This is the first link of the audit chain:
  * every mission can be traced back through its interpretations to the raw
  * observations that justified it.
  *

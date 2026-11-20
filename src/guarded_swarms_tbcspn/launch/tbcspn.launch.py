@@ -19,10 +19,9 @@ limitations under the License.
 
 Guarded Swarms - the TB-CSPN coordination layer.
 
-Brings up all the transitions of Figure 4 in one command: the interpretation
+Brings up all the transitions of the chain in one command: the interpretation
 transitions (T1, T2, T4), the time-windowed joins (T3, T5), the mission-release
-transition (T6, human-in-the-loop) and the dispatch transition (T7). Replaces
-the one-terminal-per-transition workflow used while developing them.
+transition (T6, human-in-the-loop) and the dispatch transition (T7).
 
   T1  interpretation_node   radar -> PossibleUAV
   T2  interpretation_node   rf    -> LikelyDroneLink
@@ -37,11 +36,11 @@ TEMPORAL PARAMETERS OF THE COORDINATION LAYER
 =============================================
 All the time constants that govern the token algebra are collected below, so
 the experiment's configuration is visible and reproducible in one place rather
-than scattered across node defaults. They follow the paper's token model
-(Borghoff, Bottoni and Pareschi 2026, Sec. 3.2-3.3): a token is valid until
-t0 + ttl, and two tokens fuse when abs((t0'+ttl') - (t0+ttl)) <= sync_threshold.
+than scattered across node defaults. They follow the token model: a token is
+valid until t0 + ttl, and two tokens fuse when
+abs((t0'+ttl') - (t0+ttl)) <= sync_threshold.
 
-  SYNC_THRESHOLD_S   the paper's `ths`: the half-width of the fusion window
+  SYNC_THRESHOLD_S   `ths`, the half-width of the fusion window
                      shared by the joins T3 and T5. The mission release (T6)
                      needs no window: it fires while the threat and the
                      authorisation are both valid.
@@ -91,7 +90,7 @@ Authorise:
       ros2 topic pub --once --keep-alive 5 \\
         --qos-durability transient_local /supervisor_auth \\
         guarded_swarms_msgs/msg/SupervisorAuth \\
-        "{target_id: 'intruder', authorised_by: 'supervisor_luca', \\
+        "{target_id: 'intruder', authorised_by: 'operator', \\
           decision: 'authorise', ttl_s: 15.0}"
     T6 subscribes with TRANSIENT_LOCAL durability, so the publisher must
     offer it too; --keep-alive keeps the message available while T6 matches.

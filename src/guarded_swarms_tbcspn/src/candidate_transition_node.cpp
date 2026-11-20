@@ -16,10 +16,9 @@
 /**
  * @file candidate_transition_node.cpp
  *
- * @brief Time-windowed join transition (Figure 4, T3): CandidateTarget.
+ * @brief Time-windowed join transition (T3): CandidateTarget.
  *
- * The first joining transition of the coastal case study in Borghoff, Bottoni
- * and Pareschi (2026), IET Radar, Sonar and Navigation, Figure 4. Unlike the
+ * The first joining transition of the coastal scenario. Unlike the
  * first-level transitions, which map one observation to one interpretation,
  * T3 fuses two interpretations that arrived from different modalities:
  *
@@ -28,8 +27,8 @@
  *
  * It fires only when both are present, for the same target, concordant, and
  * temporally coherent. This is where the architecture's negative guarantees
- * live: three of the paper's counterfactual trajectories (Section 5.3) are
- * decided here.
+ * live: the conflicting-interpretation counterfactual is decided here, and the
+ * stale-confirmation one at T5, by the same code.
  *
  * THE THREE GUARDS
  * ================
@@ -41,7 +40,7 @@
  *    interpretations" counterfactual: the disagreement is preserved in the
  *    net's marking rather than silently resolved.
  *
- * 3. Time window. The paper's rule (Section 3.3): a token generated at t0 is
+ * 3. Time window. A token generated at t0 is
  *    valid until t0 + ttl, and two tokens may be fused when
  *        abs( (t0' + ttl') - (t0 + ttl) ) <= ths
  *    for a synchronisation threshold ths that depends on the decision. This is
@@ -88,14 +87,14 @@ constexpr int PRUNE_PERIOD_MS = 200;
 class CandidateTransitionNode : public rclcpp::Node {
  public:
   CandidateTransitionNode() : Node("candidate_transition_node") {
-    // The concordant input pair. Defaults match T3 in the paper.
+    // The concordant input pair. The defaults are those of T3.
     label_a_ = this->declare_parameter<std::string>(
         "label_a", InterpToken::LABEL_POSSIBLE_UAV);
     label_b_ = this->declare_parameter<std::string>(
         "label_b", InterpToken::LABEL_LIKELY_DRONE_LINK);
     emit_label_ = this->declare_parameter<std::string>(
         "emit_label", InterpToken::LABEL_CANDIDATE_TARGET);
-    // Synchronisation threshold ths, seconds (paper, Section 3.3).
+    // Synchronisation threshold ths, seconds.
     sync_threshold_s_ =
         this->declare_parameter<double>("sync_threshold_s", 2.0);
     // Validity of the emitted CandidateTarget.
@@ -167,7 +166,7 @@ class CandidateTransitionNode : public rclcpp::Node {
         const Held& b = buf_b_[j];
         // Guard 1: same target.
         if (a.tok.target_id != b.tok.target_id) continue;
-        // Guard 3: time window, exactly the paper's rule.
+        // Guard 3: time window.
         //   abs( (t0' + ttl') - (t0 + ttl) ) <= ths
         const double gap =
             std::abs((b.expiry - a.expiry).seconds());

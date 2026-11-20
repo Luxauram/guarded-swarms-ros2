@@ -17,17 +17,16 @@
 /**
  * @file dispatch_transition_node.cpp
  *
- * @brief Dispatch transition (Figure 4, T7): mission -> vehicle tasks.
+ * @brief Dispatch transition (T7): mission -> vehicle tasks.
  *
- * The dispatch transition of the coastal case study in Borghoff, Bottoni and
- * Pareschi (2026), IET Radar, Sonar and Navigation, Figure 4 and Section 5.2.
- * It consumes an authorised InterceptMission and produces the vehicle-specific
+ * The dispatch transition of the coastal scenario. It consumes an authorised
+ * InterceptMission and produces the vehicle-specific
  * tasks that worker agents will translate into platform commands:
  *
  *   InterceptMission  ->  UAVTask (intercept)  +  UGVTask (observe)
  *
- * The paper fixes the architecture but not the assignment algorithm, so the
- * assignment here is an implementation choice, to be declared as such:
+ * The architecture does not fix the assignment algorithm, so the assignment
+ * here is an implementation choice:
  *
  *   - the intercept task goes to the UAV nearest the target at dispatch time;
  *   - an observe task goes to the UGV, for shore-based support and recovery.
@@ -131,8 +130,7 @@ class DispatchTransitionNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "  %zu UAV(s), UGV system %u",
                 uav_systems_.size(), ugv_system_);
     RCLCPP_INFO(this->get_logger(),
-                "  assignment: nearest UAV to the target (implementation "
-                "choice, not from the paper)");
+                "  assignment: nearest UAV to the target");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
