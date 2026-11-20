@@ -50,7 +50,7 @@ for UAV0, `/px4_1/fmu/out/vehicle_local_position_v1` for UAV1 and
   reaches ROS 2 through rosbridge. The console bridge,
   `console/console_bridge_node.py`, republishes the `ConfirmedThreat`s of
   `/interp_tokens` on `/console/threat`, which the console subscribes to in its
-  place (see [QoS](#qos)).
+  place (see [Supervisor console](console.md)).
 - **The workers.** Each worker takes only the tasks of its kind of vehicle
   assigned to its system, and a UAV worker only the `ConfirmedThreat`s of the
   target it is locked on (see
@@ -163,11 +163,11 @@ Three rules decide whether a publisher and a subscription connect:
   publisher that offers only volatile durability does not connect to it: the
   scripted supervisor offers transient local, and a decision published by hand
   needs `--qos-durability transient_local`.
-- **The console.** rosbridge chooses the QoS of the subscriptions it makes for
-  the console, and on `/interp_tokens` its choice receives nothing from the
-  publishers of the transitions. The console bridge subscribes with their
-  profile, and publishes `/console/threat` with the default one, which
-  rosbridge receives.
+- **The console.** rosbridge chooses the QoS of what it creates for the
+  console. Its publisher of `/supervisor_auth` offers transient local
+  durability, with a lifespan of 1 s, so T6 receives the decisions of the
+  console. Its subscription to `/console/threat` is best effort and volatile,
+  which receives from the console bridge.
 
 ## Outside a run
 

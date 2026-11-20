@@ -1,28 +1,14 @@
 #!/usr/bin/env python3
 # Copyright 2026 Luca D'Aurizio. Apache-2.0.
-"""Console bridge: republish ConfirmedThreat tokens on a QoS-clean topic.
+"""Console bridge: republish the ConfirmedThreat tokens for the console.
 
-Why this node exists
-====================
-rosbridge (the WebSocket bridge the supervisor console connects through)
-subscribes to a topic with a QoS profile it chooses itself, and on a topic that
-already has publishers it can end up with a subscription profile incompatible
-with those publishers -- a known rosbridge behaviour. The symptom is silent:
-the browser client connects, rosbridge logs "Subscribed", but no message is
-ever delivered to the callback.
-
-Rather than fight rosbridge's QoS selection from the browser (roslibjs QoS
-support is version-dependent and fragile), this node owns a clean, dedicated
-topic for the console. It subscribes to /interp_tokens with the same default
-QoS the publishers use (reliable, volatile, keep-last), filters for the one
-label the decision panel needs (ConfirmedThreat), and republishes on
-/console/threat with an explicit, plain default QoS. rosbridge then subscribes
-to /console/threat -- a topic whose only publisher is this node, with a profile
-rosbridge matches cleanly -- and the messages flow.
-
-It also serves as a natural place to decouple the console from the internal
-token stream: the console sees only what a supervisor should act on, not every
-intermediate interpretation.
+The supervisor console reaches ROS 2 through rosbridge, which sends every
+message of a subscribed topic to the browser as JSON over a WebSocket. This
+node subscribes to /interp_tokens with the profile of its publishers
+(reliable, volatile, keep-last), keeps the one label the console acts on,
+ConfirmedThreat, and republishes it unchanged on /console/threat, a topic of
+its own with this node as its only publisher. The console then receives the
+threats alone, not every intermediate interpretation of the chain.
 
 Publishes:  /console/threat   (guarded_swarms_msgs/InterpToken)  ConfirmedThreat only
 Subscribes: /interp_tokens    (guarded_swarms_msgs/InterpToken)
