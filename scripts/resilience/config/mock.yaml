@@ -23,13 +23,11 @@
 scenario: mock
 description: "Mock pipeline - Safety Board alone, no PX4 or Gazebo required"
 
-# The defaults of safety_board_node, which mock_pipeline.launch.py runs.
+# The limits of safety_board_node that the tests rely on: its defaults, which
+# mock_pipeline.launch.py runs.
 safety:
   staleness_timeout_s: 2.0
   min_proximity_m: 1.5
-  min_altitude_m: 0.3
-  max_altitude_m: 50.0
-  min_battery_pct: 15.0
 
 topics:
   imu: /drone/imu
@@ -40,7 +38,6 @@ topics:
   altitude: /drone/altitude
   battery: /drone/battery
 
+# Wait before the first phase of each test, s.
 timeouts:
-  response_ms: 1000
-  safety_reaction_s: 8.0
   startup_s: 8.0

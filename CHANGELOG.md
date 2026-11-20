@@ -16,6 +16,10 @@ reproducible release.
   `/model/intruder/pose` as `gz.msgs.Pose_V`, the bridge read it as
   `gz.msgs.Pose`, and no pose ever reached the node: the ground truth of the
   intruder has always been its dead-reckoned position, which it remains.
+- `scripts/resilience/framework/ros2_client.py`, which no test imports, and
+  the keys of `scripts/resilience/config/mock.yaml` that no test reads. The
+  sensor publishers of the client were best effort, which the reliable
+  subscriptions of the Safety Board do not accept.
 
 ### Fixed
 
