@@ -62,7 +62,12 @@ test-resilience-mock:
 	@sleep 8
 	@echo "Running resilience tests..."
 	@echo ""
-	@bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh mock"
-	@echo ""
-	@echo "Stopping mock pipeline..."
-	@pkill -INT -f "[m]ock_pipeline.launch.py" 2>/dev/null || true
+	@status=0; \
+	bash -c "$(WORKSPACE_SOURCE) && $(RESILIENCE_DIR)/test_runner.sh mock" || status=$$?; \
+	echo ""; \
+	echo "Stopping mock pipeline..."; \
+	pkill -INT -f "[m]ock_pipeline.launch.py" 2>/dev/null || true; \
+	for i in $$(seq 20); do \
+	  pgrep -f "[m]ock_pipeline.launch.py" >/dev/null || break; sleep 0.5; \
+	done; \
+	exit $$status

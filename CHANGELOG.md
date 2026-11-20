@@ -125,7 +125,9 @@ reproducible release.
   launch file stops the safety board as well, and matches the launch file only.
   It used SIGKILL, which left the board running, with a pattern that also
   matched the shell of the recipe: the target was killed, and ended with an
-  error even when every test passed.
+  error even when every test passed. The target now waits for the pipeline to
+  exit, and stops it when a test fails as well, then ends with the error of the
+  tests.
 - `scripts/kill_all.sh` also stops the scripted supervisor, the console bridge
   and the mock sensor publisher.
 - `make gen-coastal` writes `coastal.sdf` to `src/guarded_swarms_gz/worlds`,
