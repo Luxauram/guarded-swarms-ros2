@@ -44,6 +44,18 @@ jobs:
       - name: Shell scripts (shellcheck)
         run: git ls-files -z '*.sh' | xargs -0r shellcheck -S warning
 
+      - name: Text files end with a newline
+        shell: bash
+        run: |
+          status=0
+          while IFS= read -r -d '' f; do
+            if [ -f "$f" ] && grep -Iq . "$f" && [ -n "$(tail -c1 "$f")" ]; then
+              echo "no newline at the end: $f"
+              status=1
+            fi
+          done < <(git ls-files -z)
+          exit $status
+
   # Builds the workspace on ROS 2 Humble and runs the Safety Board tests on
   # the mock pipeline. No simulation: PX4 and Gazebo are not installed, so
   # rosdep skips the Gazebo bridge packages.
