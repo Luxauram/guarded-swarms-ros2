@@ -9,6 +9,16 @@ release.
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-11-20
+
+### Changed
+
+- The `guarded_swarms_*` packages are at version 1.0.1.
+
+### Fixed
+
+- `.editorconfig` and `install.sh` end with a newline, as the CI requires.
+
 ## [1.0.0] - 2026-11-20
 
 ### Added

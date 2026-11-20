@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>guarded_swarms_control</name>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <description>Control and worker nodes: the UAV/UGV worker agents that turn dispatched tasks into platform commands, the PX4 sensor bridge, and the scenario intruder.</description>
   <maintainer email="daurizio.lc@gmail.com">Luca D'Aurizio</maintainer>
   <license>Apache-2.0</license>
