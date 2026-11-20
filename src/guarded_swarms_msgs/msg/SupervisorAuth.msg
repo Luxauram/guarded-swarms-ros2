@@ -1,16 +1,14 @@
 # SupervisorAuth - human authorisation to release a mission
 #
-# The governed-action-release mechanism of Borghoff, Bottoni and Pareschi
-# (2026), IET Radar, Sonar and Navigation, Section 3.3: "Authorisation tokens
-# provided by supervisor agents are required for mission execution."
+# Governed action release: no mission is executed without an authorisation
+# from a supervisor.
 #
 # Issued by a human supervisor (through the console) to authorise, or by its
 # absence to withhold, the interception of a specific target. The
 # mission-release transition (T6) fires only when a ConfirmedThreat for the
 # target and an authorisation for the same target are valid at the same time,
 # each within its own ttl_s. No authorisation, no mission: this is the
-# human-in-the-loop, and its absence is the "authorisation withheld"
-# counterfactual of Section 5.3.
+# human-in-the-loop.
 
 # The target this authorisation refers to. Must match the target_id of the
 # ConfirmedThreat it is meant to release.

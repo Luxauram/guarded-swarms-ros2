@@ -1,7 +1,6 @@
 # ObsToken - raw sensor observation
 #
-# Structure from Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and
-# Navigation, Section 3.2:  ObsToken = <id, value, source, confidence, t, ttl>
+# Structure:  ObsToken = <id, value, source, confidence, t, ttl>
 #
 # Emitted by a consultant agent when its modality registers something. It
 # carries no interpretation: an ObsToken states that a sensor saw a value, not
@@ -14,9 +13,8 @@
 # agents from the intruder's ground-truth odometry, with per-modality range,
 # latency, noise and confidence models. Real detection and data association are
 # out of scope: target_id is therefore known to the emitting agent rather than
-# inferred, which lets the study focus on coordination, the contribution of the
-# paper, instead of on tracking. State this limitation explicitly in the
-# thesis, since it is the first thing a reviewer will ask about.
+# inferred, which keeps the focus on coordination instead of on tracking. This
+# is a limitation of the simulation, not of the architecture.
 
 # Unique identifier of this observation, used as the provenance handle that
 # InterpToken.origin refers back to.

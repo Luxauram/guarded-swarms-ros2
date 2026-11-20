@@ -1,7 +1,6 @@
 # MissionToken - authorised mission, ready for dispatch
 #
-# Structure from Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and
-# Navigation, Section 3.2:
+# Structure:
 #   MissionToken = <mission_id, type, target, justification, t, ttl>
 #
 # Produced by the mission-release transition, which fires only when a

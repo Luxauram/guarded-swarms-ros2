@@ -1,10 +1,9 @@
 # VehicleTask - a dispatched, vehicle-specific task
 #
-# Produced by the dispatch transition (Figure 4, T7) from an authorised
-# InterceptMission, and consumed by a worker agent. In the paper these are
-# named UAVTask and UGVTask (Section 5.2); here they are one message with a
-# vehicle_kind field, so the two worker agents subscribe to one topic and each
-# filters for its own kind. The paper's names are kept in the constants.
+# Produced by the dispatch transition (T7) from an authorised InterceptMission,
+# and consumed by a worker agent. The architecture names two tokens here,
+# UAVTask and UGVTask; this is one message with a vehicle_kind field, so the
+# two worker agents subscribe to one topic and each filters for its own kind.
 #
 # A worker agent is the translation bridge across the digital-physical
 # boundary: it turns this coordination-level task into platform-specific
@@ -41,7 +40,7 @@ string[] justification
 builtin_interfaces/Time t
 float64 ttl_s
 
-# Vehicle kinds (the paper's UAVTask / UGVTask distinction)
+# Vehicle kinds (the UAVTask / UGVTask distinction)
 string KIND_UAV=uav
 string KIND_UGV=ugv
 
