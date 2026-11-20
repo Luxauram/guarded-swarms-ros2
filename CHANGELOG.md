@@ -101,6 +101,8 @@ reproducible release.
 - Unused make variables (`BUILD_DIR`, `KILL_PX4`, `KILL_GAZEBO`, `KILL_ROS2`,
   `CLEANUP_TMP`, `COASTAL_UGV_WAYPOINTS`) and the JavaScript entries of
   `.gitignore`.
+- The `px4_ros_com` submodule: nothing in the repository uses it. The nodes
+  need only `px4_msgs`.
 
 ### Fixed
 
