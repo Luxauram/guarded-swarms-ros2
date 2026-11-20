@@ -64,11 +64,11 @@
  *     /supervisor_auth (guarded_swarms_msgs/SupervisorAuth)  -- the decision
  *
  * Parameters:
- *   decision          authorise | deny | none                 [authorise]
- *   decision_delay_s  decision time, simulated seconds, >= 0  [0.0]
- *   ttl_s             validity of the decision, seconds, > 0  [15.0]
- *   authorised_by     identity recorded in the decision [scripted_supervisor]
- *   require_label     the label that calls for a decision     [ConfirmedThreat]
+ *   decision          authorise | deny | none       [authorise]
+ *   decision_delay_s  decision time, sim s, >= 0    [0.0]
+ *   ttl_s             validity, s, > 0              [15.0]
+ *   authorised_by     who decides, not empty        [scripted_supervisor]
+ *   require_label     label calling for a decision  [ConfirmedThreat]
  *
  * @author Luca D'Aurizio
  */

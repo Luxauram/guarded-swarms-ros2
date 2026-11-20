@@ -32,7 +32,9 @@ never answers.
 
 The delay starts when the `ConfirmedThreat` reaches the node and is measured on
 the simulation clock (`use_sim_time`), so it does not depend on the real-time
-factor of the run.
+factor of the run. The node checks its pending decisions every 50 ms of
+simulated time, so a decision is issued within 50 ms of its due time; with a
+delay of 0 it is issued as soon as the `ConfirmedThreat` arrives.
 
 ### Topics
 
@@ -55,8 +57,8 @@ receives the decision.
 | `authorised_by`    | string | `scripted_supervisor` | Identity recorded in the decision and in the mission's justification |
 | `require_label`    | string | `ConfirmedThreat`     | Interpretation label that calls for a decision                       |
 
-An invalid value stops the node at start-up, with an error that names the
-parameter.
+An invalid value, or an empty `authorised_by`, stops the node at start-up, with
+an error that names the parameter.
 
 ### The decision message
 
@@ -73,9 +75,10 @@ simulation clock.
 
 ## supervisor.launch.py
 
-Starts the node with `use_sim_time` and reads its configuration from
-environment variables, as the other scenario settings do, so that a batch
-script can change it run by run.
+Starts the node, as `scripted_supervisor`, with `use_sim_time`, and reads its
+configuration from environment variables, as the other scenario settings do,
+so that a batch script can change it run by run. `authorised_by` and
+`require_label` keep their defaults.
 
 | Variable       | Parameter          | Default     |
 | -------------- | ------------------ | ----------- |
@@ -128,17 +131,18 @@ requests transient local durability, so the publisher must offer it as well:
 ```bash
 ros2 topic pub --once --keep-alive 5 --qos-durability transient_local \
   /supervisor_auth guarded_swarms_msgs/msg/SupervisorAuth \
-  "{target_id: 'intruder', authorised_by: 'operator', decision: 'authorise', ttl_s: 15.0}"
+  "{target_id: 'intruder', authorised_by: 'operator', \
+    decision: 'authorise', ttl_s: 15.0}"
 ```
 
 T6 treats an unset `t` as the moment it receives the decision.
 
 ## Design notes
 
-**Why a node.** Up to version 0.1.0 the test script authorised from the command
-line, with three `gz model` calls followed by `ros2 topic pub`. That put 12–15 s
-of test-harness overhead between the first `ConfirmedThreat` and the
-authorisation, and a publisher that lived only a few seconds could miss T6
+**Why a node.** A test script that authorises from the command line, with
+three `gz model` calls followed by `ros2 topic pub`, puts 12–15 s of
+test-harness overhead between the first `ConfirmedThreat` and the
+authorisation, and a publisher that lives only a few seconds can miss T6
 altogether. With the scripted supervisor the only delay is the configured one,
 it is measured on the simulation clock, and the decision cannot be lost.
 
