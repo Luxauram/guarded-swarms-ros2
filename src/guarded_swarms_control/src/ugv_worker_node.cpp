@@ -66,12 +66,12 @@
  * @author Luca D'Aurizio
  */
 
-#include <rclcpp/rclcpp.hpp>
 #include <px4_msgs/msg/rover_position_setpoint.hpp>
 #include <px4_msgs/msg/rover_throttle_setpoint.hpp>
 #include <px4_msgs/msg/vehicle_command.hpp>
 #include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <px4_msgs/msg/vehicle_status.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/float32.hpp>
 
 #include <guarded_swarms_msgs/msg/vehicle_task.hpp>
@@ -88,8 +88,8 @@ using guarded_swarms_msgs::msg::VehicleTask;
 class UgvWorkerNode : public rclcpp::Node {
  public:
   UgvWorkerNode() : Node("ugv_worker_node") {
-    target_system_ = static_cast<uint8_t>(
-        this->declare_parameter<int>("target_system", 3));
+    target_system_ =
+        static_cast<uint8_t>(this->declare_parameter<int>("target_system", 3));
 
     spawn_x_ = this->declare_parameter<double>("spawn_x", 0.0);
     spawn_y_ = this->declare_parameter<double>("spawn_y", 0.0);
@@ -98,8 +98,8 @@ class UgvWorkerNode : public rclcpp::Node {
         "waypoints", std::vector<double>{0.0, 0.0, 0.0, 46.0});
     if (flat.size() >= 4 && flat.size() % 2 == 0) {
       for (size_t i = 0; i + 1 < flat.size(); i += 2)
-        waypoints_.push_back({static_cast<float>(flat[i]),
-                              static_cast<float>(flat[i + 1])});
+        waypoints_.push_back(
+            {static_cast<float>(flat[i]), static_cast<float>(flat[i + 1])});
     } else {
       waypoints_ = {{0.0f, 0.0f}, {0.0f, 46.0f}};
     }
@@ -110,8 +110,9 @@ class UgvWorkerNode : public rclcpp::Node {
 
     pos_pub_ = this->create_publisher<px4_msgs::msg::RoverPositionSetpoint>(
         "fmu/in/rover_position_setpoint", QUEUE_SIZE);
-    throttle_pub_ = this->create_publisher<px4_msgs::msg::RoverThrottleSetpoint>(
-        "fmu/in/rover_throttle_setpoint", QUEUE_SIZE);
+    throttle_pub_ =
+        this->create_publisher<px4_msgs::msg::RoverThrottleSetpoint>(
+            "fmu/in/rover_throttle_setpoint", QUEUE_SIZE);
     cmd_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
         "fmu/in/vehicle_command", QUEUE_SIZE);
     // Proposed-actuation channel into this vehicle's analog Safety Board
@@ -217,7 +218,8 @@ class UgvWorkerNode : public rclcpp::Node {
                 observe_point_[1]);
   }
 
-  /** @brief Main loop: proposes actuation, arms, patrols or observes, honouring the veto. */
+  /** @brief Main loop: proposes actuation, arms, patrols or observes, honouring
+   * the veto. */
   void control_loop() {
     // Propose actuation to the analog Safety Board every cycle. The board
     // gates this against its own sensor envelope and answers on
@@ -352,7 +354,8 @@ class UgvWorkerNode : public rclcpp::Node {
   }
 
   rclcpp::Publisher<px4_msgs::msg::RoverPositionSetpoint>::SharedPtr pos_pub_;
-  rclcpp::Publisher<px4_msgs::msg::RoverThrottleSetpoint>::SharedPtr throttle_pub_;
+  rclcpp::Publisher<px4_msgs::msg::RoverThrottleSetpoint>::SharedPtr
+      throttle_pub_;
   rclcpp::Publisher<px4_msgs::msg::VehicleCommand>::SharedPtr cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr cmd_raw_pub_;
   rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr pos_sub_;

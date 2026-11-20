@@ -164,8 +164,7 @@ class Px4SafetyGateNode : public rclcpp::Node {
     if (unsafe) {
       vetoed_ = true;
       last_unsafe_t_ = now;
-    } else if (vetoed_ &&
-               (now - last_unsafe_t_).seconds() > VETO_MIN_HOLD_S) {
+    } else if (vetoed_ && (now - last_unsafe_t_).seconds() > VETO_MIN_HOLD_S) {
       vetoed_ = false;
     }
 
@@ -222,7 +221,8 @@ class Px4SafetyGateNode : public rclcpp::Node {
   rclcpp::Subscription<std_msgs::msg::Float32>::SharedPtr status_sub_;
   rclcpp::Subscription<VehicleLocalPosition>::SharedPtr local_pos_sub_;
 
-  // Board status: last value and when it arrived (stale after STATUS_TIMEOUT_S).
+  // Board status: last value and when it arrived (stale after
+  // STATUS_TIMEOUT_S).
   float last_status_ = 0.0f;
   rclcpp::Time last_status_t_{0, 0, RCL_ROS_TIME};
   bool airborne_ = false;

@@ -75,7 +75,7 @@ constexpr int QUEUE_SIZE = 10;
  * sensor_msgs/Range by taking the minimum finite range value.
  */
 class Px4SafetyBridgeNode : public rclcpp::Node {
-public:
+ public:
   Px4SafetyBridgeNode() : Node("px4_safety_bridge_node") {
     this->declare_parameter("lidar_topic",
                             "/world/default/model/x500_lidar_front_0/link/"
@@ -133,7 +133,7 @@ public:
                 lidar_topic.c_str());
   }
 
-private:
+ private:
   /**
    * @brief Translates a PX4 @c VehicleAttitude message to a @c sensor_msgs/Imu
    *        message and publishes it on @c /drone/imu.
@@ -177,10 +177,9 @@ private:
    *
    * @param msg Shared pointer to the received @c VehicleLocalPosition message.
    */
-  void
-  on_local_position(const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
-    if (!msg->z_valid)
-      return;
+  void on_local_position(
+      const px4_msgs::msg::VehicleLocalPosition::SharedPtr msg) {
+    if (!msg->z_valid) return;
 
     std_msgs::msg::Float32 alt_msg;
     alt_msg.data = -msg->z;

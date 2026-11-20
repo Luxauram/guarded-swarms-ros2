@@ -69,7 +69,7 @@ constexpr int kQueueSize = 10;
 constexpr double kConfidenceRangeFalloff = 0.4;
 // The generator takes 32-bit seeds.
 constexpr int64_t kMaxSeed = 4294967295;
-}
+}  // namespace
 
 class AcousticAgentNode : public rclcpp::Node {
  public:
@@ -126,7 +126,8 @@ class AcousticAgentNode : public rclcpp::Node {
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
                 gt_topics[i], kQueueSize,
-                [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
+                [this,
+                 idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
                 }));
@@ -194,8 +195,8 @@ class AcousticAgentNode : public rclcpp::Node {
     const double dy = p.y - buoys_[best][1];
     const double dz = p.z;
 
-    std::normal_distribution<double> b_noise(
-        0.0, bearing_noise_deg_ * kPi / 180.0);
+    std::normal_distribution<double> b_noise(0.0,
+                                             bearing_noise_deg_ * kPi / 180.0);
     std::normal_distribution<double> r_noise(0.0, range_noise_m_);
 
     const double bearing = std::atan2(dy, dx) + b_noise(rng_);

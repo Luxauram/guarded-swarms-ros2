@@ -108,7 +108,8 @@ class IntruderNode : public rclcpp::Node {
     // counterfactual.
     transmitting_ = this->declare_parameter<bool>("transmitting", true);
     start_delay_s_ = this->declare_parameter<double>("start_delay_s", 20.0);
-    arrival_radius_m_ = this->declare_parameter<double>("arrival_radius_m", 3.0);
+    arrival_radius_m_ =
+        this->declare_parameter<double>("arrival_radius_m", 3.0);
 
     const auto cmd_topic = this->declare_parameter<std::string>(
         "cmd_vel_topic", "/model/intruder/cmd_vel");
@@ -165,8 +166,8 @@ class IntruderNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(), "IntruderNode initialized (open-loop)");
     RCLCPP_INFO(this->get_logger(), "  ingress : (%.1f, %.1f, %.1f)",
                 ingress_x_, ingress_y_, ingress_z_);
-    RCLCPP_INFO(this->get_logger(), "  target  : (%.1f, %.1f, %.1f)",
-                target_x_, target_y_, target_z_);
+    RCLCPP_INFO(this->get_logger(), "  target  : (%.1f, %.1f, %.1f)", target_x_,
+                target_y_, target_z_);
     RCLCPP_INFO(this->get_logger(), "  distance: %.1f m at %.1f m/s",
                 total_dist_, speed_mps_);
     RCLCPP_INFO(this->get_logger(), "  start in: %.0f s", start_delay_s_);
@@ -177,7 +178,8 @@ class IntruderNode : public rclcpp::Node {
  private:
   enum class Phase { Idle, Ingress, Arrived };
 
-  /** @brief Timer tick: advances the phase state machine and publishes truth. */
+  /** @brief Timer tick: advances the phase state machine and publishes truth.
+   */
   void step() {
     const rclcpp::Time now = this->now();
     // Before the first /clock message the simulated time reads zero, so the
@@ -218,8 +220,8 @@ class IntruderNode : public rclcpp::Node {
           phase_ = Phase::Arrived;
           publish_velocity(0.0, 0.0, 0.0);
           RCLCPP_WARN(this->get_logger(),
-                      "Target point reached near (%.1f, %.1f, %.1f)",
-                      dr_x_, dr_y_, dr_z_);
+                      "Target point reached near (%.1f, %.1f, %.1f)", dr_x_,
+                      dr_y_, dr_z_);
         }
         break;
       }
@@ -252,7 +254,8 @@ class IntruderNode : public rclcpp::Node {
     transmitting_pub_->publish(tx);
   }
 
-  /** @brief Publishes the target's ground-truth pose (measured, else dead-reckoned). */
+  /** @brief Publishes the target's ground-truth pose (measured, else
+   * dead-reckoned). */
   void publish_ground_truth() {
     geometry_msgs::msg::PoseStamped truth;
     truth.header.stamp = this->now();

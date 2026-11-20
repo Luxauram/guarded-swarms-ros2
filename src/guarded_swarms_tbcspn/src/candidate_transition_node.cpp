@@ -68,9 +68,9 @@
  *
  * @author Luca D'Aurizio
  */
-#include <rclcpp/rclcpp.hpp>
-#include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <deque>
+#include <guarded_swarms_msgs/msg/interp_token.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <string>
 #include <vector>
 
@@ -82,7 +82,7 @@ namespace {
 constexpr int TOKEN_QUEUE_SIZE = 50;
 // Period of the periodic TTL prune (ms).
 constexpr int PRUNE_PERIOD_MS = 200;
-}
+}  // namespace
 
 class CandidateTransitionNode : public rclcpp::Node {
  public:
@@ -102,7 +102,8 @@ class CandidateTransitionNode : public rclcpp::Node {
     sub_ = this->create_subscription<InterpToken>(
         "/interp_tokens", TOKEN_QUEUE_SIZE,
         [this](const InterpToken::SharedPtr m) { on_token(m); });
-    pub_ = this->create_publisher<InterpToken>("/interp_tokens", TOKEN_QUEUE_SIZE);
+    pub_ =
+        this->create_publisher<InterpToken>("/interp_tokens", TOKEN_QUEUE_SIZE);
     // Periodic prune, so expired tokens leave the buffers even when no new
     // token arrives to trigger a fusion attempt.
     timer_ = this->create_wall_timer(std::chrono::milliseconds(PRUNE_PERIOD_MS),
@@ -118,8 +119,8 @@ class CandidateTransitionNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
- private:
 
+ private:
   struct Held {
     InterpToken tok;
     rclcpp::Time expiry;  // t + ttl, the instant the token stops being valid
@@ -143,11 +144,13 @@ class CandidateTransitionNode : public rclcpp::Node {
     // the clock type keeps every time comparison in one domain. (Same fix as
     // in mission_transition_node / T6.)
     const rcl_clock_type_t clk = this->now().get_clock_type();
-    h.expiry = rclcpp::Time(m->t, clk) + rclcpp::Duration::from_seconds(m->ttl_s);
+    h.expiry =
+        rclcpp::Time(m->t, clk) + rclcpp::Duration::from_seconds(m->ttl_s);
     // A token that is already stale on arrival contributes nothing. This is the
-    // structural mechanism of the stale-EO counterfactual: a ConfirmedAerialObject
-    // interpreted from a long-delayed EO observation carries an old t, so its
-    // validity has already elapsed and it is dropped here, before it can fuse.
+    // structural mechanism of the stale-EO counterfactual: a
+    // ConfirmedAerialObject interpreted from a long-delayed EO observation
+    // carries an old t, so its validity has already elapsed and it is dropped
+    // here, before it can fuse.
     if (h.expiry <= this->now()) return;
     if (is_a) {
       buf_a_.push_back(h);
@@ -168,8 +171,7 @@ class CandidateTransitionNode : public rclcpp::Node {
         if (a.tok.target_id != b.tok.target_id) continue;
         // Guard 3: time window.
         //   abs( (t0' + ttl') - (t0 + ttl) ) <= ths
-        const double gap =
-            std::abs((b.expiry - a.expiry).seconds());
+        const double gap = std::abs((b.expiry - a.expiry).seconds());
         if (gap > sync_threshold_s_) continue;
         emit_candidate(a, b);
         // Consume both, so the same pair does not fire again.
@@ -212,8 +214,7 @@ class CandidateTransitionNode : public rclcpp::Node {
       tok.position = b.tok.position;
     }
     pub_->publish(tok);
-    RCLCPP_INFO(this->get_logger(),
-                "%s for '%s' (conf %.2f) from %zu origins",
+    RCLCPP_INFO(this->get_logger(), "%s for '%s' (conf %.2f) from %zu origins",
                 emit_label_.c_str(), tok.target_id.c_str(), tok.confidence,
                 tok.origin.size());
   }

@@ -67,7 +67,7 @@
  *   decision          authorise | deny | none                 [authorise]
  *   decision_delay_s  decision time, simulated seconds, >= 0  [0.0]
  *   ttl_s             validity of the decision, seconds, > 0  [15.0]
- *   authorised_by     identity recorded in the decision       [scripted_supervisor]
+ *   authorised_by     identity recorded in the decision [scripted_supervisor]
  *   require_label     the label that calls for a decision     [ConfirmedThreat]
  *
  * @author Luca D'Aurizio

@@ -33,7 +33,7 @@ namespace {
 // The status timer runs at SAFETY_STATUS_RATE_HZ; log one diagnostic line
 // every this-many ticks (so ~ once every 2 s at 10 Hz) to avoid flooding.
 constexpr uint64_t kStatusLogEveryNTicks = 20;
-}
+}  // namespace
 
 // ============================================================================
 // Constructor
@@ -170,10 +170,10 @@ SafetyVerdict SafetyBoardNode::evaluate_safety() {
   SafetyVerdict verdict;
   double now = now_seconds();
 
-  // -- 1. Sensor staleness (fail-safe: a never-yet-received sensor also vetoes) --
-  // Before the first message from a sensor its timestamp is 0. Treating that as
-  // a violation initialises the board in a fail-safe (vetoing) state: motion is
-  // blocked until every sensor has provided at least one valid reading.
+  // -- 1. Sensor staleness (fail-safe: a never-yet-received sensor also vetoes)
+  // -- Before the first message from a sensor its timestamp is 0. Treating that
+  // as a violation initialises the board in a fail-safe (vetoing) state: motion
+  // is blocked until every sensor has provided at least one valid reading.
   std::string stale;
   if (sensors_.last_imu_ts <= 0.0 ||
       (now - sensors_.last_imu_ts) > sensor_staleness_s_) {

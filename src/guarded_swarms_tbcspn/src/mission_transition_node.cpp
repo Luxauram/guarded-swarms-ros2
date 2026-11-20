@@ -42,10 +42,10 @@
  * THE COUNTERFACTUAL COMES FREE
  * =============================
  * "Authorisation withheld" needs no special code: if no
- * SupervisorAuth arrives, or a DENY arrives, no InterceptMission is produced. The
- * ConfirmedThreat persists in the coordination space, available for inspection
- * and possible later authorisation. A DENY is
- * recorded (logged) rather than being merely the silent absence of a token.
+ * SupervisorAuth arrives, or a DENY arrives, no InterceptMission is produced.
+ * The ConfirmedThreat persists in the coordination space, available for
+ * inspection and possible later authorisation. A DENY is recorded (logged)
+ * rather than being merely the silent absence of a token.
  *
  * PROVENANCE
  * ==========
@@ -68,22 +68,22 @@
 
 #include <rclcpp/rclcpp.hpp>
 
-#include <guarded_swarms_msgs/msg/supervisor_auth.hpp>
 #include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <guarded_swarms_msgs/msg/mission_token.hpp>
+#include <guarded_swarms_msgs/msg/supervisor_auth.hpp>
 
 #include <deque>
 #include <string>
 
-using guarded_swarms_msgs::msg::SupervisorAuth;
 using guarded_swarms_msgs::msg::InterpToken;
 using guarded_swarms_msgs::msg::MissionToken;
+using guarded_swarms_msgs::msg::SupervisorAuth;
 
 namespace {
 constexpr int TOKEN_QUEUE_SIZE = 50;
 constexpr int AUTH_QUEUE_SIZE = 10;
 constexpr int PRUNE_PERIOD_MS = 200;
-}
+}  // namespace
 
 class MissionTransitionNode : public rclcpp::Node {
  public:
@@ -112,8 +112,8 @@ class MissionTransitionNode : public rclcpp::Node {
         "/supervisor_auth", auth_qos,
         [this](const SupervisorAuth::SharedPtr m) { on_auth(m); });
 
-    mission_pub_ =
-        this->create_publisher<MissionToken>("/mission_tokens", AUTH_QUEUE_SIZE);
+    mission_pub_ = this->create_publisher<MissionToken>("/mission_tokens",
+                                                        AUTH_QUEUE_SIZE);
 
     timer_ = this->create_wall_timer(std::chrono::milliseconds(PRUNE_PERIOD_MS),
                                      [this]() { prune(); });
@@ -160,7 +160,8 @@ class MissionTransitionNode : public rclcpp::Node {
     // rclcpp::Time(m->t) is RCL_SYSTEM_TIME; comparing the two throws. Passing
     // the clock type keeps every time comparison in one domain.
     const rcl_clock_type_t clk = this->now().get_clock_type();
-    h.expiry = rclcpp::Time(m->t, clk) + rclcpp::Duration::from_seconds(m->ttl_s);
+    h.expiry =
+        rclcpp::Time(m->t, clk) + rclcpp::Duration::from_seconds(m->ttl_s);
     if (h.expiry <= this->now()) return;
 
     // Keep only the freshest threat per target, so the buffer does not grow
@@ -188,9 +189,10 @@ class MissionTransitionNode : public rclcpp::Node {
     // A denial is recorded and consumed: it is an explicit refusal, not the
     // mere absence of authorisation.
     if (m->decision == SupervisorAuth::DECISION_DENY) {
-      RCLCPP_WARN(this->get_logger(),
-                  "Authorisation DENIED for '%s' by '%s' - no mission released.",
-                  m->target_id.c_str(), m->authorised_by.c_str());
+      RCLCPP_WARN(
+          this->get_logger(),
+          "Authorisation DENIED for '%s' by '%s' - no mission released.",
+          m->target_id.c_str(), m->authorised_by.c_str());
       return;
     }
     if (m->decision != SupervisorAuth::DECISION_AUTHORISE) return;
@@ -241,10 +243,16 @@ class MissionTransitionNode : public rclcpp::Node {
     prune();
     long ti = -1, ai = -1;
     for (size_t i = 0; i < threats_.size(); ++i) {
-      if (threats_[i].tok.target_id == target_id) { ti = static_cast<long>(i); break; }
+      if (threats_[i].tok.target_id == target_id) {
+        ti = static_cast<long>(i);
+        break;
+      }
     }
     for (size_t i = 0; i < auths_.size(); ++i) {
-      if (auths_[i].auth.target_id == target_id) { ai = static_cast<long>(i); break; }
+      if (auths_[i].auth.target_id == target_id) {
+        ai = static_cast<long>(i);
+        break;
+      }
     }
     if (ti < 0 || ai < 0) return;  // one side missing: wait for it
 

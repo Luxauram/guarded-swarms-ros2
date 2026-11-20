@@ -59,12 +59,12 @@ using namespace std::chrono_literals;
  * sensor topic for the duration of the scenario.
  */
 struct Scenario {
-  std::string name;  ///< Human-readable scenario identifier.
-  float proximity_m; ///< Simulated obstacle distance (m).
-  float pitch_deg;   ///< Simulated pitch angle (degrees).
-  float roll_deg;    ///< Simulated roll angle (degrees).
-  float battery_pct; ///< Simulated battery state of charge (0–100).
-  float altitude_m;  ///< Simulated altitude above ground (m).
+  std::string name;   ///< Human-readable scenario identifier.
+  float proximity_m;  ///< Simulated obstacle distance (m).
+  float pitch_deg;    ///< Simulated pitch angle (degrees).
+  float roll_deg;     ///< Simulated roll angle (degrees).
+  float battery_pct;  ///< Simulated battery state of charge (0–100).
+  float altitude_m;   ///< Simulated altitude above ground (m).
 };
 
 static const std::vector<Scenario> SCENARIOS = {
@@ -97,7 +97,7 @@ static constexpr float BATTERY_PERCENT_SCALE = 100.0f;
  * last scenario completes the cycle restarts from the beginning.
  */
 class MockSensorPublisher : public rclcpp::Node {
-public:
+ public:
   /**
    * @brief Constructs the node, creates all publishers, and starts the
    *        periodic publish timer.
@@ -125,7 +125,7 @@ public:
                 SCENARIOS.size(), SCENARIO_DURATION_S);
   }
 
-private:
+ private:
   /**
    * @brief Determines the active scenario based on elapsed time.
    *

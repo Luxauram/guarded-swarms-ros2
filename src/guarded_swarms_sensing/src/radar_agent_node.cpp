@@ -91,7 +91,7 @@ constexpr double kGhostMinRangeM = 20.0;
 constexpr double kGhostAltitudeM = 15.0;
 // The generator takes 32-bit seeds.
 constexpr int64_t kMaxSeed = 4294967295;
-}
+}  // namespace
 
 class RadarAgentNode : public rclcpp::Node {
  public:
@@ -123,7 +123,8 @@ class RadarAgentNode : public rclcpp::Node {
     min_altitude_m_ = this->declare_parameter<double>("min_altitude_m", 2.0);
 
     // --- Error and rate model (the knobs the experiments vary) ---
-    position_noise_m_ = this->declare_parameter<double>("position_noise_m", 3.0);
+    position_noise_m_ =
+        this->declare_parameter<double>("position_noise_m", 3.0);
     detection_prob_ = this->declare_parameter<double>("detection_prob", 0.95);
     false_positive_hz_ =
         this->declare_parameter<double>("false_positive_hz", 0.0);
@@ -156,7 +157,8 @@ class RadarAgentNode : public rclcpp::Node {
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
                 topics[i], kQueueSize,
-                [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
+                [this,
+                 idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
                 }));
@@ -192,7 +194,6 @@ class RadarAgentNode : public rclcpp::Node {
   }
 
  private:
-
   /** @brief Scans every valid target, then rolls for a ghost false alarm. */
   void scan() {
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
@@ -263,7 +264,8 @@ class RadarAgentNode : public rclcpp::Node {
 
     // Confidence falls off linearly with range across the covered span.
     const double frac = std::min(1.0, range / max_range_m_);
-    tok.confidence = confidence_near_ + frac * (confidence_far_ - confidence_near_);
+    tok.confidence =
+        confidence_near_ + frac * (confidence_far_ - confidence_near_);
 
     // Latency is expressed by stamping the observation in the past rather than
     // by delaying its publication, so it adds no scheduling jitter of its own.
@@ -282,7 +284,8 @@ class RadarAgentNode : public rclcpp::Node {
     tok.kind = guarded_swarms_msgs::msg::ObsToken::KIND_TRACK;
 
     // Somewhere plausible inside the sector, at low altitude.
-    std::uniform_real_distribution<double> rng_range(kGhostMinRangeM, max_range_m_);
+    std::uniform_real_distribution<double> rng_range(kGhostMinRangeM,
+                                                     max_range_m_);
     std::uniform_real_distribution<double> rng_ang(
         -half_angle_deg_ * kPi / 180.0, half_angle_deg_ * kPi / 180.0);
     const double r = rng_range(rng_);
@@ -305,9 +308,7 @@ class RadarAgentNode : public rclcpp::Node {
     return d(rng_);
   }
 
-  std::string make_id() {
-    return "radar-" + std::to_string(seq_++);
-  }
+  std::string make_id() { return "radar-" + std::to_string(seq_++); }
 
   static builtin_interfaces::msg::Time to_msg(const rclcpp::Time& t) {
     return builtin_interfaces::msg::Time(t);

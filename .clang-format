@@ -1,0 +1,5 @@
+# C++ style: Google, with each block of includes kept as written and sorted
+# within itself. The CI checks it with clang-format 14, the version of
+# Ubuntu 22.04.
+BasedOnStyle: Google
+IncludeBlocks: Preserve

@@ -77,16 +77,16 @@
  * @author Luca D'Aurizio
  */
 
-#include <rclcpp/rclcpp.hpp>
 #include <guarded_swarms_msgs/msg/interp_token.hpp>
 #include <guarded_swarms_msgs/msg/obs_token.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <string>
 
 namespace {
 // Larger queue for the shared marking: many observations can arrive between
 // ticks, and none should be dropped before interpretation.
 constexpr int TOKEN_QUEUE_SIZE = 50;
-}
+}  // namespace
 
 class InterpretationNode : public rclcpp::Node {
  public:
@@ -109,9 +109,8 @@ class InterpretationNode : public rclcpp::Node {
         [this](const guarded_swarms_msgs::msg::ObsToken::SharedPtr m) {
           on_observation(m);
         });
-    interp_pub_ =
-        this->create_publisher<guarded_swarms_msgs::msg::InterpToken>(
-            "/interp_tokens", TOKEN_QUEUE_SIZE);
+    interp_pub_ = this->create_publisher<guarded_swarms_msgs::msg::InterpToken>(
+        "/interp_tokens", TOKEN_QUEUE_SIZE);
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
@@ -124,14 +123,13 @@ class InterpretationNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
+
  private:
- 
   /**
    * @brief Interprets an observation into a labelled token if the guards pass.
    * @param obs Shared pointer to the received @c ObsToken.
    */
-  void on_observation(
-      const guarded_swarms_msgs::msg::ObsToken::SharedPtr obs) {
+  void on_observation(const guarded_swarms_msgs::msg::ObsToken::SharedPtr obs) {
     // --- Guard 1: this transition only consumes its own modality ---
     if (obs->source != accept_source_) return;
     // --- Guard 2: confidence floor ---

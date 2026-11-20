@@ -71,16 +71,16 @@
  * @author Luca D'Aurizio
  */
 
-#include <rclcpp/create_timer.hpp>
-#include <rclcpp/rclcpp.hpp>
-#include <geometry_msgs/msg/pose_stamped.hpp>
-#include <guarded_swarms_msgs/msg/obs_token.hpp>
-#include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <deque>
+#include <geometry_msgs/msg/pose_stamped.hpp>
+#include <guarded_swarms_msgs/msg/obs_token.hpp>
+#include <px4_msgs/msg/vehicle_local_position.hpp>
 #include <random>
+#include <rclcpp/create_timer.hpp>
+#include <rclcpp/rclcpp.hpp>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -92,7 +92,7 @@ constexpr int kQueueSize = 10;
 constexpr int kDrainPeriodMs = 50;
 // The generator takes 32-bit seeds.
 constexpr int64_t kMaxSeed = 4294967295;
-}
+}  // namespace
 
 class EoAgentNode : public rclcpp::Node {
  public:
@@ -120,7 +120,8 @@ class EoAgentNode : public rclcpp::Node {
     cam_pitch_deg_ = this->declare_parameter<double>("cam_pitch_deg", -20.0);
     half_angle_deg_ = this->declare_parameter<double>("half_angle_deg", 30.0);
     max_range_m_ = this->declare_parameter<double>("max_range_m", 120.0);
-    position_noise_m_ = this->declare_parameter<double>("position_noise_m", 1.0);
+    position_noise_m_ =
+        this->declare_parameter<double>("position_noise_m", 1.0);
     detection_prob_ = this->declare_parameter<double>("detection_prob", 0.98);
     latency_s_ = this->declare_parameter<double>("latency_s", 0.15);
     ttl_s_ = this->declare_parameter<double>("ttl_s", 2.0);
@@ -172,7 +173,8 @@ class EoAgentNode : public rclcpp::Node {
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
                 gt_topics[i], kQueueSize,
-                [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
+                [this,
+                 idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
                 }));
@@ -202,10 +204,12 @@ class EoAgentNode : public rclcpp::Node {
                 carrier_.c_str(), spawn_x_, spawn_y_, spawn_z_);
     RCLCPP_INFO(this->get_logger(),
                 "  cone: bearing %.0f, pitch %.0f, half-angle %.0f, range %.0f",
-                cam_bearing_deg_, cam_pitch_deg_, half_angle_deg_, max_range_m_);
+                cam_bearing_deg_, cam_pitch_deg_, half_angle_deg_,
+                max_range_m_);
     if (emit_delay_s_ > 0.0) {
       RCLCPP_WARN(this->get_logger(),
-                  "  STALE-EO counterfactual: emit delay %.1f s", emit_delay_s_);
+                  "  STALE-EO counterfactual: emit delay %.1f s",
+                  emit_delay_s_);
     }
     RCLCPP_INFO(this->get_logger(),
                 "  coverage moves with the platform; emits VISUAL");
@@ -215,13 +219,15 @@ class EoAgentNode : public rclcpp::Node {
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
+
  private:
   struct Pending {
     guarded_swarms_msgs::msg::ObsToken tok;
     rclcpp::Time release_at;  // simulated instant to publish
   };
 
-  /** @brief Scans every target with a valid pose, if the carrier pose is known. */
+  /** @brief Scans every target with a valid pose, if the carrier pose is known.
+   */
   void scan() {
     if (!uav_valid_) return;  // no carrier pose yet, no camera to point
     for (size_t i = 0; i < pose_valid_.size(); ++i) {

@@ -107,8 +107,8 @@ using guarded_swarms_msgs::msg::VehicleTask;
 class UavWorkerNode : public rclcpp::Node {
  public:
   UavWorkerNode() : Node("uav_worker_node") {
-    target_system_ = static_cast<uint8_t>(
-        this->declare_parameter<int>("target_system", 1));
+    target_system_ =
+        static_cast<uint8_t>(this->declare_parameter<int>("target_system", 1));
     hover_altitude_m_ = this->declare_parameter<double>("hover_altitude", 5.0);
     // Altitude held during interception, so the UAV closes on the target's
     // horizontal position without descending onto it.
@@ -132,8 +132,7 @@ class UavWorkerNode : public rclcpp::Node {
     }
     fault_target_x_ = this->declare_parameter<double>("fault_target_x", 0.0);
     fault_target_y_ = this->declare_parameter<double>("fault_target_y", 0.0);
-    fault_altitude_m_ =
-        this->declare_parameter<double>("fault_altitude", 12.0);
+    fault_altitude_m_ = this->declare_parameter<double>("fault_altitude", 12.0);
 
     offboard_mode_pub_ =
         this->create_publisher<px4_msgs::msg::OffboardControlMode>(
@@ -144,14 +143,13 @@ class UavWorkerNode : public rclcpp::Node {
     // this worker is bypassed. A parameter, so other launches are unchanged.
     setpoint_pub_ = this->create_publisher<px4_msgs::msg::TrajectorySetpoint>(
         this->declare_parameter<std::string>("setpoint_topic",
-                                              "fmu/in/trajectory_setpoint"),
+                                             "fmu/in/trajectory_setpoint"),
         QUEUE_SIZE);
     // Proposed-actuation channel into this vehicle's analog Safety Board
     // (relative topic: stays within the vehicle namespace). The board answers
     // on actuator_cmd_safe.
-    cmd_raw_pub_ =
-        this->create_publisher<std_msgs::msg::Float32>(
-            "actuator_cmd_raw", QUEUE_SIZE);
+    cmd_raw_pub_ = this->create_publisher<std_msgs::msg::Float32>(
+        "actuator_cmd_raw", QUEUE_SIZE);
     command_pub_ = this->create_publisher<px4_msgs::msg::VehicleCommand>(
         "fmu/in/vehicle_command", QUEUE_SIZE);
 
@@ -222,17 +220,16 @@ class UavWorkerNode : public rclcpp::Node {
           }
         });
 
-    timer_ = this->create_wall_timer(
-        TIMER_PERIOD, [this]() { control_loop(); });
+    timer_ =
+        this->create_wall_timer(TIMER_PERIOD, [this]() { control_loop(); });
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
     RCLCPP_INFO(this->get_logger(), "UavWorkerNode (TB-CSPN T8)");
     RCLCPP_INFO(this->get_logger(), "  system %u, spawn (%.0f, %.0f)",
                 target_system_, spawn_x_, spawn_y_);
-    RCLCPP_INFO(this->get_logger(),
-                "  hover %.1f m; intercept altitude %.1f m", hover_altitude_m_,
-                intercept_altitude_m_);
+    RCLCPP_INFO(this->get_logger(), "  hover %.1f m; intercept altitude %.1f m",
+                hover_altitude_m_, intercept_altitude_m_);
     RCLCPP_INFO(this->get_logger(), "  holding hover until a task arrives");
     if (fault_ != "none") {
       RCLCPP_WARN(this->get_logger(),
@@ -246,10 +243,9 @@ class UavWorkerNode : public rclcpp::Node {
   }
 
  private:
-
   static constexpr int QUEUE_SIZE = 10;
-  // Larger queue for the threat stream: track-lock must not miss ConfirmedThreat
-  // updates arriving between control ticks.
+  // Larger queue for the threat stream: track-lock must not miss
+  // ConfirmedThreat updates arriving between control ticks.
   static constexpr int THREAT_QUEUE_SIZE = 50;
   static constexpr std::chrono::milliseconds TIMER_PERIOD{100};  // 10 Hz
   static constexpr double TIMER_FREQUENCY_HZ = 10.0;
@@ -461,10 +457,9 @@ class UavWorkerNode : public rclcpp::Node {
       advance_approach(aim_north, aim_east);
       msg.position[0] = static_cast<float>(approach_north_);
       msg.position[1] = static_cast<float>(approach_east_);
-      msg.position[2] = static_cast<float>(
-          fault_active_ ? -fault_altitude_m_
-          : has_task_   ? -intercept_altitude_m_
-                        : -hover_altitude_m_);
+      msg.position[2] = static_cast<float>(fault_active_ ? -fault_altitude_m_
+                                           : has_task_ ? -intercept_altitude_m_
+                                                       : -hover_altitude_m_);
       // Face the goal while it is more than a few metres away (not the nearby
       // approach point), so the single forward lidar looks where the UAV is
       // going. Near a task goal the heading is kept; over the spawn point it
@@ -575,7 +570,7 @@ class UavWorkerNode : public rclcpp::Node {
 
   rclcpp::Subscription<InterpToken>::SharedPtr threat_sub_;
 
-    bool has_task_ = false;
+  bool has_task_ = false;
   std::string locked_target_;
   double task_north_ = 0.0, task_east_ = 0.0;
   // Mission validity: TTL from the task, and the time of the last target

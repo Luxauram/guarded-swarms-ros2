@@ -84,14 +84,15 @@ class DispatchTransitionNode : public rclcpp::Node {
     const auto spawn_flat = this->declare_parameter<std::vector<double>>(
         "uav_spawns", std::vector<double>{-24.0, -24.0, 0.0, 24.0, -24.0, 0.0});
 
-    ugv_system_ = static_cast<uint8_t>(
-        this->declare_parameter<int>("ugv_system", 3));
+    ugv_system_ =
+        static_cast<uint8_t>(this->declare_parameter<int>("ugv_system", 3));
 
     const size_t n = uav_systems_.size();
     uav_pose_.assign(n, {0.0, 0.0, 0.0});
     uav_valid_.assign(n, false);
     for (size_t i = 0; i < n; ++i) {
-      std::array<double, 3> spawn{spawn_flat.at(3 * i), spawn_flat.at(3 * i + 1),
+      std::array<double, 3> spawn{spawn_flat.at(3 * i),
+                                  spawn_flat.at(3 * i + 1),
                                   spawn_flat.at(3 * i + 2)};
       uav_spawn_.push_back(spawn);
     }
@@ -105,8 +106,8 @@ class DispatchTransitionNode : public rclcpp::Node {
       uav_subs_.push_back(
           this->create_subscription<px4_msgs::msg::VehicleLocalPosition>(
               uav_topics[i], px4_qos,
-              [this, idx](
-                  const px4_msgs::msg::VehicleLocalPosition::SharedPtr m) {
+              [this,
+               idx](const px4_msgs::msg::VehicleLocalPosition::SharedPtr m) {
                 // NED -> ENU, offset by spawn pose (same as the EO agent).
                 uav_pose_[idx] = {uav_spawn_[idx][0] + m->y,
                                   uav_spawn_[idx][1] + m->x,
@@ -119,26 +120,25 @@ class DispatchTransitionNode : public rclcpp::Node {
         "/mission_tokens", QUEUE_SIZE,
         [this](const MissionToken::SharedPtr m) { on_mission(m); });
 
-    task_pub_ = this->create_publisher<VehicleTask>("/vehicle_tasks", QUEUE_SIZE);
+    task_pub_ =
+        this->create_publisher<VehicleTask>("/vehicle_tasks", QUEUE_SIZE);
 
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
-    RCLCPP_INFO(this->get_logger(),
-                "DispatchTransitionNode (TB-CSPN T7)");
+    RCLCPP_INFO(this->get_logger(), "DispatchTransitionNode (TB-CSPN T7)");
     RCLCPP_INFO(this->get_logger(),
                 "  InterceptMission -> UAVTask(intercept) + UGVTask(observe)");
     RCLCPP_INFO(this->get_logger(), "  %zu UAV(s), UGV system %u",
                 uav_systems_.size(), ugv_system_);
-    RCLCPP_INFO(this->get_logger(),
-                "  assignment: nearest UAV to the target");
+    RCLCPP_INFO(this->get_logger(), "  assignment: nearest UAV to the target");
     RCLCPP_INFO(this->get_logger(),
                 "============================================================");
   }
 
  private:
-
   /**
-   * @brief Dispatches a mission once into a UAV intercept and a UGV observe task.
+   * @brief Dispatches a mission once into a UAV intercept and a UGV observe
+   * task.
    * @param m Shared pointer to the received @c MissionToken.
    */
   void on_mission(const MissionToken::SharedPtr m) {
@@ -237,7 +237,8 @@ class DispatchTransitionNode : public rclcpp::Node {
   std::vector<std::array<double, 3>> uav_pose_;
   std::vector<bool> uav_valid_;
 
-  std::vector<rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr>
+  std::vector<
+      rclcpp::Subscription<px4_msgs::msg::VehicleLocalPosition>::SharedPtr>
       uav_subs_;
   rclcpp::Subscription<MissionToken>::SharedPtr mission_sub_;
   rclcpp::Publisher<VehicleTask>::SharedPtr task_pub_;

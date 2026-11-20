@@ -76,7 +76,7 @@ constexpr double kGhostRssiDbm = -90.0;
 constexpr double kGhostConfidenceFactor = 0.5;
 // The generator takes 32-bit seeds.
 constexpr int64_t kMaxSeed = 4294967295;
-}
+}  // namespace
 
 class RfAgentNode : public rclcpp::Node {
  public:
@@ -103,8 +103,7 @@ class RfAgentNode : public rclcpp::Node {
 
     // Signature the modality reports for a detected drone link. Fixed nominal
     // values with noise: the model is about coordination, not RF analysis.
-    centre_freq_hz_ =
-        this->declare_parameter<double>("centre_freq_hz", 2.44e9);
+    centre_freq_hz_ = this->declare_parameter<double>("centre_freq_hz", 2.44e9);
     bandwidth_hz_ = this->declare_parameter<double>("bandwidth_hz", 2.0e7);
     tx_power_dbm_ = this->declare_parameter<double>("tx_power_dbm", 20.0);
 
@@ -140,7 +139,8 @@ class RfAgentNode : public rclcpp::Node {
         gt_subs_.push_back(
             this->create_subscription<geometry_msgs::msg::PoseStamped>(
                 gt_topics[i], kQueueSize,
-                [this, idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
+                [this,
+                 idx](const geometry_msgs::msg::PoseStamped::SharedPtr m) {
                   last_pose_[idx] = *m;
                   pose_valid_[idx] = true;
                 }));
@@ -178,7 +178,6 @@ class RfAgentNode : public rclcpp::Node {
   }
 
  private:
-
   /** @brief Scans every valid target, then rolls for a ghost false alarm. */
   void scan() {
     for (size_t i = 0; i < pose_valid_.size(); ++i) {
@@ -221,9 +220,9 @@ class RfAgentNode : public rclcpp::Node {
     // pretending to be a propagation study.
     std::normal_distribution<double> f_noise(0.0, kFreqNoiseHz);
     std::normal_distribution<double> p_noise(0.0, kRssiNoiseDb);
-    const double rssi =
-        tx_power_dbm_ - kPathLossCoeff * std::log10(std::max(range, 1.0)) +
-        p_noise(rng_);
+    const double rssi = tx_power_dbm_ -
+                        kPathLossCoeff * std::log10(std::max(range, 1.0)) +
+                        p_noise(rng_);
     tok.value = {centre_freq_hz_ + f_noise(rng_), bandwidth_hz_, rssi};
 
     tok.confidence = confidence_;
