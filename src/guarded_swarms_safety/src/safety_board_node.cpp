@@ -169,10 +169,11 @@ SafetyVerdict SafetyBoardNode::evaluate_safety() {
   SafetyVerdict verdict;
   double now = now_seconds();
 
-  // -- 1. Sensor staleness (fail-safe: a never-yet-received sensor also vetoes)
-  // -- Before the first message from a sensor its timestamp is 0. Treating that
-  // as a violation initialises the board in a fail-safe (vetoing) state: motion
-  // is blocked until every sensor has provided at least one valid reading.
+  // -- 1. Sensor staleness (fail-safe: a never-received sensor also vetoes) --
+  // Before the first message from a sensor its timestamp is 0. Treating that as
+  // a violation initialises the board in a fail-safe (vetoing) state: motion is
+  // blocked until the IMU, the proximity and the battery have each provided a
+  // reading.
   std::string stale;
   if (sensors_.last_imu_ts <= 0.0 ||
       (now - sensors_.last_imu_ts) > sensor_staleness_s_) {

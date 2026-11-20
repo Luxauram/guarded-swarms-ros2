@@ -15,6 +15,10 @@ reproducible release.
   proposes no command, so nothing reaches `/actuator_cmd_safe` until a command
   is published on `/actuator_cmd_raw`; the target pointed to
   `/actuator_cmd_safe` alone.
+- `intruder.launch.py` passes the `transmitting` argument to the intruder, so
+  that `transmitting:=false` starts a target in radio silence, invisible to the
+  RF agent. The intruder declared the parameter, but the launch file did not
+  pass it, so the target always transmitted.
 
 ## [0.5.0] - 2026-11-20
 

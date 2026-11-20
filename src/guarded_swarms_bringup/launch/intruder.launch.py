@@ -43,6 +43,7 @@ Usage:
   ros2 launch guarded_swarms_bringup intruder.launch.py
   ros2 launch guarded_swarms_bringup intruder.launch.py speed_mps:=14.0 \\
       start_delay_s:=5.0
+  ros2 launch guarded_swarms_bringup intruder.launch.py transmitting:=false
 
 @author Luca D'Aurizio
 """
@@ -51,6 +52,7 @@ from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, LogInfo
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 
 CMD_VEL_TOPIC = "/model/intruder/cmd_vel"
 POSE_TOPIC = "/model/intruder/pose"
@@ -76,6 +78,10 @@ def generate_launch_description():
             description="Quiet period before ingress begins, so the swarm has "
                         "reached its patrol state first"),
         DeclareLaunchArgument("arrival_radius_m", default_value="3.0"),
+        DeclareLaunchArgument(
+            "transmitting", default_value="true",
+            description="Whether the target emits a radio control link; "
+                        "false makes it invisible to the RF agent"),
     ]
 
     # ROS -> GZ. The ']' suffix marks the direction: without it the bridge
@@ -114,6 +120,8 @@ def generate_launch_description():
             "speed_mps": LaunchConfiguration("speed_mps"),
             "start_delay_s": LaunchConfiguration("start_delay_s"),
             "arrival_radius_m": LaunchConfiguration("arrival_radius_m"),
+            "transmitting": ParameterValue(LaunchConfiguration("transmitting"),
+                                           value_type=bool),
             "cmd_vel_topic": CMD_VEL_TOPIC,
             "pose_topic": POSE_TOPIC,
             "use_sim_time": True,

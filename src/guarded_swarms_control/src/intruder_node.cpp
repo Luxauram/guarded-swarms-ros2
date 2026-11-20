@@ -33,13 +33,11 @@
  * The commanded velocity is a pure function of elapsed time and the ingress
  * parameters. It does NOT depend on any feedback from Gazebo.
  *
- * An earlier version computed the heading from the model's own odometry, which
- * created a deadlock: Gazebo's OdometryPublisher only emits while the model
- * moves, and the node only moved while it received odometry. The target left
- * its spawn point, the feedback never arrived, the node fell back to zero
- * velocity, and it stalled a third of the way in. Commanding open-loop removes
- * the loop entirely and, as a bonus, makes the trajectory perfectly
- * repeatable: the same parameters always produce the same path.
+ * A heading computed from the model's own odometry would deadlock: Gazebo's
+ * OdometryPublisher only emits while the model moves, so a node that moves
+ * only while it receives odometry can stall. Commanding open-loop removes the
+ * loop entirely, and makes the trajectory repeatable: the same parameters
+ * always produce the same path.
  *
  * The dead-reckoned position (integrated from the commanded velocity) decides
  * when the run is complete. The model's pose is subscribed only to publish an
@@ -50,11 +48,9 @@
  * ==============
  * The node runs on the simulation clock (use_sim_time): the start delay, the
  * dead reckoning and the publication timer all follow simulated time, like
- * Gazebo and PX4. On the wall clock the target used to cover its route faster
- * in simulated time whenever the real-time factor was below 1 (6.2 m/s
- * instead of 6.0 at a factor of 0.97), and the error grew as the simulation
- * slowed down, so every latency measured in simulated time depended on the
- * load of the machine.
+ * Gazebo and PX4. On the wall clock the target would cover its route faster
+ * in simulated time whenever the real-time factor is below 1, and every
+ * latency measured in simulated time would depend on the load of the machine.
  *
  * All motion is in world ENU, matching Gazebo. The PX4 vehicles reason in NED;
  * frame conversion, if any, is the consultant agents' responsibility.

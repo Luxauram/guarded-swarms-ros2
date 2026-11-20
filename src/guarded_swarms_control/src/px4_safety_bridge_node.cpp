@@ -23,16 +23,12 @@
  * standard ROS 2 sensor messages compatible with @c SafetyBoardNode. This
  * keeps the safety board completely decoupled from PX4-specific message types.
  *
- * Topic mapping:
- * | PX4 / Gazebo source topic                 | Safety board topic  | Message
- * type                  |
- * |-------------------------------------------|---------------------|-------------------------------|
- * | /fmu/out/vehicle_attitude                 | /drone/imu          |
- * sensor_msgs/Imu               | | /fmu/out/battery_status_v1                |
- * /drone/battery      | sensor_msgs/BatteryState      | |
- * /fmu/out/vehicle_local_position_v1        | /drone/altitude     |
- * std_msgs/Float32              | | Gazebo lidar/scan (via ros_gz_bridge)     |
- * /drone/proximity    | sensor_msgs/Range             |
+ * Topic mapping, relative to the namespace of the vehicle:
+ *   fmu/out/vehicle_attitude           -> drone/imu        (Imu)
+ *   fmu/out/battery_status_v1          -> drone/battery    (BatteryState)
+ *   fmu/out/vehicle_local_position_v1  -> drone/altitude   (Float32)
+ *   lidar_topic, a Gazebo LaserScan    -> drone/proximity  (Range)
+ * The output types are those of sensor_msgs, and std_msgs for the altitude.
  *
  * @note The lidar topic name is configurable via the ROS parameter
  *       @c lidar_topic, defaulting to the x500_lidar_front_0 model path.
