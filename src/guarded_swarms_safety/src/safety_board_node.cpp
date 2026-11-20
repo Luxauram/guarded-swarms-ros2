@@ -139,7 +139,6 @@ void SafetyBoardNode::altitude_callback(
 
 void SafetyBoardNode::cmd_raw_callback(
     const std_msgs::msg::Float32::SharedPtr msg) {
-  commands_received_++;
   SafetyVerdict verdict = evaluate_safety();
 
   if (verdict.is_safe) {

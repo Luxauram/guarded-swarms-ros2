@@ -90,8 +90,8 @@ static constexpr float BATTERY_PERCENT_SCALE = 100.0f;
 // ============================================================================
 
 /**
- * @brief ROS 2 node that publishes scripted sensor data and raw actuator
- *        commands for SafetyBoard integration testing.
+ * @brief ROS 2 node that publishes scripted sensor data for a SafetyBoard
+ *        demo. It proposes no actuator command.
  *
  * The node cycles through the entries of @c SCENARIOS in order. After the
  * last scenario completes the cycle restarts from the beginning.
@@ -148,8 +148,8 @@ class MockSensorPublisher : public rclcpp::Node {
   }
 
   /**
-   * @brief Timer callback that publishes all sensor topics and a constant
-   *        raw actuator command for the current scenario.
+   * @brief Timer callback that publishes all sensor topics for the current
+   *        scenario.
    */
   void publish_all() {
     const Scenario &s = get_current_scenario();

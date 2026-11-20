@@ -44,8 +44,11 @@
  * @brief Aggregated snapshot of the latest reading from each sensor.
  *
  * Updated by each subscriber callback and consumed by the safety evaluator.
- * All fields are initialised to safe default values so that the node does not
- * veto commands before the first sensor message is received.
+ * The timestamps start at 0, which the staleness check reads as never
+ * received: the board vetoes until the IMU, the proximity and the battery
+ * have each sent a reading. The altitude is not part of the staleness check;
+ * its initial value, 0 m, is below the default minimum altitude, so with the
+ * default limits the board also vetoes until the first altitude reading.
  */
 struct SensorSnapshot {
   float proximity_m = 999.0f;  ///< Closest obstacle distance (m).
@@ -214,14 +217,8 @@ class SafetyBoardNode : public rclcpp::Node {
 
   SensorSnapshot sensors_;
 
-  uint64_t commands_received_ = 0;
   uint64_t commands_cleared_ = 0;
   uint64_t commands_vetoed_ = 0;
-  uint64_t veto_proximity_ = 0;
-  uint64_t veto_attitude_ = 0;
-  uint64_t veto_battery_ = 0;
-  uint64_t veto_altitude_ = 0;
-  uint64_t veto_stale_ = 0;
 
   rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub_;
   rclcpp::Subscription<sensor_msgs::msg::Range>::SharedPtr proximity_sub_;

@@ -9,6 +9,13 @@ reproducible release.
 
 ## [Unreleased]
 
+### Fixed
+
+- `make demo-safety` shows how to see the veto. The mock sensor publisher
+  proposes no command, so nothing reaches `/actuator_cmd_safe` until a command
+  is published on `/actuator_cmd_raw`; the target pointed to
+  `/actuator_cmd_safe` alone.
+
 ## [0.5.0] - 2026-11-20
 
 ### Added

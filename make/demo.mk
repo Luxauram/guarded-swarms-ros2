@@ -39,8 +39,11 @@ demo-safety:
 	@echo "  5 - NOMINAL RECOVERY"
 	@echo ""
 	@echo "Monitor:"
-	@echo "  ros2 topic echo /actuator_cmd_safe   # 0.6=cleared 0.0=vetoed"
 	@echo "  ros2 topic echo /safety_status       # 1.0=safe    0.0=unsafe"
+	@echo ""
+	@echo "To see the veto, propose a command and watch what passes:"
+	@echo "  ros2 topic pub -r 10 /actuator_cmd_raw std_msgs/msg/Float32 \"{data: 0.6}\""
+	@echo "  ros2 topic echo /actuator_cmd_safe   # 0.6=cleared 0.0=vetoed"
 	@echo ""
  
 demo-safety-board:
