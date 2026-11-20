@@ -19,20 +19,17 @@ limitations under the License.
 
 @file mock_pipeline.launch.py
 
-Analog Safety Board with mock sensors - no PX4, no Gazebo required.
+Analog Safety Board alone - no PX4, no Gazebo required.
 
-Brings up the safety board together with the mock sensor publisher, so the
-board can be exercised in isolation from the digital layer. This is the
+Brings up the safety board in isolation from the digital layer. This is the
 infrastructure the resilience tests run against: each test publishes its own
 sensor streams and proposed actuator command, and checks the board's verdicts.
 
 Launches:
   - safety_board_node    : OR-logic veto on actuator commands
 
-This is the board in isolation, ready to be driven by the resilience tests,
-which each publish their own sensor streams and proposed actuator command and
-check the board's verdicts. For a standalone demo with generated sensor faults,
-use `make demo-safety-sensors` (the mock_sensor_publisher) alongside it.
+For a standalone demo with generated sensor faults, use
+`make demo-safety-sensors` (the mock_sensor_publisher) alongside it.
 
 Monitor pipeline output:
   ros2 topic echo /actuator_cmd_safe   # cleared value, or 0.0 = vetoed

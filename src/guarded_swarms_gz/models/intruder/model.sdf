@@ -2,15 +2,14 @@
 <!--
   Guarded Swarms === Intruder
 
-  Hostile aerial target for the coastal surveillance scenario of Borghoff,
-  Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation, Section 5: the
-  swarm must detect, classify and intercept a potentially hostile aerial
-  target approaching through the maritime corridor.
+  Hostile aerial target for the coastal surveillance scenario: the swarm must
+  detect, classify and intercept a potentially hostile aerial target
+  approaching through the maritime corridor.
 
   WHY THIS IS NOT A PX4 VEHICLE
   ============================
   The intruder is an element of the scenario, not a platform under our control.
-  Driving it kinematically has two advantages that matter for the evaluation:
+  Driving it kinematically has two advantages that matter for the experiments:
 
     1. the trajectory is reproduced exactly on every run, so detection
        latencies measured across runs are comparable;

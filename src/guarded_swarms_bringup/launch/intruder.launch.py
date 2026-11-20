@@ -22,8 +22,8 @@ Guarded Swarms - hostile aerial target for the coastal scenario.
 
 Kept in its own launch file rather than folded into coastal_pipeline so that
 the adversary can be started, stopped and re-parameterised independently of the
-swarm. The counterfactual trajectories of the paper (IET Section 5.3) are meant
-to be different invocations of this file, not different code.
+swarm. The counterfactual runs are different invocations of this file, not
+different code.
 
 Two bridges are needed because the intruder is driven kinematically rather
 than by PX4:

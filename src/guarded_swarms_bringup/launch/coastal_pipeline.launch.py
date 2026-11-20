@@ -20,10 +20,9 @@ limitations under the License.
 
 Guarded Swarms - Coastal Surveillance Pipeline (N UAV + 1 UGV).
 
-Implements the swarm composition of Borghoff, Bottoni and Pareschi (2026),
-IET Radar, Sonar and Navigation, Section 5.1: two UAV platforms responsible
-for aerial interception and one UGV positioned near the shoreline for ground
-observation and target recovery.
+Implements the swarm composition of the coastal scenario: two UAV platforms
+responsible for aerial interception and one UGV positioned near the shoreline
+for ground observation and target recovery.
 
 The fleet is described in config/coastal_fleet.yaml. A run flies its first
 N_UAVS UAVs, an environment variable: 2 by default, the composition above,
@@ -34,9 +33,10 @@ fleet.
 
 Architecture mapping
 --------------------
-The paper places the digital coordination layer centrally (the TB-CSPN chain,
-brought up separately by tbcspn.launch.py) while every platform carries its own
-independent analogue safety envelope. This file brings up the per-vehicle side:
+The architecture places the digital coordination layer centrally (the TB-CSPN
+chain, brought up separately by tbcspn.launch.py) while every platform carries
+its own independent analogue safety envelope. This file brings up the
+per-vehicle side:
 
   per vehicle   lidar bridge, px4_safety_bridge, safety_board, worker
                 (uav_worker or ugv_worker)
