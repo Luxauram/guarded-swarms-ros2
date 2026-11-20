@@ -27,6 +27,14 @@ reproducible release.
   that `transmitting:=false` starts a target in radio silence, invisible to the
   RF agent. The intruder declared the parameter, but the launch file did not
   pass it, so the target always transmitted.
+- `gz_kill.sh` stops a Gazebo started by `gz_launch.sh`. It matched only a
+  `gz sim` started with `--verbose`, while `gz_launch.sh` starts `gz sim -r`,
+  so a Gazebo left running survived both `make px4-kill` and the clean-up that
+  `coastal_up.sh` runs before it starts Gazebo.
+- `gz_launch.sh` sets `__NV_PRIME_RENDER_OFFLOAD` and
+  `__GLX_VENDOR_LIBRARY_NAME` only when the NVIDIA driver is loaded. The
+  variables select the NVIDIA libraries, which a machine without the driver
+  does not have, and the script set them on every machine.
 
 ## [0.5.0] - 2026-11-20
 

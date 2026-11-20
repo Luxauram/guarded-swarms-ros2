@@ -25,8 +25,8 @@
 # Gazebo loads no PX4 sensor systems and every preflight check fails
 # (accel/gyro/baro/mag "missing").
 #
-# Because my paths come first, model:// and world lookups resolve to my
-# versions: nothing is ever copied into the PX4 tree.
+# Because the repository's paths come first, model:// and world lookups resolve
+# to its versions: nothing is ever copied into the PX4 tree.
 #
 # Usage: gz_launch.sh <world_name> [--headless]
 # ==============================================================================
@@ -53,12 +53,15 @@ export GZ_SIM_RESOURCE_PATH="$REPO_ROOT/src/guarded_swarms_gz/models:$REPO_ROOT/
 # shellcheck disable=SC1090
 source "$GZ_ENV"
 
-# NVIDIA PRIME render offload, so Gazebo uses the discrete GPU (required for
-# lidar rendering). Harmless on non-NVIDIA systems: the variables are simply
-# ignored. MESA_GL_VERSION_OVERRIDE forces an OpenGL 4.5 context, which Gazebo
-# Harmonic's renderer needs on some Mesa/driver combinations.
-export __NV_PRIME_RENDER_OFFLOAD=1
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
+# NVIDIA PRIME render offload: on a machine with two GPUs, Gazebo renders, the
+# lidar included, on the NVIDIA one. Set only when the NVIDIA driver is loaded,
+# since the variables select its libraries. MESA_GL_VERSION_OVERRIDE forces an
+# OpenGL 4.5 context, which Gazebo Harmonic's renderer needs on some Mesa
+# drivers; NVIDIA's driver ignores it.
+if [ -e /proc/driver/nvidia/version ]; then
+    export __NV_PRIME_RENDER_OFFLOAD=1
+    export __GLX_VENDOR_LIBRARY_NAME=nvidia
+fi
 export MESA_GL_VERSION_OVERRIDE=4.5
 
 echo "[gz_launch] world: $WORLD"

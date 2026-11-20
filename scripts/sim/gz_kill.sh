@@ -40,7 +40,7 @@ PX4_DIR="${PX4_DIR:-$HOME/PX4-Autopilot}"
 
 # Terminate the simulator and every helper process it spawns.
 pkill -9 -x px4 2>/dev/null || true
-pkill -9 -f "gz sim --verbose" 2>/dev/null || true
+pkill -9 -f "gz sim" 2>/dev/null || true
 pkill -9 -f "px4-gz_bri" 2>/dev/null || true
 pkill -9 -f "gz_sim_serv" 2>/dev/null || true
 pkill -9 gzserver 2>/dev/null || true
