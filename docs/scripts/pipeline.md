@@ -83,7 +83,7 @@ SEED=1000 DECISION=deny ./scripts/record/record_run.sh withheld
 | `STAY_UP`                                                       | `1`                       | `0`: end the run once the report is printed, with exit code 0, instead of staying up until Ctrl-C                        |
 | `BAG_DIR`                                                       | `bags/<name>-<timestamp>` | `record_run.sh` only: folder of the bag. rosbag2 refuses an existing folder                                              |
 
-The counterfactual runs of the thesis use these variables:
+The counterfactual runs use these variables:
 
 | Counterfactual              | Setting                                                  |
 | --------------------------- | -------------------------------------------------------- |
@@ -140,7 +140,7 @@ node's source file open from being taken for the node. The scenario's own
 nodes (vehicle workers, safety boards, bridges) belong to `make demo-coastal`.
 They are not matched, and they stay up from one run to the next.
 
-**Why the guards exist.** In two runs of the thesis campaign, an intruder left
+**Why the guards exist.** In two runs of an earlier campaign, an intruder left
 over from an earlier run was still alive, and the bag recorded the ground truth
 of two intruders at once. Nothing checked for it, and the mixed trajectories
 went into the data. In a later campaign, the scenario check of one run

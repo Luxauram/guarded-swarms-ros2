@@ -51,8 +51,7 @@ INTRUDER_SPEED="${INTRUDER_SPEED:-6.0}"    # m/s, slow = wide detection window
 # Attack vector: ingress geometry of the intruder, chosen from the sensor
 # coverage map. "frontal" is the well-covered sea front; "east-deep" and "rear"
 # cross the sparse zones so the detection modality richness degrades. Used by
-# the Group 4 (detection-by-vector) metric. Default frontal = the paper's
-# nominal coastal ingress.
+# the detection-by-vector runs. Default frontal = the nominal coastal ingress.
 ATTACK_VECTOR="${ATTACK_VECTOR:-frontal}"
 case "$ATTACK_VECTOR" in
   frontal)   IN_X=0.0;   IN_Y=180.0;  TG_X=0.0; TG_Y=10.0 ;;
@@ -70,17 +69,17 @@ case "$ATTACK_VECTOR" in
   # pass-through -- which is what a live console demonstration needs. This is a
   # realistic hostile profile (a low target penetrating to a coastal objective
   # and loitering over it), and it changes only the intruder's path, never the
-  # sensor models, so the Group 4 detection metrics are untouched.
+  # sensor models, so the detection-by-vector results are untouched.
   *) echo "[test] unknown ATTACK_VECTOR '$ATTACK_VECTOR' (frontal|east-deep|rear|demo)"; exit 1 ;;
 esac
 
 # Seconds to delay EO delivery; a value above the threat TTL reproduces the
-# stale-EO counterfactual (C2) of the paper.
+# stale-EO counterfactual.
 export EO_DELAY_S="${EO_DELAY_S:-0}"
 
-# Per-modality enables for the loss-of-modality metric (Group 4b): drop one and
-# measure the degrade. Setting EO_ENABLED=false reproduces the "EO confirmation
-# unavailable in the fusion window" counterfactual (C2): CandidateTarget forms
+# Per-modality enables for the loss-of-modality runs: drop one and measure the
+# degrade. Setting EO_ENABLED=false reproduces the "EO confirmation
+# unavailable in the fusion window" counterfactual: CandidateTarget forms
 # but is never promoted to ConfirmedThreat.
 RADAR_ENABLED="${RADAR_ENABLED:-true}"
 RF_ENABLED="${RF_ENABLED:-true}"
@@ -93,7 +92,7 @@ EO_ENABLED="${EO_ENABLED:-true}"
 export SEED="${SEED:-$(( (RANDOM << 15 | RANDOM) + 1 ))}"
 
 # T2's emitted label; set to LikelyCivilianTraffic to reproduce the conflict
-# counterfactual (C3).
+# counterfactual.
 export RF_LABEL="${RF_LABEL:-LikelyDroneLink}"
 
 # The synchronisation window of T3 alone, in seconds. Empty: T3 shares
@@ -132,7 +131,7 @@ sim_wait() {
 }
 
 # yes | no. no = do not wait for a ConfirmedThreat (it must NOT come, as in the
-# C3 conflict run); instead let the pipeline run for OBSERVE_S and just record.
+# conflict run); instead let the pipeline run for OBSERVE_S and just record.
 EXPECT_THREAT="${EXPECT_THREAT:-yes}"
 OBSERVE_S="${OBSERVE_S:-90}"   # simulated seconds
 
@@ -294,7 +293,7 @@ before_ugv=$(pose r1_rover_2)
 
 # --- wait for a ConfirmedThreat --------------------------------------------
 # In a counterfactual run where the threat must NOT form (EXPECT_THREAT=no, the
-# C3 conflict case), waiting for it would be waiting for something that is
+# conflict case), waiting for it would be waiting for something that is
 # correctly never produced. Instead let the pipeline run for OBSERVE_S so the
 # sensors and interpretations do their work, then record and finish. The
 # counterfactual check on the bag then confirms the forbidden token is absent.

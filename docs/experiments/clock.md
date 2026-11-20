@@ -15,7 +15,7 @@ board can no longer vouch for any reading's freshness: it treats every healthy
 sensor as never-received and vetoes every command. The vehicle is blocked
 although nothing is wrong with it. That is the denial of service.
 
-The board is exercised in isolation, as the thesis measures it - no Gazebo, no
+The board is exercised in isolation - no Gazebo, no
 PX4, no coordination layer - with permissive value limits, so freshness, the
 clock-dependent check, is the only thing that can make it veto.
 

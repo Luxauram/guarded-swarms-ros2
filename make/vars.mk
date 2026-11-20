@@ -73,7 +73,7 @@ COLCON_BUILD          := colcon build --symlink-install
 COLCON_BUILD_PARALLEL := $(COLCON_BUILD) --parallel-workers 4 --event-handlers console_direct+
 
 # ------------------------------------------------------------------------------
-# Coastal scenario (IET paper 5.1): 2 UAV + 1 UGV
+# Coastal scenario: 2 UAV + 1 UGV
 #
 # Poses are Gazebo ENU (X = East, Y = North). The UAV pads are at (+/-24, -24)
 # and the shore road the rover patrols runs along X at Y = -14.

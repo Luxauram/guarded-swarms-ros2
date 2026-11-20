@@ -56,7 +56,7 @@ define GZ_KILL
 endef
 
 # ------------------------------------------------------------------------------
-# Coastal surveillance demo - 2 UAV + 1 UGV (IET paper 5.1)
+# Coastal surveillance demo - 2 UAV + 1 UGV
 #
 # One Gazebo server: scripts/sim/gz_launch.sh starts the world once, and every
 # PX4 instance attaches to it with PX4_GZ_STANDALONE=1. Instance N gets

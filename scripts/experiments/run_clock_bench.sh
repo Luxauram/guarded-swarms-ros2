@@ -18,7 +18,7 @@
 # ==============================================================================
 # run_clock_bench.sh - a campaign of Safety Board runs under clock denial.
 #
-# The board is run in isolation, as the thesis measures it (no Gazebo, no PX4,
+# The board is run in isolation (no Gazebo, no PX4,
 # no coordination layer): scripts/pipeline/publish_sensors.py feeds it healthy,
 # safe readings and a constant "go" command, scripts/pipeline/publish_clock.py
 # is the source of its simulated clock, and the run is recorded. The board's

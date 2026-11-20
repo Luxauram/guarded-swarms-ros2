@@ -17,14 +17,14 @@
 
 # ==============================================================================
 # record_veto.sh - exercise the analog Safety Board in isolation and record a
-# bag for the Group 6 (veto) metrics.
+# bag of its verdicts.
 #
-# The Virtual Safety Board of the IEEE paper is an ANALOG enforcement layer that
-# runs INDEPENDENTLY of the digital coordination system: it clamps or vetoes
-# actuator commands from raw sensor readings alone, before they reach the ESCs.
-# We measure it exactly as the paper frames it -- on its own, with NO TB-CSPN
-# layer and NO Gazebo/PX4 running. That the board vetoes correctly while fully
-# isolated from the digital system IS the paper's independence guarantee.
+# The Safety Board is an ANALOG enforcement layer that runs INDEPENDENTLY of
+# the digital coordination system: it clamps or vetoes actuator commands from
+# raw sensor readings alone, before they reach the ESCs. It is measured on its
+# own, with NO TB-CSPN layer and NO Gazebo/PX4 running. That the board vetoes
+# correctly while fully isolated from the digital system IS the independence
+# guarantee of the architecture.
 #
 # Three processes:
 #   1. safety_board_node    - the board under test (subscribes sensors + raw,

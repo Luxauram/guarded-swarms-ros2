@@ -29,7 +29,7 @@
 #
 # The guards print what is wrong and return 1; the caller decides how to stop.
 #
-# Why they exist: two runs of the thesis campaign recorded the ground truth of
+# Why they exist: two runs of an earlier campaign recorded the ground truth of
 # two intruders at once, because an intruder from an earlier run was still
 # alive. Nothing checked for it, and the mixed trajectories went into the data.
 # In a later campaign the nodes of one run received no /clock: the run recorded
