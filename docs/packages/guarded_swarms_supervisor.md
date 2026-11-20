@@ -3,9 +3,9 @@
 Supervisor side of the mission-release transition (T6).
 
 In the Guarded Swarms architecture no mission is released without an explicit
-human decision: T6 turns a `ConfirmedThreat` into an `InterceptMission` only
-when a `SupervisorAuth` that authorises the same target is also live. In an
-interactive run the decision comes from the supervisor console. In an
+human decision: T6 turns a `ConfirmedThreat` into an intercept `MissionToken`
+only when a `SupervisorAuth` that authorises the same target is also valid. In
+an interactive run the decision comes from the supervisor console. In an
 experiment campaign it must be repeatable, and this package provides the
 scripted supervisor that issues it.
 

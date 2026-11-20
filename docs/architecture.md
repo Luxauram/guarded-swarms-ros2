@@ -77,7 +77,8 @@ The transitions of `guarded_swarms_tbcspn` read and write tokens:
   either join.
 - **T6** releases a `MissionToken` when a `ConfirmedThreat` and an authorise
   decision for the same target are valid at the same time. Without an
-  authorisation the threat persists, and no mission is formed.
+  authorisation, or with a denial, no mission is formed: the threat waits for
+  a decision only while it is valid.
 - **T7** dispatches the mission: an intercept task to the UAV nearest the
   target, among all the UAVs of the fleet, and an observe task to the UGV.
 
