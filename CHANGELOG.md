@@ -13,6 +13,15 @@ reproducible release.
 
 - The supervisor console loads roslib 1.4.1, the version `roslib@1` resolves
   to, instead of whichever 1.x release is the latest.
+- `install.sh` adds the ROS 2 apt source with the `ros2-apt-source` package, as
+  the ROS 2 documentation does, and upgrades a fresh system before it installs
+  ROS 2. It builds Micro XRCE-DDS Agent v2.4.3, the release the PX4
+  documentation installs, rather than its default branch, and installs the
+  dependencies of the packages with rosdep. It stops if run as root, or on a
+  release other than Ubuntu 22.04.
+- `make px4-kill` stops Gazebo and PX4 through `gz_kill.sh`, then the
+  uXRCE-DDS agents. The Makefile reads `PX4_DIR` from the environment, as the
+  scripts do.
 
 ### Removed
 
@@ -25,6 +34,12 @@ reproducible release.
   the keys of `scripts/resilience/config/mock.yaml` that no test reads. The
   sensor publishers of the client were best effort, which the reliable
   subscriptions of the Safety Board do not accept.
+- The `ros2-agent` and `ros2-test-topics` targets, left from the setup with one
+  vehicle: the coastal scenario starts an agent for each vehicle.
+- From `install.sh`: the installation of `nvidia-utils`, which could replace the
+  packages of an NVIDIA driver of another version; `expect`, which nothing
+  uses; the regeneration of `coastal.sdf`, which the repository versions; and
+  the `chmod` of the scripts, whose modes git keeps.
 
 ### Fixed
 
@@ -49,6 +64,16 @@ reproducible release.
   while it holds a valid `ConfirmedThreat` of the target.
 - `demo_console.sh` stops, on Ctrl-C, only the nodes it starts. It also killed
   the workers of the vehicles, which it does not start.
+- `make setup-px4` builds PX4 SITL. It ran `make px4_sitl gz_x500_lidar_front`,
+  which also starts the simulation, and does not return.
+- `install.sh` installs the ROS 2 bridge of Gazebo after it adds the Gazebo
+  repository, where the package is: on a fresh system the installation stopped
+  at its first step. When ROS 2 was already installed, the script skipped the
+  whole step, colcon, rosdep and the bridge included.
+- `install.sh` and `make setup-workspace` build every package. They left out
+  `guarded_swarms_gz`.
+- `make help` lists `test-resilience-mock`.
+- `scripts/sim/gz_launch.sh` is executable, as the other scripts.
 
 ## [0.5.0] - 2026-11-20
 
