@@ -2,7 +2,7 @@
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
   <name>guarded_swarms_safety</name>
-  <version>0.0.0</version>
+  <version>1.0.0</version>
   <description>Virtual Safety Board: the analog safety layer that vetoes unsafe actuator commands from real-time sensor data, independently of the digital coordination layer.</description>
   <maintainer email="daurizio.lc@gmail.com">Luca D'Aurizio</maintainer>
   <license>Apache-2.0</license>
@@ -12,9 +12,6 @@
   <depend>rclcpp</depend>
   <depend>sensor_msgs</depend>
   <depend>std_msgs</depend>
-
-  <test_depend>ament_lint_auto</test_depend>
-  <test_depend>ament_lint_common</test_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

@@ -4,10 +4,38 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-Versions 0.x are development snapshots; 1.0.0 will be the first public,
-reproducible release.
+Versions 0.x are development snapshots; 1.0.0 is the first public, reproducible
+release.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-20
+
+### Added
+
+- The README and the analysis page link the archive of the recordings on
+  Zenodo, [doi:10.5281/zenodo.24402598](https://doi.org/10.5281/zenodo.24402598),
+  from which `make_results.sh` rebuilds every result.
+- `CITATION.cff` gives the version and the release date.
+
+### Changed
+
+- The `guarded_swarms_*` packages are at version 1.0.0.
+
+### Removed
+
+- The `ament_lint` tests of the packages and their test dependencies: they
+  checked the style of ROS 2, not the style of the project, which the CI
+  checks.
+- The empty `include/` folders of `guarded_swarms_control`,
+  `guarded_swarms_sensing` and `guarded_swarms_tbcspn`, and the empty `config/`
+  folder of `guarded_swarms_tbcspn`.
+
+### Fixed
+
+- `kill_all.sh` matches the nodes on the path of their executable, and the
+  console bridge on `python3` and its script, so it no longer kills an editor
+  open on the source file of a node.
 
 ## [0.6.0] - 2026-11-20
 

@@ -12,6 +12,8 @@ authors:
   - family-names: "D'Aurizio"
     given-names: "Luca"
     alias: "Luxauram"
+version: "1.0.0"
+date-released: "2026-11-20"
 repository-code: "https://github.com/Luxauram/guarded-swarms-ros2"
 license: Apache-2.0
 keywords:
