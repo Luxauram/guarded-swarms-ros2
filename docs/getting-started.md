@@ -28,8 +28,8 @@ PX4 commit 091ac918b133d518da8b73e395243ea0e0d087b5   (v1.17.0-alpha1-397-g091ac
 
 `install.sh` checks out this commit on a local branch, `guarded-swarms-pin`. Do
 not move PX4 to another commit without regenerating `px4_msgs` from it. The PX4
-source tree is never modified: the scenario's airframes, models and worlds are
-added by the `make setup-*` targets and through environment variables, so
+source tree is never modified: Gazebo finds the scenario's models and worlds in
+this repository through `GZ_SIM_RESOURCE_PATH`, so
 `git -C ~/PX4-Autopilot status --short` prints nothing, as `make check-coastal`
 verifies.
 
@@ -49,7 +49,8 @@ The script takes 20 to 40 minutes and runs these steps:
 4. The PX4 dependencies and SITL, at the pinned commit.
 5. rosbridge, the WebSocket bridge of the supervisor console.
 6. The ROS 2 workspace.
-7. The scenario assets and the generated coastal world.
+7. A check of the rover model, and the coastal world regenerated from its
+   generator.
 8. The environment in `~/.bashrc`.
 
 Each step can also be run on its own:
@@ -58,8 +59,7 @@ Each step can also be run on its own:
 | ---------------------- | ---------------------------------------------------------------------------------- |
 | `make setup-workspace` | Build the ROS 2 packages                                                           |
 | `make setup-px4`       | Clone and build PX4                                                                |
-| `make setup-ugv`       | Install the UGV airframe and model into PX4                                        |
-| `make setup-worlds`    | Install the worlds into PX4                                                        |
+| `make setup-ugv`       | Check that the UGV model carries its lidar                                         |
 | `make gen-coastal`     | Generate the coastal world; with its fixed seed the file is identical at every run |
 
 ## The coastal scenario
@@ -73,13 +73,9 @@ uXRCE-DDS agent per vehicle, and the vehicle-side nodes: two UAVs that take off
 and hover over their launch pads, and a UGV that patrols the shore road. Leave
 it running in its own terminal.
 
-On a machine with both integrated and NVIDIA graphics, Gazebo may start on the
-integrated GPU, where the lidar sensors do not work. Running it on the NVIDIA
-GPU:
-
-```bash
-__NV_PRIME_RENDER_OFFLOAD=1 __GLX_VENDOR_LIBRARY_NAME=nvidia MESA_GL_VERSION_OVERRIDE=4.5 make demo-coastal
-```
+The lidar sensors need GPU rendering. On a machine with both integrated and
+NVIDIA graphics, `scripts/sim/gz_launch.sh`, which starts Gazebo for the
+scenario, selects the NVIDIA GPU itself; `make check-gpu` checks the setup.
 
 `make check-coastal` checks a running scenario: the real-time factor, the topics
 of each vehicle, that each vehicle is armed and airborne, the Safety Boards, and
