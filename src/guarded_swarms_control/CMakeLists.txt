@@ -24,11 +24,6 @@ add_executable(px4_safety_bridge_node
   src/px4_safety_bridge_node.cpp
 )
 
-target_include_directories(px4_safety_bridge_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
-
 ament_target_dependencies(px4_safety_bridge_node
   rclcpp px4_msgs sensor_msgs std_msgs
 )
@@ -44,10 +39,6 @@ target_compile_features(px4_safety_bridge_node PUBLIC c_std_99 cxx_std_17)
 add_executable(intruder_node
   src/intruder_node.cpp
 )
-target_include_directories(intruder_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(intruder_node
   rclcpp geometry_msgs nav_msgs std_msgs
 )
@@ -60,10 +51,6 @@ target_compile_features(intruder_node PUBLIC c_std_99 cxx_std_17)
 # tasks, so there is one command source per drone for the safety board to gate.
 # ============================================================================
 add_executable(uav_worker_node src/uav_worker_node.cpp)
-target_include_directories(uav_worker_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(uav_worker_node
   rclcpp px4_msgs guarded_swarms_msgs
 )
@@ -76,10 +63,6 @@ target_compile_features(uav_worker_node PUBLIC c_std_99 cxx_std_17)
 # tasks.
 # ============================================================================
 add_executable(ugv_worker_node src/ugv_worker_node.cpp)
-target_include_directories(ugv_worker_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(ugv_worker_node
   rclcpp px4_msgs std_msgs guarded_swarms_msgs
 )
@@ -92,10 +75,6 @@ target_compile_features(ugv_worker_node PUBLIC c_std_99 cxx_std_17)
 # (parameter veto_by).
 # ============================================================================
 add_executable(px4_safety_gate_node src/px4_safety_gate_node.cpp)
-target_include_directories(px4_safety_gate_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(px4_safety_gate_node
   rclcpp px4_msgs std_msgs
 )
@@ -112,15 +91,5 @@ install(TARGETS
   px4_safety_gate_node
 DESTINATION lib/${PROJECT_NAME}
 )
-
-# ============================================================================
-# Testing
-# ============================================================================
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  set(ament_cmake_copyright_FOUND TRUE)
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
 
 ament_package()

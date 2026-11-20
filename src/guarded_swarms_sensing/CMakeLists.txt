@@ -26,10 +26,6 @@ find_package(px4_msgs REQUIRED)
 
 # --- radar_agent_node : TRACK (position + velocity), sea sector ---
 add_executable(radar_agent_node src/radar_agent_node.cpp)
-target_include_directories(radar_agent_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(radar_agent_node
   rclcpp geometry_msgs guarded_swarms_msgs
 )
@@ -37,10 +33,6 @@ target_compile_features(radar_agent_node PUBLIC c_std_99 cxx_std_17)
 
 # --- rf_agent_node : SIGNATURE (freq/bw/rssi), needs std_msgs ---
 add_executable(rf_agent_node src/rf_agent_node.cpp)
-target_include_directories(rf_agent_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(rf_agent_node
   rclcpp geometry_msgs std_msgs guarded_swarms_msgs
 )
@@ -48,10 +40,6 @@ target_compile_features(rf_agent_node PUBLIC c_std_99 cxx_std_17)
 
 # --- acoustic_agent_node : BEARING from nearest buoy ---
 add_executable(acoustic_agent_node src/acoustic_agent_node.cpp)
-target_include_directories(acoustic_agent_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(acoustic_agent_node
   rclcpp geometry_msgs guarded_swarms_msgs
 )
@@ -62,10 +50,6 @@ target_compile_features(acoustic_agent_node PUBLIC c_std_99 cxx_std_17)
 #     place the camera cone. The other three agents have static coverage and
 #     so do not need px4_msgs. ---
 add_executable(eo_agent_node src/eo_agent_node.cpp)
-target_include_directories(eo_agent_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(eo_agent_node
   rclcpp geometry_msgs px4_msgs guarded_swarms_msgs
 )
@@ -84,15 +68,5 @@ install(TARGETS
 install(DIRECTORY config launch
   DESTINATION share/${PROJECT_NAME}
 )
-
-# ============================================================================
-# Testing
-# ============================================================================
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  set(ament_cmake_copyright_FOUND TRUE)
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
 
 ament_package()

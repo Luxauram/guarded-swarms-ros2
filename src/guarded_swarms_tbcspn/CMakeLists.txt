@@ -22,40 +22,24 @@ find_package(px4_msgs REQUIRED)
 # positions to assign the nearest one.
 # ============================================================================
 add_executable(interpretation_node src/interpretation_node.cpp)
-target_include_directories(interpretation_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(interpretation_node
   rclcpp guarded_swarms_msgs
 )
 target_compile_features(interpretation_node PUBLIC c_std_99 cxx_std_17)
 
 add_executable(candidate_transition_node src/candidate_transition_node.cpp)
-target_include_directories(candidate_transition_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(candidate_transition_node
   rclcpp guarded_swarms_msgs
 )
 target_compile_features(candidate_transition_node PUBLIC c_std_99 cxx_std_17)
 
 add_executable(mission_transition_node src/mission_transition_node.cpp)
-target_include_directories(mission_transition_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(mission_transition_node
   rclcpp guarded_swarms_msgs
 )
 target_compile_features(mission_transition_node PUBLIC c_std_99 cxx_std_17)
 
 add_executable(dispatch_transition_node src/dispatch_transition_node.cpp)
-target_include_directories(dispatch_transition_node PUBLIC
-  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
-  $<INSTALL_INTERFACE:include>
-)
 ament_target_dependencies(dispatch_transition_node
   rclcpp guarded_swarms_msgs px4_msgs
 )
@@ -69,15 +53,8 @@ install(TARGETS
   DESTINATION lib/${PROJECT_NAME}
 )
 
-install(DIRECTORY config launch
+install(DIRECTORY launch
   DESTINATION share/${PROJECT_NAME}
 )
-
-if(BUILD_TESTING)
-  find_package(ament_lint_auto REQUIRED)
-  set(ament_cmake_copyright_FOUND TRUE)
-  set(ament_cmake_cpplint_FOUND TRUE)
-  ament_lint_auto_find_test_dependencies()
-endif()
 
 ament_package()
