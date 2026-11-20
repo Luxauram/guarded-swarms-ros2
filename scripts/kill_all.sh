@@ -19,9 +19,9 @@
 # @file kill_all.sh
 # Guarded Swarms - kill all simulation and ROS 2 processes.
 #
-# Terminates the whole stack cleanly: the PX4 SITL build/run processes, Gazebo,
-# the uXRCE-DDS agent, every Guarded Swarms ROS 2 node, and the shared memory
-# and temporary files left behind.
+# Terminates the whole stack with SIGKILL: the PX4 SITL build/run processes,
+# Gazebo, the uXRCE-DDS agents, every Guarded Swarms ROS 2 node, and the shared
+# memory and temporary files left behind.
 #
 # Kept as a script (not inline in the Makefile) on purpose: an inline
 # 'pkill make' inside a recipe would also kill the make process running it.
@@ -61,7 +61,7 @@ pkill -9 -f "safety_board_node" 2>/dev/null || true
 pkill -9 -f "px4_safety_bridge_node" 2>/dev/null || true
 pkill -9 -f "mock_sensor_publisher" 2>/dev/null || true
 
-# Sensor consultant agents (upstream of T1).
+# Sensor consultant agents (upstream of T1, T2 and T4).
 pkill -9 -f "radar_agent_node" 2>/dev/null || true
 pkill -9 -f "rf_agent_node" 2>/dev/null || true
 pkill -9 -f "acoustic_agent_node" 2>/dev/null || true

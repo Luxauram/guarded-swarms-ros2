@@ -24,7 +24,7 @@
 # moving appear frozen at their spawn point. Ground truth comes from
 # 'gz model -p' and from the PX4 shell clients, never from the viewport.
 #
-# Usage: bash scripts/check_coastal.sh
+# Usage: bash scripts/world/check_coastal.sh, or make check-coastal
 # Run it after 'make demo-coastal' has finished starting everything.
 # ==============================================================================
 

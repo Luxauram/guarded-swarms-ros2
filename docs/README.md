@@ -28,6 +28,7 @@ The pages in this folder document each part of the project in detail.
 
 | Page                                        | Description                                                                |
 | ------------------------------------------- | -------------------------------------------------------------------------- |
+| [Simulation scripts](scripts/simulation.md) | Starting, configuring, checking and stopping Gazebo and PX4                |
 | [Pipeline run scripts](scripts/pipeline.md) | One end-to-end run, its recording, and the checks that keep its data clean |
 
 ## Experiments

@@ -20,9 +20,8 @@
 # Applies SITL parameters to a running PX4 instance from an ordinary shell.
 #
 # PX4 SITL ships client binaries (px4-param, px4-commander, ...) that talk to a
-# running instance over its working directory. This replaces driving the pxh>
-# prompt with expect, which is fragile inside xterm inside make, and lets the
-# whole demo stay scriptable and reproducible.
+# running instance from an ordinary shell, so the setup needs no interactive
+# pxh> prompt and stays scriptable and reproducible.
 #
 # Usage: px4_configure.sh <instance> <uav|ugv>
 #
@@ -36,9 +35,10 @@
 # refuse arming with "no connection to the GCS" (VehicleCommandAck result 1),
 # since offboard control is commanded from ROS 2 with no RC and no GCS.
 #
-# The UGV needs no parameters: PX4 defaults are correct for it. In particular
-# never set SYS_HAS_MAG 0 on the rover - without a magnetometer its EKF never
-# converges, local position stays invalid, and failsafe disarms it immediately.
+# The UGV needs only the low-battery failsafe off: the other PX4 defaults are
+# correct for it. In particular never set SYS_HAS_MAG 0 on the rover - without
+# a magnetometer its EKF never converges, local position stays invalid, and
+# failsafe disarms it immediately.
 # ==============================================================================
 set -e
 
@@ -97,8 +97,8 @@ elif [ "$INSTANCE" != "0" ]; then
     param set UXRCE_DDS_PRT "$DDS_PORT"
     param save
     # The client reads the port once, at startup, so it must be restarted for
-    # the new value to take effect. PX4 restores the per-instance topic
-    # namespace (px4_<N>) on its own when the client is started this way.
+    # the new value to take effect, with the per-instance topic namespace,
+    # px4_<N>, given again by -n.
     ./bin/px4-uxrce_dds_client --instance "$INSTANCE" stop || true
     sleep 1
     ./bin/px4-uxrce_dds_client --instance "$INSTANCE" start -n "px4_$INSTANCE"
