@@ -19,24 +19,24 @@
 # record_veto.sh - exercise the analog Safety Board in isolation and record a
 # bag of its verdicts.
 #
-# The Safety Board is an ANALOG enforcement layer that runs INDEPENDENTLY of
-# the digital coordination system: it clamps or vetoes actuator commands from
-# raw sensor readings alone, before they reach the ESCs. It is measured on its
-# own, with NO TB-CSPN layer and NO Gazebo/PX4 running. That the board vetoes
-# correctly while fully isolated from the digital system IS the independence
-# guarantee of the architecture.
+# The Safety Board decides from the sensor readings alone, independently of the
+# coordination layer: it forwards each proposed command, or replaces it with
+# 0.0 while a limit is violated. It is measured here on its own, with no
+# TB-CSPN layer and no Gazebo or PX4 running, so its verdicts can depend on
+# nothing else.
 #
 # Three processes:
 #   1. safety_board_node    - the board under test (subscribes sensors + raw,
 #                             publishes actuator_cmd_safe + safety_status)
 #   2. mock_sensor_publisher - cycles the six scripted scenarios (nominal,
 #                             proximity, attitude, battery, altitude, recovery),
-#                             10 s each, exercising every veto type
+#                             10 s each, exercising every value check
 #   3. a raw-command stream  - a constant actuator_cmd_raw > 0 at 10 Hz, so the
 #                             board's veto action (safe -> 0) is observable, not
 #                             just its status flag
 #
 # Usage:  ./scripts/record/record_veto.sh [tag]
+#         from the root of the repository: the bag goes to bags/<tag>-<time>.
 # ==============================================================================
 set -o pipefail
 
@@ -47,7 +47,7 @@ BAG="bags/${TAG}-${STAMP}"
 # One full pass through the six 10 s scenarios is 60 s; record a little longer
 # so the closing recovery scenario is captured in full.
 DURATION_S="${DURATION_S:-66}"
-RAW_THRUST="${RAW_THRUST:-0.7}"   # the "go" command the board must clamp
+RAW_THRUST="${RAW_THRUST:-0.7}"   # the "go" command, forwarded or vetoed
 
 # Topics that tell the whole veto story: the command before and after the
 # board, every sensor that can trip it, and the board's own status flag.
@@ -75,7 +75,7 @@ trap cleanup EXIT INT TERM
 echo "============================================================"
 echo "[veto] bag -> ${BAG}"
 echo "[veto] recording the analog Safety Board in ISOLATION"
-echo "[veto]   (no TB-CSPN, no Gazebo -- this is the independence claim)"
+echo "[veto]   (no TB-CSPN, no Gazebo, no PX4)"
 echo "[veto] duration ${DURATION_S}s, raw thrust ${RAW_THRUST}"
 echo "============================================================"
 
@@ -86,10 +86,10 @@ sleep 2
 
 echo "[veto] launching the safety board..."
 # The mock drives altitude=60 in its altitude scenario, which trips the default
-# 50 m cap, so the default tuning here exercises all five veto types. Override
-# with SAFETY_ARGS for rover tuning (altitude envelope opened, as for the rover
-# in coastal_pipeline.launch.py), leaving proximity/attitude/battery as the
-# ground vetoes.
+# 50 m cap, so the default tuning here exercises all four value checks.
+# Override with SAFETY_ARGS for rover tuning (altitude envelope opened, as for
+# the rover in coastal_pipeline.launch.py), leaving proximity/attitude/battery
+# as the ground vetoes.
 ros2 run guarded_swarms_safety safety_board_node ${SAFETY_ARGS:-} \
   >/tmp/gs_veto_board.log 2>&1 &
 PIDS+=($!)

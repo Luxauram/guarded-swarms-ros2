@@ -39,6 +39,8 @@ The pages in this folder document each part of the project in detail.
 | [Campaigns](experiments/campaigns.md)      | Unattended campaigns of recorded runs, and the scripts that start and stop the scenario               |
 | [Analysis](experiments/analysis.md)        | Clean-run checks, the tables of the campaigns, the figures, and the script that rebuilds every result |
 | [Clock-denial bench](experiments/clock.md) | The Safety Board in isolation under clock denial, and the tables of the bench                         |
+| [Veto recording](experiments/veto.md)      | The Safety Board in isolation under the scripted scenarios of the mock publisher, recorded to a bag   |
+| [Scaling bench](experiments/scaling.md)    | The real-time factor of the simulation against the number of PX4 instances                            |
 
 The remaining sections (the other packages, the other scripts, the supervisor
 console, conventions) are added as the documentation is completed.

@@ -19,25 +19,24 @@
 # @file bench_vehicles.sh
 # Measures how the real-time factor degrades as PX4 instances are added.
 #
-# This decides how large the final scenario can be. PX4 SITL runs in lockstep
+# It tells how large a scenario the machine can run. PX4 SITL runs in lockstep
 # with Gazebo, so every added instance is a synchronisation point: the cost is
 # not a simple sum of per-vehicle work, and it has to be measured rather than
 # estimated.
 #
-# The script cleans up before and after. Earlier manual attempts were polluted
-# by leftover instances holding the shell lock, which silently invalidated the
-# numbers, so cleanup is not optional here.
+# The script cleans up before and after: leftover instances holding the shell
+# lock silently invalidate the numbers.
 #
 # Two knobs matter for the result:
 #   MODEL     gz_x500_lidar_front carries a 640-ray GPU lidar; gz_x500 does
 #             not. Comparing the two separates sensor cost from vehicle cost.
-#   HEADLESS  the Gazebo GUI alone was measured at ~193% CPU, so metric
-#             campaigns are meant to run headless and the GUI kept for video.
+#   HEADLESS  the Gazebo GUI alone takes about two CPU cores, so measurements
+#             run headless and the GUI is kept for video.
 #
 # Usage:
-#   bash scripts/bench_vehicles.sh                  # 6 lidar UAVs, headless
-#   MODEL=gz_x500 bash scripts/bench_vehicles.sh    # same without lidar
-#   HEADLESS=0 MAX=4 bash scripts/bench_vehicles.sh # with GUI, up to 4
+#   bash scripts/bench/bench_vehicles.sh                  # headless, 6 UAVs
+#   MODEL=gz_x500 bash scripts/bench/bench_vehicles.sh    # same, without lidar
+#   HEADLESS=0 MAX=4 bash scripts/bench/bench_vehicles.sh # with GUI, up to 4
 # ==============================================================================
 set -u
 
