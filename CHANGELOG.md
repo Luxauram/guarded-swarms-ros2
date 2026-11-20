@@ -132,6 +132,11 @@ reproducible release.
   where the simulation reads it. Since `gen_coastal.py` moved to
   `scripts/world`, it wrote to `scripts/src/guarded_swarms_gz/worlds`, so a
   regeneration never reached the world the simulation loads.
+- The package manifests declare every package their code uses: `sensor_msgs`
+  in `guarded_swarms_control`, and in `guarded_swarms_bringup`,
+  `guarded_swarms_sensing` and `guarded_swarms_tbcspn` what their launch files
+  import or start (`launch`, `launch_ros`, `ament_index_python`, `python3-yaml`,
+  `ros_gz_bridge`).
 
 ## [0.4.0] - 2026-11-18
 

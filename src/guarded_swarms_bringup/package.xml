@@ -16,6 +16,11 @@
   <exec_depend>guarded_swarms_safety</exec_depend>
   <exec_depend>guarded_swarms_control</exec_depend>
   <exec_depend>guarded_swarms_msgs</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>
