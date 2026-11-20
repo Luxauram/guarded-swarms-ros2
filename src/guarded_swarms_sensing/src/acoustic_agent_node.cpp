@@ -19,10 +19,8 @@
  *
  * @brief Acoustic buoy network consultant agent.
  *
- * One of the four sensing modalities of the coastal surveillance scenario in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Section 5.1: "a network of acoustic sensors deployed on buoys near the
- * shoreline".
+ * One of the four sensing modalities of the coastal surveillance scenario: a
+ * network of acoustic sensors deployed on buoys near the shoreline.
  *
  * WHAT MAKES THIS MODALITY DIFFERENT
  * ==================================
@@ -39,7 +37,7 @@
  * detection picture depend on the attack vector.
  *
  * The buoy positions, the short range and the error model are a simulation
- * model, not specified by the paper. State this in the thesis.
+ * model, not part of the architecture.
  *
  * Topics:
  *   Subscribed:

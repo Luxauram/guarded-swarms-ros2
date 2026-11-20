@@ -18,10 +18,10 @@ find_package(px4_msgs REQUIRED)
 # ============================================================================
 # Consultant agents
 #
-# Each sensing modality of the coastal scenario (IET 5.1) is one node. They
-# synthesise ObsTokens from target ground truth using a per-modality coverage
-# and error model. The coverage geometry is a simulation model, not specified
-# by the paper.
+# Each sensing modality of the coastal scenario is one node. They synthesise
+# ObsTokens from target ground truth using a per-modality coverage and error
+# model. The coverage geometry is a simulation model, not part of the
+# architecture.
 # ============================================================================
 
 # --- radar_agent_node : TRACK (position + velocity), sea sector ---

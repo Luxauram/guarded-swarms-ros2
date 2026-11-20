@@ -2,7 +2,7 @@
 #
 # Omnidirectional: coverage is a plain range test. Detects only transmitting
 # targets, so a silent target (intruder transmitting:=false) is invisible here,
-# which is the radio-silence counterfactual of Section 5.3.
+# which is the radio-silence counterfactual.
 /**:
   ros__parameters:
     use_sim_time: true

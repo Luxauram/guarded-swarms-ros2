@@ -19,10 +19,8 @@
  *
  * @brief Passive RF monitoring consultant agent.
  *
- * One of the four sensing modalities of the coastal surveillance scenario in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Section 5.1: "passive RF monitoring equipment to identify possible drone
- * communication signals".
+ * One of the four sensing modalities of the coastal surveillance scenario:
+ * passive RF monitoring that identifies possible drone communication signals.
  *
  * WHAT MAKES THIS MODALITY DIFFERENT
  * ==================================
@@ -35,12 +33,12 @@
  * Because it is passive and omnidirectional, it has no sector: coverage is a
  * simple range test from the monitoring mast. But it only sees a target that
  * is actually transmitting. A target under radio silence (intruder parameter
- * transmitting:=false) is invisible to it, which is one of the counterfactual
- * trajectories of Section 5.3: without the RF confirmation the interpretation
- * chain cannot reach LikelyDroneLink and the mission is never synthesised.
+ * transmitting:=false) is invisible to it: without the RF confirmation the
+ * interpretation chain cannot reach LikelyDroneLink and the mission is never
+ * synthesised.
  *
  * The coverage geometry, the signature values and the error model are a
- * simulation model, not specified by the paper. State this in the thesis.
+ * simulation model, not part of the architecture.
  *
  * Topics:
  *   Subscribed:
@@ -104,7 +102,7 @@ class RfAgentNode : public rclcpp::Node {
     max_range_m_ = this->declare_parameter<double>("max_range_m", 320.0);
 
     // Signature the modality reports for a detected drone link. Fixed nominal
-    // values with noise: the study is about coordination, not RF analysis.
+    // values with noise: the model is about coordination, not RF analysis.
     centre_freq_hz_ =
         this->declare_parameter<double>("centre_freq_hz", 2.44e9);
     bandwidth_hz_ = this->declare_parameter<double>("bandwidth_hz", 2.0e7);

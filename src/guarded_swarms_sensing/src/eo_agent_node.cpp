@@ -18,10 +18,9 @@
  *
  * @brief Electro-optical (EO) camera consultant agent, mounted on a UAV.
  *
- * The fourth sensing modality of the coastal surveillance scenario in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Section 5.1: "UAV platforms equipped with electro-optical (EO) cameras
- * provide additional visual confirmation when required".
+ * The fourth sensing modality of the coastal surveillance scenario: an
+ * electro-optical (EO) camera on a UAV that provides visual confirmation
+ * when required.
  *
  * WHAT MAKES THIS MODALITY DIFFERENT
  * ==================================
@@ -35,8 +34,8 @@
  * but only over a short range and a narrow field of view. It is the
  * confirmation that turns a track into a ConfirmedAerialObject. Because it is
  * scarce and conditional, a late EO confirmation is what makes the
- * time-windowed join of Section 5.3 fail: the mission is not released if the
- * visual arrives after the window has closed.
+ * time-windowed join of T5 fail: the mission is not released if the visual
+ * arrives after the window has closed.
  *
  * THE STALE-EO COUNTERFACTUAL
  * ===========================
@@ -44,10 +43,9 @@
  * EO observation back by a fixed sim-time delay before publishing it. With a
  * large enough delay the ConfirmedAerialObject reaches T5 only after the
  * CandidateTarget's validity window has closed, so the two cannot fuse and no
- * ConfirmedThreat is produced. This reproduces the paper's "stale EO
- * confirmation" trajectory (Section 5.3) literally: the confirmation IS
- * generated and IS delivered, but too late to matter. The default is 0 (no
- * delay), so normal runs are unaffected.
+ * ConfirmedThreat is produced: the confirmation IS generated and IS
+ * delivered, but too late to matter. The default is 0 (no delay), so normal
+ * runs are unaffected.
  *
  * The camera is modelled as a cone: an axis direction (a fixed bearing and
  * pitch in the world frame for now) and a half-angle. When the worker agents
@@ -60,8 +58,8 @@
  * conversion assumes the PX4 local frame origin coincides with the UAV's
  * Gazebo spawn pose, which is set per vehicle and passed in as a parameter.
  *
- * The coverage geometry and error model are a simulation model, not specified
- * by the paper. State this in the thesis.
+ * The coverage geometry and error model are a simulation model, not part of
+ * the architecture.
  *
  * Topics:
  *   Subscribed:

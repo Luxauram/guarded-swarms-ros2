@@ -19,26 +19,22 @@
  *
  * @brief Coastal radar consultant agent.
  *
- * One of the four sensing modalities of the coastal surveillance scenario in
- * Borghoff, Bottoni and Pareschi (2026), IET Radar, Sonar and Navigation,
- * Section 5.1: "a coastal radar capable of detecting low-altitude aerial
- * tracks". It emits ObsToken(KIND_TRACK) with a position and velocity
- * estimate of the target.
+ * One of the four sensing modalities of the coastal surveillance scenario: a
+ * coastal radar that detects low-altitude aerial tracks. It emits
+ * ObsToken(KIND_TRACK) with a position and velocity estimate of the target.
  *
- * WHAT IS FROM THE PAPER, AND WHAT IS NOT
- * ======================================
- * The paper names the modality and says what it detects. It does NOT specify a
- * coverage geometry: the sector, orientation, range and error model below are
- * a simulation model, and must be presented as such in the thesis rather than
- * attributed to the paper.
+ * WHAT IS ARCHITECTURE, AND WHAT IS SIMULATION
+ * ============================================
+ * The architecture names the modality and what it detects. The sector,
+ * orientation, range and error model below are a simulation model, not part
+ * of the architecture.
  *
  * The coverage model is the point of the exercise. A coastal radar faces the
  * sea, so it is described by a position, a bore direction and an angular
  * half-width. A target ingressing from the sea enters the sector early and is
  * detected quickly; a target ingressing from inland, over the town, enters the
- * sector late or never. That detection-latency asymmetry by attack vector is
- * one of the metrics the evaluation is built around, and it emerges from this
- * geometry rather than being coded in.
+ * sector late or never. That detection-latency asymmetry by attack vector
+ * emerges from this geometry rather than being coded in.
  *
  * HOW OBSERVATIONS ARE SYNTHESISED
  * ================================
@@ -52,7 +48,7 @@
  *   - a fixed processing latency (latency_s), applied by timestamping the
  *     token in the past rather than by delaying publication, so the latency
  *     adds no scheduling jitter of its own
- * These are exactly the knobs the evaluation sweeps. The random draws come
+ * These are the knobs the experiments vary. The random draws come
  * from a generator seeded by the `seed` parameter (0 = drawn at random); the
  * seed in use is logged at start-up, so the noise of a run can be reproduced.
  *
@@ -126,7 +122,7 @@ class RadarAgentNode : public rclcpp::Node {
     max_range_m_ = this->declare_parameter<double>("max_range_m", 260.0);
     min_altitude_m_ = this->declare_parameter<double>("min_altitude_m", 2.0);
 
-    // --- Error and rate model (the evaluation knobs) ---
+    // --- Error and rate model (the knobs the experiments vary) ---
     position_noise_m_ = this->declare_parameter<double>("position_noise_m", 3.0);
     detection_prob_ = this->declare_parameter<double>("detection_prob", 0.95);
     false_positive_hz_ =

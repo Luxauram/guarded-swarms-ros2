@@ -14,20 +14,19 @@ limitations under the License.
 """
 @file sensing.launch.py
 Guarded Swarms - the sensor-driven layer.
-Brings up the four consultant agents of the coastal surveillance scenario
-(IET Section 5.1) in one command, each configured from its own YAML file under
-config/. Replaces the six-terminal workflow used while developing the agents.
+Brings up the four consultant agents of the coastal surveillance scenario in
+one command, each configured from its own YAML file under config/.
 Every agent runs with use_sim_time (set in the YAML): the real-time factor is
 below 1, so token timestamps and the latencies derived from them must be on the
 simulation clock to be comparable between runs.
 The agents synthesise observations from target ground truth using per-modality
 coverage and error models. The coverage geometry is a simulation model, not
-specified by the paper.
+part of the architecture.
 Each modality can be switched off independently (radar:=false, rf:=false,
-acoustic:=false, eo:=false). This is what drives the loss-of-modality metric
-(Group 4b): disabling one modality and measuring how the detection chain
-degrades. eo:=false additionally reproduces the EO-absent limiting case of the
-stale-EO counterfactual.
+acoustic:=false, eo:=false). This is what drives the loss-of-modality runs:
+disabling one modality and measuring how the detection chain degrades.
+eo:=false additionally reproduces the EO-absent limiting case of the stale-EO
+counterfactual.
 Random draws: the SEED environment variable sets the seed of the run, and each
 agent gets its own seed derived from it (radar SEED+1, rf SEED+2, acoustic
 SEED+3, eo SEED+4), so one number reproduces the noise of all four. Without
@@ -70,7 +69,7 @@ def generate_launch_description():
     cfg = os.path.join(get_package_share_directory(PKG), "config")
     seed, drawn = run_seed()
     # Per-modality enable flags. Default true; set false to drop one modality
-    # for the loss-of-modality metric (Group 4b).
+    # for the loss-of-modality runs.
     radar_arg = DeclareLaunchArgument(
         "radar", default_value="true",
         description="Launch the coastal radar agent.")
