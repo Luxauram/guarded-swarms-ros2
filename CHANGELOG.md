@@ -127,6 +127,10 @@ reproducible release.
   error even when every test passed.
 - `scripts/kill_all.sh` also stops the scripted supervisor, the console bridge
   and the mock sensor publisher.
+- `make gen-coastal` writes `coastal.sdf` to `src/guarded_swarms_gz/worlds`,
+  where the simulation reads it. Since `gen_coastal.py` moved to
+  `scripts/world`, it wrote to `scripts/src/guarded_swarms_gz/worlds`, so a
+  regeneration never reached the world the simulation loads.
 
 ## [0.4.0] - 2026-11-18
 

@@ -17,7 +17,7 @@
 """Generate coastal.sdf, the Guarded Swarms coastal surveillance world.
 
 Deterministic: a fixed seed means every regeneration produces a byte-identical
-world, which matters because the evaluation metrics are collected against it.
+world, which matters because the experiments are recorded against it.
 
 Scenery is emitted as nested models so that the Gazebo entity tree shows a
 handful of folders (terrain, town, harbour, sensing, flight_ops, obstacles)
@@ -37,8 +37,8 @@ random.seed(RANDOM_SEED)
 
 OUT_PATH = os.environ.get(
     "COASTAL_OUT",
-    os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                 "..", "src", "guarded_swarms_gz", "worlds", "coastal.sdf"),
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..",
+                 "src", "guarded_swarms_gz", "worlds", "coastal.sdf"),
 )
 
 out = []
@@ -277,14 +277,12 @@ W('<?xml version="1.0" encoding="UTF-8"?>')
 W("""<!--
   Guarded Swarms === Coastal Surveillance World
   GENERATED FILE. Regenerate with 'make gen-coastal' (deterministic seed).
-  Do not hand-edit: change scripts/gen_coastal.py instead.
-  Implements the case study of Borghoff, Bottoni and Pareschi (2026),
-  "Sensor-Driven Mission Synthesis for UAV/UGV Swarms", IET Radar, Sonar and
-  Navigation, Section 5.1: a coastal perimeter monitored by a coastal radar,
-  passive RF monitoring equipment, a network of acoustic buoys near the
-  shoreline, and UAV-mounted electro-optical cameras. The swarm comprises two
-  UAV platforms for aerial interception and one UGV positioned near the
-  shoreline for ground observation and target recovery.
+  Do not hand-edit: change scripts/world/gen_coastal.py instead.
+  Implements the coastal surveillance scenario: a coastal perimeter monitored
+  by a coastal radar, passive RF monitoring equipment, a network of acoustic
+  buoys near the shoreline, and UAV-mounted electro-optical cameras. The swarm
+  comprises two UAV platforms for aerial interception and one UGV positioned
+  near the shoreline for ground observation and target recovery.
   SCALE NOTE
   ==========
   The scenario is compressed to a 400x400 m area. A real coastal radar covers
@@ -292,7 +290,7 @@ W("""<!--
   that footprint on a single workstation. The compression is geometric only:
   sensor ranges, detection thresholds and time windows are configured in the
   consultant agents rather than in this world, so the coordination behaviour
-  under study is unaffected. State this as a limitation in the thesis.
+  under study is unaffected. This is a limitation of the simulation.
   COORDINATE FRAMES (read before editing poses)
   =============================================
   This world is ENU, like PX4's own worlds:  Gazebo X = East, Gazebo Y = North.
